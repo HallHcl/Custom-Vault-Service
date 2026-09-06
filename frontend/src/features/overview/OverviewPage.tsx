@@ -1,5 +1,4 @@
 import { useEffect, useState } from "react";
-import { formatDistanceToNow } from "date-fns";
 import {
   Card,
   CardContent,
@@ -32,7 +31,6 @@ import { useEnvironments } from "@/hooks/useEnvironments";
 import { useServers } from "@/hooks/useServers";
 import { useResources } from "@/hooks/useResources";
 import { useSchedules } from "@/hooks/useSchedules";
-import { useActivityLogs } from "@/hooks/useActivityLogs";
 import { cn } from "@/lib/utils";
 import { panelSurface } from "@/lib/panelSurface";
 
@@ -49,7 +47,6 @@ export default function OverviewPage() {
 
   const client = clients.find((c) => c.id === clientId);
   const { data: projects = [] } = useProjects(clientId);
-  const { data: activity = [] } = useActivityLogs();
 
   // System-wide KPI counts. Each is its own independent query asking for a
   // single row and reading `pagination.total` off it — the same trick
@@ -90,8 +87,6 @@ export default function OverviewPage() {
       to: "/schedule?status=pending",
     },
   ];
-
-  const recentActivity = activity.slice(0, 10);
 
   return (
     <div className="space-y-6">
@@ -176,32 +171,6 @@ export default function OverviewPage() {
         </Card>
       )}
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Recent activity</CardTitle>
-        </CardHeader>
-        <CardContent>
-          {recentActivity.length === 0 ? (
-            <p className="text-sm text-muted-foreground">No recent activity.</p>
-          ) : (
-            <ul className="space-y-3">
-              {recentActivity.map((log) => (
-                <li key={log.id} className="flex items-center justify-between text-sm">
-                  <span>
-                    <span className="font-medium capitalize">{log.action}</span>{" "}
-                    <span className="text-muted-foreground">
-                      {log.entity_type.replace("_", " ")}
-                    </span>
-                  </span>
-                  <span className="text-xs text-muted-foreground">
-                    {formatDistanceToNow(new Date(log.created_at), { addSuffix: true })}
-                  </span>
-                </li>
-              ))}
-            </ul>
-          )}
-        </CardContent>
-      </Card>
     </div>
   );
 }
