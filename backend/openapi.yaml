@@ -1154,6 +1154,7 @@ components:
         - resource_version
         - resource_attachment
         - schedule
+        - expiration
         - user
     ActivityAction:
       type: string
@@ -1219,6 +1220,166 @@ components:
         - project
         - environment
         - server
+    ExpirationListResponse:
+      type: object
+      properties:
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/Expiration"
+        pagination:
+          $ref: "#/components/schemas/Pagination"
+      required:
+        - data
+        - pagination
+    Expiration:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        client_id:
+          type: string
+          format: uuid
+        project_id:
+          type: string
+          nullable: true
+          format: uuid
+        server_id:
+          type: string
+          nullable: true
+          format: uuid
+        type:
+          $ref: "#/components/schemas/ExpirationType"
+        name:
+          type: string
+        provider_or_vendor:
+          type: string
+          nullable: true
+        identifier:
+          type: string
+          nullable: true
+        expiry_date:
+          type: string
+        alert_threshold_days:
+          type: integer
+        status:
+          $ref: "#/components/schemas/ExpirationStatus"
+        notes:
+          type: string
+          nullable: true
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+        deleted_at:
+          type: string
+          nullable: true
+          format: date-time
+        days_until_expiry:
+          type: integer
+        is_expired:
+          type: boolean
+        is_critical:
+          type: boolean
+        is_expiring_soon:
+          type: boolean
+      required:
+        - id
+        - client_id
+        - project_id
+        - server_id
+        - type
+        - name
+        - provider_or_vendor
+        - identifier
+        - expiry_date
+        - alert_threshold_days
+        - status
+        - notes
+        - created_at
+        - updated_at
+        - deleted_at
+        - days_until_expiry
+        - is_expired
+        - is_critical
+        - is_expiring_soon
+    ExpirationType:
+      type: string
+      enum:
+        - ssl_certificate
+        - hardware_ma
+        - software_license
+        - warranty
+        - domain_or_cloud
+    ExpirationStatus:
+      type: string
+      enum:
+        - active
+        - renewed
+        - expired
+    ExpirationSummary:
+      type: object
+      properties:
+        expired_count:
+          type: integer
+        critical_count:
+          type: integer
+        warning_count:
+          type: integer
+        upcoming_count:
+          type: integer
+      required:
+        - expired_count
+        - critical_count
+        - warning_count
+        - upcoming_count
+    ExpirationDetail:
+      allOf:
+        - $ref: "#/components/schemas/Expiration"
+        - type: object
+          properties:
+            client:
+              type: object
+              properties:
+                id:
+                  type: string
+                  format: uuid
+                name:
+                  type: string
+              required:
+                - id
+                - name
+            project:
+              type: object
+              nullable: true
+              properties:
+                id:
+                  type: string
+                  format: uuid
+                name:
+                  type: string
+              required:
+                - id
+                - name
+            server:
+              type: object
+              nullable: true
+              properties:
+                id:
+                  type: string
+                  format: uuid
+                display_name:
+                  type: string
+              required:
+                - id
+                - display_name
+          required:
+            - client
+            - project
+            - server
   parameters: {}
 paths:
   /api/auth/login:
@@ -4929,6 +5090,470 @@ paths:
                 $ref: "#/components/schemas/SearchResults"
         "401":
           description: Not authenticated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /api/expirations:
+    get:
+      tags:
+        - Expirations
+      operationId: listExpirations
+      summary: List expirations with computed status and days until expiry
+      security:
+        - bearerAuth: []
+      parameters:
+        - schema:
+            type: integer
+            minimum: 1
+            description: "Default: 1"
+          required: false
+          description: "Default: 1"
+          name: page
+          in: query
+        - schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            description: "Default: 20, max: 100"
+          required: false
+          description: "Default: 20, max: 100"
+          name: per_page
+          in: query
+        - schema:
+            type: string
+            enum:
+              - expiry_date
+              - name
+              - created_at
+              - updated_at
+            description: "Default: expiry_date"
+          required: false
+          description: "Default: expiry_date"
+          name: sort
+          in: query
+        - schema:
+            type: string
+            enum:
+              - asc
+              - desc
+            description: "Default: asc"
+          required: false
+          description: "Default: asc"
+          name: order
+          in: query
+        - schema:
+            type: string
+            enum:
+              - "false"
+              - "true"
+              - all
+            description: "Default: false"
+          required: false
+          description: "Default: false"
+          name: deleted
+          in: query
+        - schema:
+            type: string
+          required: false
+          name: search
+          in: query
+        - schema:
+            type: string
+            format: uuid
+          required: false
+          name: client_id
+          in: query
+        - schema:
+            type: string
+            format: uuid
+          required: false
+          name: project_id
+          in: query
+        - schema:
+            type: string
+            format: uuid
+          required: false
+          name: server_id
+          in: query
+        - schema:
+            type: string
+          required: false
+          name: type
+          in: query
+        - schema:
+            type: string
+          required: false
+          name: status
+          in: query
+        - schema:
+            type: integer
+            nullable: true
+            minimum: 0
+          required: false
+          name: days_ahead
+          in: query
+      responses:
+        "200":
+          description: Paginated expirations
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ExpirationListResponse"
+        "401":
+          description: Not authenticated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    post:
+      tags:
+        - Expirations
+      operationId: createExpiration
+      summary: Create an expiration tracking record (admin or member)
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                client_id:
+                  type: string
+                  format: uuid
+                project_id:
+                  type: string
+                  nullable: true
+                  format: uuid
+                server_id:
+                  type: string
+                  nullable: true
+                  format: uuid
+                type:
+                  type: string
+                  enum:
+                    - ssl_certificate
+                    - hardware_ma
+                    - software_license
+                    - warranty
+                    - domain_or_cloud
+                name:
+                  type: string
+                  minLength: 1
+                provider_or_vendor:
+                  type: string
+                  nullable: true
+                identifier:
+                  type: string
+                  nullable: true
+                expiry_date:
+                  type: string
+                  pattern: ^\d{4}-\d{2}-\d{2}$
+                alert_threshold_days:
+                  type: integer
+                  minimum: 1
+                  default: 30
+                status:
+                  type: string
+                  enum:
+                    - active
+                    - renewed
+                    - expired
+                  default: active
+                notes:
+                  type: string
+                  nullable: true
+              required:
+                - client_id
+                - type
+                - name
+                - expiry_date
+      responses:
+        "201":
+          description: Expiration created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Expiration"
+        "400":
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Not authenticated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Insufficient permissions
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: Conflict
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /api/expirations/summary:
+    get:
+      tags:
+        - Expirations
+      operationId: getExpirationsSummary
+      summary: Get expiration counts partitioned into expired, critical (<=7d),
+        warning (8-30d), and upcoming (31-90d)
+      security:
+        - bearerAuth: []
+      parameters:
+        - schema:
+            type: string
+            format: uuid
+            description: Optionally filter counts to a specific client
+          required: false
+          description: Optionally filter counts to a specific client
+          name: client_id
+          in: query
+      responses:
+        "200":
+          description: Expiration counts summary
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ExpirationSummary"
+        "401":
+          description: Not authenticated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /api/expirations/{id}:
+    get:
+      tags:
+        - Expirations
+      operationId: getExpirationById
+      summary: Get an expiration by id with linked client, project, and server metadata
+      security:
+        - bearerAuth: []
+      parameters:
+        - schema:
+            type: string
+            format: uuid
+          required: true
+          name: id
+          in: path
+      responses:
+        "200":
+          description: Expiration detail
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ExpirationDetail"
+        "401":
+          description: Not authenticated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    patch:
+      tags:
+        - Expirations
+      operationId: updateExpiration
+      summary: Update an expiration record or mark as renewed (admin or member;
+        optimistic lock)
+      security:
+        - bearerAuth: []
+      parameters:
+        - schema:
+            type: string
+            format: uuid
+          required: true
+          name: id
+          in: path
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                client_id:
+                  type: string
+                  format: uuid
+                project_id:
+                  type: string
+                  nullable: true
+                  format: uuid
+                server_id:
+                  type: string
+                  nullable: true
+                  format: uuid
+                type:
+                  type: string
+                  enum:
+                    - ssl_certificate
+                    - hardware_ma
+                    - software_license
+                    - warranty
+                    - domain_or_cloud
+                name:
+                  type: string
+                  minLength: 1
+                provider_or_vendor:
+                  type: string
+                  nullable: true
+                identifier:
+                  type: string
+                  nullable: true
+                expiry_date:
+                  type: string
+                  pattern: ^\d{4}-\d{2}-\d{2}$
+                alert_threshold_days:
+                  type: integer
+                  minimum: 1
+                status:
+                  type: string
+                  enum:
+                    - active
+                    - renewed
+                    - expired
+                notes:
+                  type: string
+                  nullable: true
+                updated_at:
+                  type: string
+                  minLength: 1
+              required:
+                - updated_at
+      responses:
+        "200":
+          description: Expiration updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Expiration"
+        "400":
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Not authenticated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Insufficient permissions
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: Conflict
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    delete:
+      tags:
+        - Expirations
+      operationId: deleteExpiration
+      summary: Soft-delete an expiration record (admin only)
+      security:
+        - bearerAuth: []
+      parameters:
+        - schema:
+            type: string
+            format: uuid
+          required: true
+          name: id
+          in: path
+      responses:
+        "200":
+          description: Expiration soft-deleted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Expiration"
+        "401":
+          description: Not authenticated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Insufficient permissions
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /api/expirations/{id}/restore:
+    post:
+      tags:
+        - Expirations
+      operationId: restoreExpiration
+      summary: Restore a soft-deleted expiration record (admin only)
+      security:
+        - bearerAuth: []
+      parameters:
+        - schema:
+            type: string
+            format: uuid
+          required: true
+          name: id
+          in: path
+      responses:
+        "200":
+          description: Expiration restored
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Expiration"
+        "401":
+          description: Not authenticated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Insufficient permissions
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: Conflict
           content:
             application/json:
               schema:

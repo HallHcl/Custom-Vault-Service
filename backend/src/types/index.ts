@@ -9,6 +9,7 @@ export type EntityType =
   | "resource_version"
   | "resource_attachment"
   | "schedule"
+  | "expiration"
   | "user";
 
 export type ActivityAction = "create" | "update" | "delete" | "restore";
@@ -223,6 +224,53 @@ export interface Schedule {
   created_at: string;
   updated_at: string;
   deleted_at: string | null;
+}
+
+export type ExpirationType =
+  | "ssl_certificate"
+  | "hardware_ma"
+  | "software_license"
+  | "warranty"
+  | "domain_or_cloud";
+
+export type ExpirationStatus = "active" | "renewed" | "expired";
+
+export interface Expiration {
+  id: string;
+  client_id: string;
+  project_id: string | null;
+  server_id: string | null;
+  type: ExpirationType;
+  name: string;
+  provider_or_vendor: string | null;
+  identifier: string | null;
+  expiry_date: string;
+  alert_threshold_days: number;
+  status: ExpirationStatus;
+  notes: string | null;
+  created_at: string;
+  updated_at: string;
+  deleted_at: string | null;
+}
+
+export interface ExpirationListItem extends Expiration {
+  days_until_expiry: number;
+  is_expired: boolean;
+  is_critical: boolean;
+  is_expiring_soon: boolean;
+}
+
+export interface ExpirationDetail extends ExpirationListItem {
+  client: { id: string; name: string };
+  project: { id: string; name: string } | null;
+  server: { id: string; display_name: string } | null;
+}
+
+export interface ExpirationSummary {
+  expired_count: number;
+  critical_count: number;
+  warning_count: number;
+  upcoming_count: number;
 }
 
 export interface ActivityLog {

@@ -107,9 +107,24 @@ export const EntityTypeSchema = z
     "resource_version",
     "resource_attachment",
     "schedule",
+    "expiration",
     "user",
   ])
   .openapi("EntityType");
+
+export const ExpirationTypeSchema = z
+  .enum([
+    "ssl_certificate",
+    "hardware_ma",
+    "software_license",
+    "warranty",
+    "domain_or_cloud",
+  ])
+  .openapi("ExpirationType");
+
+export const ExpirationStatusSchema = z
+  .enum(["active", "renewed", "expired"])
+  .openapi("ExpirationStatus");
 
 export const ActivityActionSchema = z
   .enum(["create", "update", "delete", "restore"])
@@ -469,6 +484,55 @@ export const ResourceVersionListResponseSchema = paginated(
 export const PersonListResponseSchema = paginated("PersonListResponse", PersonSchema);
 export const ScheduleListResponseSchema = paginated("ScheduleListResponse", ScheduleListItemSchema);
 export const ActivityLogListResponseSchema = paginated("ActivityLogListResponse", ActivityLogSchema);
+
+export const ExpirationSchema = z
+  .object({
+    id: z.string().uuid(),
+    client_id: z.string().uuid(),
+    project_id: z.string().uuid().nullable(),
+    server_id: z.string().uuid().nullable(),
+    type: ExpirationTypeSchema,
+    name: z.string(),
+    provider_or_vendor: z.string().nullable(),
+    identifier: z.string().nullable(),
+    expiry_date: z.string(),
+    alert_threshold_days: z.number().int(),
+    status: ExpirationStatusSchema,
+    notes: z.string().nullable(),
+    created_at: z.string().datetime(),
+    updated_at: z.string().datetime(),
+    deleted_at: z.string().datetime().nullable(),
+    days_until_expiry: z.number().int(),
+    is_expired: z.boolean(),
+    is_critical: z.boolean(),
+    is_expiring_soon: z.boolean(),
+  })
+  .openapi("Expiration");
+
+export const ExpirationDetailSchema = ExpirationSchema.extend({
+  client: ClientRefSchema,
+  project: ProjectRefSchema.nullable(),
+  server: z
+    .object({
+      id: z.string().uuid(),
+      display_name: z.string(),
+    })
+    .nullable(),
+}).openapi("ExpirationDetail");
+
+export const ExpirationSummarySchema = z
+  .object({
+    expired_count: z.number().int(),
+    critical_count: z.number().int(),
+    warning_count: z.number().int(),
+    upcoming_count: z.number().int(),
+  })
+  .openapi("ExpirationSummary");
+
+export const ExpirationListResponseSchema = paginated(
+  "ExpirationListResponse",
+  ExpirationSchema
+);
 
 // ---------------------------------------------------------------------------
 // Global search (⌘K palette) — DELIVERY entities only

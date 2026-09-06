@@ -33,6 +33,10 @@ import {
   ServerDetailSchema,
   ServerListResponseSchema,
   ServerSchema,
+  ExpirationDetailSchema,
+  ExpirationListResponseSchema,
+  ExpirationSchema,
+  ExpirationSummarySchema,
   UserSchema,
 } from "./schemas";
 import { loginSchema, changePasswordSchema } from "../validators/auth.validator";
@@ -52,6 +56,7 @@ import {
 } from "../validators/resources.validator";
 import { createPersonSchema, linkClientSchema, updatePersonSchema } from "../validators/people.validator";
 import { createScheduleSchema, updateScheduleSchema } from "../validators/schedules.validator";
+import { createExpirationSchema, updateExpirationSchema } from "../validators/expirations.validator";
 
 export const registry = new OpenAPIRegistry();
 
@@ -1083,3 +1088,99 @@ registry.registerPath({
   },
   responses: { 200: ok("Grouped, relevance-ranked search results", SearchResultsSchema), ...errors(401) },
 });
+
+// ---------------------------------------------------------------------------
+// Expirations
+// ---------------------------------------------------------------------------
+
+registry.registerPath({
+  method: "get",
+  path: "/api/expirations",
+  tags: ["Expirations"],
+  operationId: "listExpirations",
+  summary: "List expirations with computed status and days until expiry",
+  security: bearerAuth,
+  request: {
+    query: listQuery(["expiry_date", "name", "created_at", "updated_at"], "expiry_date", {
+      search: z.string().optional(),
+      client_id: z.string().uuid().optional(),
+      project_id: z.string().uuid().optional(),
+      server_id: z.string().uuid().optional(),
+      type: z.string().optional(),
+      status: z.string().optional(),
+      days_ahead: z.coerce.number().int().min(0).optional(),
+    }),
+  },
+  responses: { 200: ok("Paginated expirations", ExpirationListResponseSchema), ...errors(401) },
+});
+
+registry.registerPath({
+  method: "get",
+  path: "/api/expirations/summary",
+  tags: ["Expirations"],
+  operationId: "getExpirationsSummary",
+  summary: "Get expiration counts partitioned into expired, critical (<=7d), warning (8-30d), and upcoming (31-90d)",
+  security: bearerAuth,
+  request: {
+    query: z.object({
+      client_id: z.string().uuid().optional().openapi({ description: "Optionally filter counts to a specific client" }),
+    }),
+  },
+  responses: { 200: ok("Expiration counts summary", ExpirationSummarySchema), ...errors(401) },
+});
+
+registry.registerPath({
+  method: "get",
+  path: "/api/expirations/{id}",
+  tags: ["Expirations"],
+  operationId: "getExpirationById",
+  summary: "Get an expiration by id with linked client, project, and server metadata",
+  security: bearerAuth,
+  request: { params: IdParam },
+  responses: { 200: ok("Expiration detail", ExpirationDetailSchema), ...errors(401, 404) },
+});
+
+registry.registerPath({
+  method: "post",
+  path: "/api/expirations",
+  tags: ["Expirations"],
+  operationId: "createExpiration",
+  summary: "Create an expiration tracking record (admin or member)",
+  security: bearerAuth,
+  request: { body: { required: true, ...json(createExpirationSchema) } },
+  responses: { 201: ok("Expiration created", ExpirationSchema), ...errors(400, 401, 403, 409) },
+});
+
+registry.registerPath({
+  method: "patch",
+  path: "/api/expirations/{id}",
+  tags: ["Expirations"],
+  operationId: "updateExpiration",
+  summary: "Update an expiration record or mark as renewed (admin or member; optimistic lock)",
+  security: bearerAuth,
+  request: { params: IdParam, body: { required: true, ...json(updateExpirationSchema) } },
+  responses: { 200: ok("Expiration updated", ExpirationSchema), ...errors(400, 401, 403, 404, 409) },
+});
+
+registry.registerPath({
+  method: "delete",
+  path: "/api/expirations/{id}",
+  tags: ["Expirations"],
+  operationId: "deleteExpiration",
+  summary: "Soft-delete an expiration record (admin only)",
+  security: bearerAuth,
+  request: { params: IdParam },
+  responses: { 200: ok("Expiration soft-deleted", ExpirationSchema), ...errors(401, 403, 404) },
+});
+
+registry.registerPath({
+  method: "post",
+  path: "/api/expirations/{id}/restore",
+  tags: ["Expirations"],
+  operationId: "restoreExpiration",
+  summary: "Restore a soft-deleted expiration record (admin only)",
+  security: bearerAuth,
+  request: { params: IdParam },
+  responses: { 200: ok("Expiration restored", ExpirationSchema), ...errors(401, 403, 404, 409) },
+});
+
