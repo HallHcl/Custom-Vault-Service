@@ -1,7 +1,9 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
-import { MemoryRouter } from "react-router-dom";
+import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import Breadcrumbs from "@/components/layout/Breadcrumbs";
+import { BreadcrumbsProvider } from "@/components/layout/BreadcrumbsContext";
 import { expectDeletedTreatment } from "@/test/deletedRow";
 import {
   actionsWrapperFor,
@@ -91,7 +93,14 @@ function renderPage(initialEntries = ["/schedule"]) {
   const { unmount } = render(
     <QueryClientProvider client={queryClient}>
       <MemoryRouter initialEntries={initialEntries}>
-        <SchedulePage />
+        <BreadcrumbsProvider>
+          <Breadcrumbs />
+          <Routes>
+            <Route path="/schedule" element={<SchedulePage />} />
+            <Route path="/schedule/new" element={<div>New schedule page</div>} />
+            <Route path="/schedule/:id/edit" element={<div>Edit schedule page</div>} />
+          </Routes>
+        </BreadcrumbsProvider>
       </MemoryRouter>
     </QueryClientProvider>
   );
@@ -251,6 +260,28 @@ describe("SchedulePage", () => {
       expect(await screen.findByRole("menuitem", { name: "Edit" })).toBeInTheDocument();
     });
 
+    it("navigates to /schedule/new when New schedule button is clicked", async () => {
+      useAuthMock.mockReturnValue({ roles: ["admin"], isLoading: false });
+      mockGetByPath({ schedules: ok(paginated([ACTIVE_SCHEDULE])) });
+      renderPage();
+
+      await screen.findByText("Quarterly PM");
+      fireEvent.click(screen.getByRole("button", { name: /new schedule/i }));
+
+      expect(await screen.findByText("New schedule page")).toBeInTheDocument();
+    });
+
+    it("navigates to /schedule/:id/edit when Edit menu item is clicked", async () => {
+      useAuthMock.mockReturnValue({ roles: ["admin"], isLoading: false });
+      mockGetByPath({ schedules: ok(paginated([ACTIVE_SCHEDULE])) });
+      renderPage();
+
+      await screen.findByText("Quarterly PM");
+      fireEvent.pointerDown(screen.getByRole("button", { name: "Actions" }), { button: 0 });
+      fireEvent.click(await screen.findByRole("menuitem", { name: "Edit" }));
+
+      expect(await screen.findByText("Edit schedule page")).toBeInTheDocument();
+    });
     it("hides New schedule and the Actions menu from a role with neither admin nor member", async () => {
       useAuthMock.mockReturnValue({ roles: [], isLoading: false });
       mockGetByPath({ schedules: ok(paginated([ACTIVE_SCHEDULE])) });

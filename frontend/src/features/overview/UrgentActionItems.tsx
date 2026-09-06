@@ -1,8 +1,8 @@
-import { useMemo, useState } from "react";
+import { useMemo } from "react";
 import { format } from "date-fns";
+import { useNavigate } from "react-router-dom";
 import { AlertTriangle, CalendarClock, CheckCircle2 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import ScheduleFormSheet from "@/features/schedule/components/ScheduleFormSheet";
 import { usePeople } from "@/hooks/usePeople";
 import { useSchedules, type ScheduleListItem } from "@/hooks/useSchedules";
 import { daysOverdue, isDueToday, isOverdue } from "./urgentSchedules";
@@ -37,8 +37,7 @@ function UrgentRow({ schedule, assignee, detail, onSelect }: UrgentRowProps) {
 }
 
 export default function UrgentActionItems() {
-  const [editing, setEditing] = useState<ScheduleListItem | undefined>(undefined);
-  const [formOpen, setFormOpen] = useState(false);
+  const navigate = useNavigate();
 
   // One bounded query covering both buckets. `status` is single-valued
   // server-side so "pending OR in_progress" can't be expressed there, and
@@ -88,8 +87,7 @@ export default function UrgentActionItems() {
   );
 
   function openSchedule(schedule: ScheduleListItem) {
-    setEditing(schedule);
-    setFormOpen(true);
+    navigate(`/schedule/${schedule.id}/edit`);
   }
 
   const hasUrgent = overdue.length > 0 || dueToday.length > 0;
@@ -124,7 +122,7 @@ export default function UrgentActionItems() {
             <section aria-labelledby="urgent-overdue-heading">
               <h3
                 id="urgent-overdue-heading"
-                className="mb-1 flex items-center gap-2 px-3 text-xs font-medium uppercase tracking-wider text-danger-text"
+                className="mb-1 flex items-center gap-2 px-3 text-label text-danger-text"
               >
                 <AlertTriangle className="h-3.5 w-3.5" aria-hidden="true" />
                 Overdue ({overdue.length})
@@ -150,7 +148,7 @@ export default function UrgentActionItems() {
             <section aria-labelledby="urgent-due-today-heading">
               <h3
                 id="urgent-due-today-heading"
-                className="mb-1 flex items-center gap-2 px-3 text-xs font-medium uppercase tracking-wider text-info-text"
+                className="mb-1 flex items-center gap-2 px-3 text-label text-info-text"
               >
                 <CalendarClock className="h-3.5 w-3.5" aria-hidden="true" />
                 Due today ({dueToday.length})
@@ -177,12 +175,6 @@ export default function UrgentActionItems() {
           )}
         </CardContent>
       </Card>
-
-      <ScheduleFormSheet
-        open={formOpen}
-        onOpenChange={setFormOpen}
-        schedule={editing}
-      />
     </>
   );
 }
