@@ -21,6 +21,7 @@ const ENTITY_TYPES: EntityType[] = [
   "resource_version",
   "resource_attachment",
   "schedule",
+  "expiration",
   "user",
 ];
 

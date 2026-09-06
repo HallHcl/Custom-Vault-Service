@@ -9,6 +9,7 @@ export type EntityType =
   | "resource_version"
   | "resource_attachment"
   | "schedule"
+  | "expiration"
   | "user";
 
 export type ActivityAction = "create" | "update" | "delete" | "restore";
