@@ -29,6 +29,7 @@ import { EmptyState } from "@/components/state/EmptyState";
 import { ErrorState } from "@/components/state/ErrorState";
 import { LoadingState } from "@/components/state/LoadingState";
 import { PageHeader } from "@/components/layout/PageHeader";
+import { HOME_SEGMENT, useBreadcrumbs } from "@/components/layout/BreadcrumbsContext";
 import { RelatedCount } from "@/components/RelatedCount";
 import { ENVIRONMENTS_PER_PROJECT, useChildCounts } from "@/hooks/useChildCounts";
 import { apiErrorMessage } from "@/api/errors";
@@ -53,6 +54,7 @@ const SORT_OPTIONS: { value: ProjectSort; label: string }[] = [
 ];
 
 export default function ProjectsPage() {
+  useBreadcrumbs([HOME_SEGMENT, { label: "Projects" }]);
   const navigate = useNavigate();
   const canManage = useHasRole(["admin"]);
   const pagination = usePagination({ initialSort: "name", initialOrder: "asc" });

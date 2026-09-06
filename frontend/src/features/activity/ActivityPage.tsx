@@ -3,6 +3,7 @@ import { EmptyState } from "@/components/state/EmptyState";
 import { ErrorState } from "@/components/state/ErrorState";
 import { LoadingState } from "@/components/state/LoadingState";
 import { PageHeader } from "@/components/layout/PageHeader";
+import { HOME_SEGMENT, useBreadcrumbs } from "@/components/layout/BreadcrumbsContext";
 import { usePagination } from "@/hooks/usePagination";
 import { useActivityLogs } from "@/hooks/useActivityLogs";
 import type { ActivityAction, EntityType } from "@/types";
@@ -18,6 +19,7 @@ const ENTITY_TYPES: EntityType[] = [
   "people",
   "resource",
   "resource_version",
+  "resource_attachment",
   "schedule",
   "user",
 ];
@@ -25,6 +27,7 @@ const ENTITY_TYPES: EntityType[] = [
 const ACTIONS: ActivityAction[] = ["create", "update", "delete", "restore"];
 
 export default function ActivityPage() {
+  useBreadcrumbs([HOME_SEGMENT, { label: "Activity" }]);
   // Activity has no `deleted`/`search`/`sort` concept of its own (append-only
   // table, no soft delete, and `sort` is confirmed dead server-side — see
   // useActivityLogs.ts) — only the page/perPage/order pieces of

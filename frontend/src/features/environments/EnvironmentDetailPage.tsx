@@ -1,14 +1,16 @@
-import { Link, useParams } from "react-router-dom";
+import { useParams } from "react-router-dom";
 import { RequireRole } from "@/components/auth/RequireRole";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { DetailPageShell } from "@/components/DetailPageShell";
 import { EmptyState } from "@/components/state/EmptyState";
 import { LoadingState } from "@/components/state/LoadingState";
+import { HOME_SEGMENT, useBreadcrumbs } from "@/components/layout/BreadcrumbsContext";
 import EnvironmentEditCard from "./components/EnvironmentEditCard";
 import { VpnResourceStatus } from "./components/VpnResourceStatus";
 import ServerCard from "@/features/infrastructure/components/ServerCard";
 import { useEnvironment, type EnvironmentDetail } from "@/hooks/useEnvironments";
+import { useProject } from "@/hooks/useProjects";
 import { useServers } from "@/hooks/useServers";
 import { useHasRole } from "@/hooks/useHasRole";
 import { usePagination } from "@/hooks/usePagination";
@@ -16,6 +18,35 @@ import { usePagination } from "@/hooks/usePagination";
 export default function EnvironmentDetailPage() {
   const { id } = useParams<{ id: string }>();
   const { data: environment, isLoading, isError, error, refetch } = useEnvironment(id);
+
+  // EnvironmentDetail only embeds { project: { id, name } }, so the Client
+  // segment is backfilled by a separate useProject fetch (cache-shared with
+  // ProjectDetailPage). useProject already guards on `Boolean(id)`, so a
+  // possibly-undefined project id is safe. Until it resolves — or if the
+  // project is soft-deleted and the fetch 404s (`data` stays undefined,
+  // never throws) — the trail simply omits the Client segment, same as the
+  // loading fallback below.
+  const { data: project } = useProject(environment?.project.id);
+  useBreadcrumbs(
+    environment
+      ? [
+          HOME_SEGMENT,
+          ...(project?.client
+            ? [
+                { label: "Clients", href: "/clients" },
+                {
+                  label: project.client.name,
+                  href: `/clients/${project.client.id}`,
+                },
+              ]
+            : []),
+          { label: "Projects", href: "/projects" },
+          { label: environment.project.name, href: `/projects/${environment.project.id}` },
+          { label: "Environments", href: "/environments" },
+          { label: environment.name },
+        ]
+      : [HOME_SEGMENT, { label: "Environments", href: "/environments" }]
+  );
   // Environment update is admin-only — verified against
   // backend/src/routes/environments.routes.ts.
   const canEdit = useHasRole(["admin"]);
@@ -71,16 +102,6 @@ export default function EnvironmentDetailPage() {
                 <CardTitle asChild>
                   <h1>{environment.name}</h1>
                 </CardTitle>
-                {!isEditing && (
-                  <div className="mt-1">
-                    <Link
-                      to={`/projects/${environment.project.id}`}
-                      className="text-sm text-muted-foreground hover:text-foreground hover:underline"
-                    >
-                      {environment.project.name}
-                    </Link>
-                  </div>
-                )}
               </div>
               {!isEditing && (
                 <RequireRole roles={["admin"]}>
@@ -99,7 +120,7 @@ export default function EnvironmentDetailPage() {
                     {environment.description ?? "No description provided."}
                   </p>
                   <div className="flex items-center gap-2">
-                    <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                    <span className="text-label text-muted-foreground">
                       VPN resource
                     </span>
                     <VpnResourceStatus resourceId={environment.vpn_resource_id} />

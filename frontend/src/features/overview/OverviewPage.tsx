@@ -23,6 +23,7 @@ import {
   Layers,
 } from "lucide-react";
 import { PageHeader } from "@/components/layout/PageHeader";
+import { HOME_SEGMENT, useBreadcrumbs } from "@/components/layout/BreadcrumbsContext";
 import { MetricCard } from "@/components/MetricCard";
 import UrgentActionItems from "./UrgentActionItems";
 import { useClients } from "@/hooks/useClients";
@@ -36,6 +37,7 @@ import { cn } from "@/lib/utils";
 import { panelSurface } from "@/lib/panelSurface";
 
 export default function OverviewPage() {
+  useBreadcrumbs([HOME_SEGMENT, { label: "Overview" }]);
   const { data: clients = [] } = useClients();
   const [clientId, setClientId] = useState<string | undefined>(undefined);
 
