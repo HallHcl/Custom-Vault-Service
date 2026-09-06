@@ -29,6 +29,16 @@ export async function updateUserPassword(
   );
 }
 
+export async function updateUserThemePreference(
+  userId: string,
+  themePreference: "light" | "dark"
+): Promise<void> {
+  await pool.query(
+    `UPDATE users SET theme_preference = $1, updated_at = now() WHERE id = $2`,
+    [themePreference, userId]
+  );
+}
+
 export async function findRoleNamesForUser(userId: string): Promise<string[]> {
   const result = await pool.query<{ name: string }>(
     `SELECT r.name

@@ -55,10 +55,12 @@ export default {
         // these controls have no border at all: adding one on error would
         // reflow the field by 1px on every validation pass.
         'underline-danger': 'inset 0 -2px 0 0 rgb(var(--danger))',
+        // Elevation values live in globals.css (--elev-N) so dark mode can
+        // swap them; these keys are var() passthroughs. elev-0 stays inline.
         'elev-0': 'none',
-        'elev-1': '0 1px 2px rgba(16,24,40,.04), 0 1px 3px rgba(16,24,40,.06)',
-        'elev-2': '0 4px 8px -2px rgba(16,24,40,.08), 0 2px 4px -2px rgba(16,24,40,.06)',
-        'elev-3': '0 20px 24px -4px rgba(16,24,40,.10), 0 8px 8px -4px rgba(16,24,40,.04)',
+        'elev-1': 'var(--elev-1)',
+        'elev-2': 'var(--elev-2)',
+        'elev-3': 'var(--elev-3)',
       },
       borderRadius: {
         control: '6px',   // Button, Input, Select, Badge, Checkbox
@@ -76,7 +78,7 @@ export default {
       colors: {
         border: "rgb(var(--border) / <alpha-value>)",
         background: "rgb(var(--background) / <alpha-value>)",
-        canvas: "rgb(247 248 250 / <alpha-value>)",
+        canvas: "rgb(var(--canvas) / <alpha-value>)",
         foreground: "rgb(var(--foreground) / <alpha-value>)",
         text: {
           secondary: "rgb(var(--text-secondary) / <alpha-value>)",

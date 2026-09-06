@@ -72,7 +72,7 @@ export default function CredentialRefList({ serverId, manageable = false }: Prop
     <div className={manageable ? "space-y-3" : "space-y-2 border-t pt-3"}>
       {manageable && (
         <div className="flex items-center justify-between">
-          <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+          <p className="text-label text-muted-foreground">
             {references.length} credential {references.length === 1 ? "reference" : "references"}
           </p>
           {/* Create is admin+member, same as Server create/update — verified

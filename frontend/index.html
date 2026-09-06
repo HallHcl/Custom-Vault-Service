@@ -2,6 +2,22 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
+    <script>
+      // Dark Mode — pre-paint theme application (avoids a light flash).
+      // TEMPORARY (Task 2): reads localStorage directly. Task 3 keeps this
+      // script but the app-side source of truth becomes the account
+      // preference from GET /api/auth/me. Manual toggle only — this
+      // deliberately does NOT consult prefers-color-scheme.
+      (function () {
+        try {
+          if (localStorage.getItem("qqm_theme") === "dark") {
+            document.documentElement.classList.add("dark");
+          }
+        } catch (e) {
+          /* storage unavailable — fall through to light */
+        }
+      })();
+    </script>
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />

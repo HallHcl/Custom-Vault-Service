@@ -51,6 +51,7 @@ beforeAll(async () => {
     throw new Error("Seeded admin user not found. Run `npm run seed` first.");
   }
   adminUserId = adminRow.rows[0].id;
+  await pool.query(`UPDATE users SET theme_preference = NULL WHERE id = $1`, [adminUserId]);
 
   const roleRow = await pool.query<{ id: string }>(
     `SELECT id FROM roles WHERE name = 'member' AND deleted_at IS NULL`
@@ -185,6 +186,74 @@ describe("admin-only route (requireRole('admin'))", () => {
       .set("Authorization", `Bearer ${adminToken}`);
 
     expect(res.status).toBe(200);
+  });
+});
+
+describe("PATCH /api/auth/me (theme preference)", () => {
+  it("GET /me returns theme_preference 'light' when the column is NULL", async () => {
+    // memberUser was just inserted in beforeAll and has never set a theme.
+    const res = await request(app)
+      .get("/api/auth/me")
+      .set("Authorization", `Bearer ${memberToken}`);
+
+    expect(res.status).toBe(200);
+    expect(res.body.theme_preference).toBe("light");
+  });
+
+  it("returns 400 VALIDATION_ERROR for a value outside light|dark", async () => {
+    const res = await request(app)
+      .patch("/api/auth/me")
+      .set("Authorization", `Bearer ${memberToken}`)
+      .send({ theme_preference: "system" });
+
+    expect(res.status).toBe(400);
+    expect(res.body.error.code).toBe("VALIDATION_ERROR");
+  });
+
+  it("returns 401 without a token", async () => {
+    const res = await request(app)
+      .patch("/api/auth/me")
+      .send({ theme_preference: "dark" });
+
+    expect(res.status).toBe(401);
+  });
+
+  it("persists a valid update and reflects it on the next GET /me", async () => {
+    const patchRes = await request(app)
+      .patch("/api/auth/me")
+      .set("Authorization", `Bearer ${memberToken}`)
+      .send({ theme_preference: "dark" });
+
+    expect(patchRes.status).toBe(200);
+    expect(patchRes.body.theme_preference).toBe("dark");
+
+    const meRes = await request(app)
+      .get("/api/auth/me")
+      .set("Authorization", `Bearer ${memberToken}`);
+    expect(meRes.body.theme_preference).toBe("dark");
+  });
+
+  it("updates only the caller's row — a user id in the body is ignored", async () => {
+    // adminUser has never set a theme; try to flip it via a spoofed body id.
+    const res = await request(app)
+      .patch("/api/auth/me")
+      .set("Authorization", `Bearer ${memberToken}`)
+      .send({ id: adminUserId, theme_preference: "dark" });
+
+    expect(res.status).toBe(200);
+    expect(res.body.id).toBe(memberUserId);
+
+    const adminRow = await pool.query<{ theme_preference: string | null }>(
+      `SELECT theme_preference FROM users WHERE id = $1`,
+      [adminUserId]
+    );
+    expect(adminRow.rows[0].theme_preference).toBeNull();
+
+    const memberRow = await pool.query<{ theme_preference: string | null }>(
+      `SELECT theme_preference FROM users WHERE id = $1`,
+      [memberUserId]
+    );
+    expect(memberRow.rows[0].theme_preference).toBe("dark");
   });
 });
 

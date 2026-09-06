@@ -37,7 +37,7 @@ function SidebarLink({ to, label, icon: Icon }: NavItem) {
 
 export default function Sidebar() {
   return (
-    <aside className="hidden h-screen w-60 shrink-0 flex-col border-r border-border bg-surface md:flex">
+    <aside className="hidden h-screen sticky top-0 w-60 shrink-0 flex-col border-r border-border bg-surface md:flex">
       <div className="flex h-14 flex-col justify-center border-b border-border px-4">
         <span className="text-base font-bold tracking-tight text-foreground">
           QQM
@@ -63,7 +63,7 @@ export default function Sidebar() {
               >
                 <p
                   id={labelId}
-                  className="px-3 pb-1 text-xs font-medium uppercase tracking-wider text-muted-foreground"
+                  className="px-3 pb-1 text-label text-muted-foreground"
                 >
                   {group.label}
                 </p>
