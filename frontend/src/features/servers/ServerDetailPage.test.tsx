@@ -1,8 +1,10 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import ServerDetailPage from "./ServerDetailPage";
+import Breadcrumbs from "@/components/layout/Breadcrumbs";
+import { BreadcrumbsProvider } from "@/components/layout/BreadcrumbsContext";
 
 const getMock = vi.fn();
 const patchMock = vi.fn();
@@ -60,11 +62,31 @@ const SERVER_DETAIL = {
   environment: { id: "e1", name: "Production", project: { id: "p1", name: "Migration" } },
 };
 
-function mockGetByPath(handlers: { server?: unknown; credentials?: unknown }) {
+const PROJECT_DETAIL = {
+  id: "p1",
+  client_id: "c1",
+  name: "Migration",
+  description: null as string | null,
+  owner_status: "owned",
+  created_at: "2026-01-01T00:00:00.000Z",
+  updated_at: "2026-01-01T00:00:00.000Z",
+  deleted_at: null as string | null,
+  client: { id: "c1", name: "Acme Corp" },
+};
+
+function mockGetByPath(handlers: {
+  server?: unknown;
+  credentials?: unknown;
+  project?: unknown;
+}) {
   getMock.mockImplementation((path: string) => {
     if (path === "/api/servers/{id}") return Promise.resolve(handlers.server ?? ok(SERVER_DETAIL));
     if (path === "/api/servers/{serverId}/credential-references")
       return Promise.resolve(handlers.credentials ?? ok([]));
+    // Client-segment backfill for the breadcrumb trail (Task 3). Default: a
+    // live project carrying its client. A soft-deleted project 404s here —
+    // pass `project: apiError(404, ...)` to exercise that path.
+    if (path === "/api/projects/{id}") return Promise.resolve(handlers.project ?? ok(PROJECT_DETAIL));
     throw new Error(`Unexpected path in test: ${path}`);
   });
 }
@@ -74,9 +96,13 @@ function renderPage(initialPath = "/servers/s1") {
   return render(
     <QueryClientProvider client={queryClient}>
       <MemoryRouter initialEntries={[initialPath]}>
-        <Routes>
-          <Route path="/servers/:id" element={<ServerDetailPage />} />
-        </Routes>
+        <BreadcrumbsProvider>
+          <Breadcrumbs />
+          <Routes>
+            <Route path="/servers/:id" element={<ServerDetailPage />} />
+            <Route path="/servers/:id/edit" element={<div>Server edit page</div>} />
+          </Routes>
+        </BreadcrumbsProvider>
       </MemoryRouter>
     </QueryClientProvider>
   );
@@ -97,15 +123,13 @@ describe("ServerDetailPage", () => {
     expect(screen.getByText(/loading server/i)).toBeInTheDocument();
   });
 
-  it("renders the server's Access Documentation fields once loaded, including the parent environment and project", async () => {
+  it("renders the server's Access Documentation fields once loaded", async () => {
     mockGetByPath({});
 
     renderPage();
 
     expect(await screen.findByText("Web 01")).toBeInTheDocument();
     expect(screen.getByText("web-01")).toBeInTheDocument();
-    expect(screen.getByText("Production")).toBeInTheDocument();
-    expect(screen.getByText(/Migration/)).toBeInTheDocument();
     expect(screen.getByText("Application")).toBeInTheDocument();
     expect(screen.getByText("SSH")).toBeInTheDocument();
     expect(screen.getByText("web-01.internal")).toBeInTheDocument();
@@ -184,177 +208,54 @@ describe("ServerDetailPage", () => {
     });
   });
 
-  describe("Edit mode (inline ServerEditCard, replacing the old modal)", () => {
-    it("clicking Edit switches Card 1 to the inline form, pre-filled from the loaded record, with the environment locked", async () => {
+  describe("Edit navigation", () => {
+    it("clicking Edit navigates to /servers/:id/edit", async () => {
       mockGetByPath({});
       renderPage();
 
       await screen.findByText("Web 01");
       fireEvent.click(screen.getByRole("button", { name: /^edit$/i }));
 
-      expect(await screen.findByLabelText("Display name")).toHaveValue("Web 01");
-      expect(screen.getByLabelText("Hostname")).toHaveValue("web-01");
-      expect(
-        screen.getByText("A server's environment can't be changed after creation.")
-      ).toBeInTheDocument();
-      expect(screen.getByDisplayValue("Production")).toBeDisabled();
-      // The header Edit button is gone while editing; Save/Cancel take its place.
-      expect(screen.queryByRole("button", { name: /^edit$/i })).not.toBeInTheDocument();
-      expect(screen.getByRole("button", { name: /cancel/i })).toBeInTheDocument();
-      expect(screen.getByRole("button", { name: /save/i })).toBeInTheDocument();
+      expect(await screen.findByText("Server edit page")).toBeInTheDocument();
     });
+  });
 
-    it("keeps the <h1> present in edit mode — the heading used to live inside the `!isEditing` guard and vanished on Edit", async () => {
+  describe("breadcrumb Client segment (backfilled via useProject)", () => {
+    it("shows the full Home > Clients > [Client] > Projects > [Project] > Environments > [Environment] > Servers > [Server] trail once the project fetch resolves", async () => {
       mockGetByPath({});
-      renderPage("/servers/s1?edit=true");
 
-      await screen.findByLabelText("Display name");
-
-      expect(screen.getByRole("heading", { name: "Web 01", level: 1 })).toBeInTheDocument();
-      expect(screen.getAllByRole("heading", { level: 1 })).toHaveLength(1);
-    });
-
-    it("loading /servers/s1?edit=true directly (deep link) enters edit mode without clicking Edit first", async () => {
-      mockGetByPath({});
-      renderPage("/servers/s1?edit=true");
-
-      expect(await screen.findByLabelText("Display name")).toHaveValue("Web 01");
-      expect(screen.getByRole("button", { name: /save/i })).toBeInTheDocument();
-    });
-
-    it("ignores ?edit=true in the URL for a role without edit permission (defensive gating, matches the Edit button's own RequireRole)", async () => {
-      useAuthMock.mockReturnValue({ roles: [], isLoading: false });
-      mockGetByPath({});
-      renderPage("/servers/s1?edit=true");
-
-      await screen.findByText("Web 01");
-      expect(screen.queryByLabelText("Display name")).not.toBeInTheDocument();
-    });
-
-    it("Save sends a PATCH with updated_at and no environment_id, then returns to read mode", async () => {
-      mockGetByPath({});
-      patchMock.mockResolvedValue(ok({ ...SERVER_DETAIL, hostname: "web-01-renamed" }));
       renderPage();
 
-      await screen.findByText("Web 01");
-      fireEvent.click(screen.getByRole("button", { name: /^edit$/i }));
-
-      await screen.findByDisplayValue("web-01");
-      fireEvent.change(screen.getByLabelText("Hostname"), { target: { value: "web-01-renamed" } });
-      fireEvent.click(screen.getByRole("button", { name: /save/i }));
-
-      await waitFor(() => expect(patchMock).toHaveBeenCalledTimes(1));
-      const [path, options] = patchMock.mock.calls[0];
-      expect(path).toBe("/api/servers/{id}");
-      expect(options.params).toEqual({ path: { id: "s1" } });
-      expect(options.body).toMatchObject({
-        hostname: "web-01-renamed",
-        updated_at: SERVER_DETAIL.updated_at,
-      });
-      expect(options.body.environment_id).toBeUndefined();
-
-      // Back in read mode: Save/Cancel gone, Edit button back.
-      await waitFor(() => expect(screen.getByRole("button", { name: /^edit$/i })).toBeInTheDocument());
-    });
-
-    it("Cancel discards changes without firing a mutation, and re-entering edit shows the original value, not the discarded one", async () => {
-      mockGetByPath({});
-      renderPage();
-
-      await screen.findByText("Web 01");
-      fireEvent.click(screen.getByRole("button", { name: /^edit$/i }));
-
-      await screen.findByDisplayValue("web-01");
-      fireEvent.change(screen.getByLabelText("Hostname"), { target: { value: "My In-Progress Edit" } });
-      fireEvent.click(screen.getByRole("button", { name: /cancel/i }));
-
-      expect(patchMock).not.toHaveBeenCalled();
-      await screen.findByRole("button", { name: /^edit$/i });
-      expect(screen.getByText("web-01")).toBeInTheDocument();
-
-      fireEvent.click(screen.getByRole("button", { name: /^edit$/i }));
-      expect(await screen.findByLabelText("Hostname")).toHaveValue("web-01");
-    });
-
-    it("shows the conflict UI (not a generic error) on a stale-write 409, and does not lose the user's edit", async () => {
-      mockGetByPath({});
-      patchMock.mockResolvedValueOnce(
-        apiError(409, "CONFLICT", "Server was modified by someone else; refresh and try again")
+      const nav = await screen.findByRole("navigation", { name: "Breadcrumb" });
+      expect(await within(nav).findByRole("link", { name: "Clients" })).toHaveAttribute(
+        "href",
+        "/clients"
       );
-      renderPage();
-
-      await screen.findByText("Web 01");
-      fireEvent.click(screen.getByRole("button", { name: /^edit$/i }));
-      await screen.findByDisplayValue("web-01");
-      fireEvent.change(screen.getByLabelText("Hostname"), { target: { value: "My In-Progress Edit" } });
-      fireEvent.click(screen.getByRole("button", { name: /save/i }));
-
-      expect(await screen.findByText("This record changed")).toBeInTheDocument();
-      expect(
-        screen.getByText("Server was modified by someone else; refresh and try again")
-      ).toBeInTheDocument();
-      expect(toastMock).not.toHaveBeenCalled();
-
-      const freshRecord = { ...SERVER_DETAIL, updated_at: "2026-01-03T00:00:00.000Z" };
-      getMock.mockImplementation((path: string) => {
-        if (path === "/api/servers/{id}") return Promise.resolve(ok(freshRecord));
-        if (path === "/api/servers/{serverId}/credential-references") return Promise.resolve(ok([]));
-        throw new Error(`Unexpected path in test: ${path}`);
-      });
-      patchMock.mockResolvedValueOnce(ok({ ...freshRecord, hostname: "My In-Progress Edit" }));
-
-      fireEvent.click(screen.getByRole("button", { name: /keep my changes/i }));
-
-      await waitFor(() => expect(patchMock).toHaveBeenCalledTimes(2));
-      const [, retryOptions] = patchMock.mock.calls[1];
-      expect(retryOptions.body).toMatchObject({
-        hostname: "My In-Progress Edit",
-        updated_at: freshRecord.updated_at,
-      });
-    });
-
-    it("surfaces a server-side validation error against the relevant field", async () => {
-      mockGetByPath({});
-      patchMock.mockResolvedValue(
-        apiError(400, "VALIDATION_ERROR", "Validation failed", {
-          formErrors: [],
-          fieldErrors: { hostname: ["String must contain at least 1 character(s)"] },
-        })
+      expect(within(nav).getByRole("link", { name: "Acme Corp" })).toHaveAttribute(
+        "href",
+        "/clients/c1"
       );
-      renderPage();
-
-      await screen.findByText("Web 01");
-      fireEvent.click(screen.getByRole("button", { name: /^edit$/i }));
-      await screen.findByDisplayValue("web-01");
-      fireEvent.click(screen.getByRole("button", { name: /save/i }));
-
-      expect(
-        await screen.findByText("String must contain at least 1 character(s)")
-      ).toBeInTheDocument();
-      expect(toastMock).toHaveBeenCalledWith({
-        title: "Couldn't update server",
-        description: "Check the highlighted fields below.",
-        variant: "destructive",
-      });
+      expect(within(nav).getByRole("link", { name: "Migration" })).toHaveAttribute(
+        "href",
+        "/projects/p1"
+      );
+      expect(within(nav).getByText("Web 01")).toHaveAttribute("aria-current", "page");
     });
 
-    it("shows an error toast for an unexpected (non-conflict) failure", async () => {
-      mockGetByPath({});
-      patchMock.mockResolvedValue(apiError(500, "INTERNAL", "boom"));
+    it("degrades to the shorter trail (no Client segment, no error) when the project is soft-deleted and GET /projects/:id 404s", async () => {
+      mockGetByPath({ project: apiError(404, "NOT_FOUND", "Project not found") });
+
       renderPage();
 
-      await screen.findByText("Web 01");
-      fireEvent.click(screen.getByRole("button", { name: /^edit$/i }));
-      await screen.findByDisplayValue("web-01");
-      fireEvent.click(screen.getByRole("button", { name: /save/i }));
-
-      await waitFor(() => {
-        expect(toastMock).toHaveBeenCalledWith({
-          title: "Couldn't update server",
-          description: "boom",
-          variant: "destructive",
-        });
-      });
+      const nav = await screen.findByRole("navigation", { name: "Breadcrumb" });
+      expect(await within(nav).findByRole("link", { name: "Projects" })).toBeInTheDocument();
+      expect(within(nav).getByRole("link", { name: "Migration" })).toHaveAttribute(
+        "href",
+        "/projects/p1"
+      );
+      expect(within(nav).queryByRole("link", { name: "Clients" })).not.toBeInTheDocument();
+      // The server page itself renders fine regardless.
+      expect(screen.getByText("web-01.internal")).toBeInTheDocument();
     });
   });
 
