@@ -9,6 +9,7 @@ import {
   Layers,
   Server,
   Settings,
+  ShieldAlert,
   Users,
   type LucideIcon,
 } from "lucide-react";
@@ -47,6 +48,7 @@ export const NAV_GROUPS: NavGroup[] = [
     items: [
       { to: "/infrastructure", label: "Infrastructure", icon: Server },
       { to: "/schedule", label: "Schedule", icon: CalendarClock },
+      { to: "/expirations", label: "Expirations", icon: ShieldAlert },
       { to: "/activity", label: "Activity", icon: Activity },
     ],
   },
