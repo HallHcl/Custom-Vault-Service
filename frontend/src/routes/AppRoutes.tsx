@@ -18,6 +18,8 @@ import ResourceFormPage from "@/features/resources/ResourceFormPage";
 import PeoplePage from "@/features/people/PeoplePage";
 import SchedulePage from "@/features/schedule/SchedulePage";
 import ScheduleFormPage from "@/features/schedule/ScheduleFormPage";
+import ExpirationsPage from "@/features/expirations/ExpirationsPage";
+import ExpirationFormPage from "@/features/expirations/ExpirationFormPage";
 import ActivityPage from "@/features/activity/ActivityPage";
 import ManageUsersPage from "@/features/settings/ManageUsersPage";
 
@@ -48,6 +50,9 @@ export default function AppRoutes() {
           <Route path="schedule" element={<SchedulePage />} />
           <Route path="schedule/new" element={<ScheduleFormPage mode="create" />} />
           <Route path="schedule/:id/edit" element={<ScheduleFormPage mode="edit" />} />
+          <Route path="expirations" element={<ExpirationsPage />} />
+          <Route path="expirations/new" element={<ExpirationFormPage mode="create" />} />
+          <Route path="expirations/:id/edit" element={<ExpirationFormPage mode="edit" />} />
           <Route path="activity" element={<ActivityPage />} />
           <Route path="settings/manage-users" element={<ManageUsersPage />} />
         </Route>
