@@ -11,6 +11,16 @@ import {
   restore,
   updateMetadataHandler,
 } from "../controllers/resources.controller";
+import {
+  deleteAttachmentHandler,
+  listAttachmentsHandler,
+  streamAttachmentContentHandler,
+  uploadAttachmentHandler,
+} from "../controllers/resourceAttachments.controller";
+import {
+  handleAttachmentUpload,
+  validateResourceExists,
+} from "../middleware/resourceAttachmentUpload";
 
 const router = Router();
 
@@ -25,4 +35,16 @@ router.get("/:id/versions", listVersionsHandler);
 router.get("/:id/versions/:versionId", getVersionHandler);
 router.post("/:id/versions", requireAnyRole(["admin", "member"]), createVersionHandler);
 
+router.get("/:id/attachments", listAttachmentsHandler);
+router.post(
+  "/:id/attachments",
+  requireAnyRole(["admin", "member"]),
+  validateResourceExists,
+  handleAttachmentUpload,
+  uploadAttachmentHandler
+);
+router.get("/:id/attachments/:attachmentId/content", streamAttachmentContentHandler);
+router.delete("/:id/attachments/:attachmentId", deleteAttachmentHandler);
+
 export default router;
+

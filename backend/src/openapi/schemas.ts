@@ -105,6 +105,7 @@ export const EntityTypeSchema = z
     "people",
     "resource",
     "resource_version",
+    "resource_attachment",
     "schedule",
     "user",
   ])
@@ -137,6 +138,9 @@ export const UserSchema = z
     email: z.string().email(),
     peopleId: z.string().uuid().nullable(),
     roles: z.array(z.string()),
+    // Present on GET/PATCH /api/auth/me (NULL in the DB is surfaced as
+    // "light"); omitted from the POST /api/auth/login user payload.
+    theme_preference: z.enum(["light", "dark"]).optional(),
   })
   .openapi("User");
 
@@ -308,6 +312,39 @@ export const CreateVersionResultSchema = z
     warning: z.string().optional(),
   })
   .openapi("CreateVersionResult");
+
+export const ResourceAttachmentSchema = z
+  .object({
+    id: z.string().uuid(),
+    resource_id: z.string().uuid(),
+    created_in_version_id: z.string().uuid().nullable(),
+    file_name: z.string(),
+    file_path: z.string(),
+    mime_type: z.string(),
+    size_bytes: z.number().int(),
+    caption: z.string().nullable(),
+    uploaded_by: z.string().uuid(),
+    created_at: z.string().datetime(),
+    deleted_at: z.string().datetime().nullable(),
+  })
+  .openapi("ResourceAttachment");
+
+export const ResourceAttachmentWithUploaderSchema = ResourceAttachmentSchema.extend({
+  uploader: z.object({
+    id: z.string().uuid(),
+    name: z.string(),
+  }),
+}).openapi("ResourceAttachmentWithUploader");
+
+export const ResourceAttachmentListResponseSchema = z
+  .array(ResourceAttachmentWithUploaderSchema)
+  .openapi("ResourceAttachmentListResponse");
+
+export const DeleteAttachmentResponseSchema = z
+  .object({
+    message: z.string(),
+  })
+  .openapi("DeleteAttachmentResponse");
 
 export const PersonSchema = z
   .object({

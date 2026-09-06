@@ -39,6 +39,11 @@ components:
           type: array
           items:
             type: string
+        theme_preference:
+          type: string
+          enum:
+            - light
+            - dark
       required:
         - id
         - username
@@ -772,6 +777,81 @@ components:
           type: string
       required:
         - version
+    ResourceAttachmentWithUploader:
+      allOf:
+        - $ref: "#/components/schemas/ResourceAttachment"
+        - type: object
+          properties:
+            uploader:
+              type: object
+              properties:
+                id:
+                  type: string
+                  format: uuid
+                name:
+                  type: string
+              required:
+                - id
+                - name
+          required:
+            - uploader
+    ResourceAttachment:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        resource_id:
+          type: string
+          format: uuid
+        created_in_version_id:
+          type: string
+          nullable: true
+          format: uuid
+        file_name:
+          type: string
+        file_path:
+          type: string
+        mime_type:
+          type: string
+        size_bytes:
+          type: integer
+        caption:
+          type: string
+          nullable: true
+        uploaded_by:
+          type: string
+          format: uuid
+        created_at:
+          type: string
+          format: date-time
+        deleted_at:
+          type: string
+          nullable: true
+          format: date-time
+      required:
+        - id
+        - resource_id
+        - created_in_version_id
+        - file_name
+        - file_path
+        - mime_type
+        - size_bytes
+        - caption
+        - uploaded_by
+        - created_at
+        - deleted_at
+    ResourceAttachmentListResponse:
+      type: array
+      items:
+        $ref: "#/components/schemas/ResourceAttachmentWithUploader"
+    DeleteAttachmentResponse:
+      type: object
+      properties:
+        message:
+          type: string
+      required:
+        - message
     PersonListResponse:
       type: object
       properties:
@@ -1072,6 +1152,7 @@ components:
         - people
         - resource
         - resource_version
+        - resource_attachment
         - schedule
         - user
     ActivityAction:
@@ -1199,6 +1280,46 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/User"
+        "401":
+          description: Not authenticated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    patch:
+      tags:
+        - Auth
+      operationId: updateCurrentUser
+      summary: Update the authenticated user's own preferences (theme)
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                theme_preference:
+                  type: string
+                  enum:
+                    - light
+                    - dark
+              required:
+                - theme_preference
+      responses:
+        "200":
+          description: Updated user
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+        "400":
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
         "401":
           description: Not authenticated
           content:
@@ -3595,6 +3716,192 @@ paths:
                 $ref: "#/components/schemas/ResourceVersionWithAuthor"
         "401":
           description: Not authenticated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /api/resources/{id}/attachments:
+    post:
+      tags:
+        - Resources
+      operationId: uploadResourceAttachment
+      summary: Upload an attachment for a resource (admin or member)
+      security:
+        - bearerAuth: []
+      parameters:
+        - schema:
+            type: string
+            format: uuid
+          required: true
+          name: id
+          in: path
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                file:
+                  type: string
+                  format: binary
+                  description: Image/diagram file (PNG, JPEG, WebP, SVG, max 10MB)
+                caption:
+                  type: string
+                  description: Optional caption describing the attachment
+                created_in_version_id:
+                  type: string
+                  format: uuid
+                  description: Optional resource version ID for provenance
+              required:
+                - file
+      responses:
+        "201":
+          description: Attachment uploaded
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ResourceAttachmentWithUploader"
+        "400":
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Not authenticated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Insufficient permissions
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    get:
+      tags:
+        - Resources
+      operationId: listResourceAttachments
+      summary: List all active attachments for a resource ordered by created_at asc
+      security:
+        - bearerAuth: []
+      parameters:
+        - schema:
+            type: string
+            format: uuid
+          required: true
+          name: id
+          in: path
+      responses:
+        "200":
+          description: List of attachments
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ResourceAttachmentListResponse"
+        "401":
+          description: Not authenticated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /api/resources/{id}/attachments/{attachmentId}/content:
+    get:
+      tags:
+        - Resources
+      operationId: getResourceAttachmentContent
+      summary: Stream raw attachment content inline
+      security:
+        - bearerAuth: []
+      parameters:
+        - schema:
+            type: string
+            format: uuid
+          required: true
+          name: id
+          in: path
+        - schema:
+            type: string
+            format: uuid
+          required: true
+          name: attachmentId
+          in: path
+      responses:
+        "200":
+          description: Binary attachment file stream
+          content:
+            image/*:
+              schema:
+                type: string
+                format: binary
+        "401":
+          description: Not authenticated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /api/resources/{id}/attachments/{attachmentId}:
+    delete:
+      tags:
+        - Resources
+      operationId: deleteResourceAttachment
+      summary: Soft-delete a resource attachment (admin or original uploader only)
+      security:
+        - bearerAuth: []
+      parameters:
+        - schema:
+            type: string
+            format: uuid
+          required: true
+          name: id
+          in: path
+        - schema:
+            type: string
+            format: uuid
+          required: true
+          name: attachmentId
+          in: path
+      responses:
+        "200":
+          description: Attachment soft-deleted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DeleteAttachmentResponse"
+        "401":
+          description: Not authenticated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Insufficient permissions
           content:
             application/json:
               schema:

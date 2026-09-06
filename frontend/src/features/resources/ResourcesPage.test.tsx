@@ -1,9 +1,10 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
-import { MemoryRouter } from "react-router-dom";
+import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { DELETED_CARD_TEXT, expectDeletedTreatment } from "@/test/deletedRow";
 import ResourcesPage from "./ResourcesPage";
+import ResourceFormPage from "./ResourceFormPage";
 
 const getMock = vi.fn();
 const postMock = vi.fn();
@@ -68,10 +69,16 @@ const DELETED_RESOURCE = {
   deleted_at: "2026-01-05T00:00:00.000Z",
 };
 
-function mockGetByPath(handlers: { resources?: unknown; versions?: unknown; resourceDetail?: unknown }) {
+function mockGetByPath(handlers: {
+  resources?: unknown;
+  versions?: unknown;
+  resourceDetail?: unknown;
+  attachments?: unknown;
+}) {
   getMock.mockImplementation((path: string) => {
     if (path === "/api/resources") return Promise.resolve(handlers.resources ?? ok(paginated([])));
     if (path === "/api/resources/{id}/versions") return Promise.resolve(handlers.versions ?? ok(paginated([])));
+    if (path === "/api/resources/{id}/attachments") return Promise.resolve(handlers.attachments ?? ok([]));
     if (path === "/api/resources/{id}") {
       return Promise.resolve(
         handlers.resourceDetail ?? apiError(404, "NOT_FOUND", "Resource not found")
@@ -110,7 +117,10 @@ function renderPage(initialEntries = ["/resources"]) {
   const { unmount } = render(
     <QueryClientProvider client={queryClient}>
       <MemoryRouter initialEntries={initialEntries}>
-        <ResourcesPage />
+        <Routes>
+          <Route path="/resources" element={<ResourcesPage />} />
+          <Route path="/resources/:id/new-version" element={<ResourceFormPage mode="new-version" />} />
+        </Routes>
       </MemoryRouter>
     </QueryClientProvider>
   );
@@ -415,7 +425,10 @@ describe("ResourcesPage", () => {
               ok({ ...OLD_VERSION_SUMMARY, resource_id: "r1", content: "Old content", content_hash: "h1", external_url: null, file_path: null, author_id: "p1" })
             );
           }
-          if (path === "/api/resources/{id}") return Promise.resolve(apiError(404, "NOT_FOUND", "n/a"));
+          if (path === "/api/resources/{id}") {
+            return Promise.resolve(ok({ ...ACTIVE_RESOURCE, current_version_id: "v2" }));
+          }
+          if (path === "/api/resources/{id}/attachments") return Promise.resolve(ok([]));
           if (path === "/api/projects") return Promise.resolve(ok(paginated([])));
           throw new Error(`Unexpected path: ${path}`);
         }
@@ -428,6 +441,11 @@ describe("ResourcesPage", () => {
 
       renderPage();
       fireEvent.click(await screen.findByText("Deploy guide"));
+
+      // VersionHistoryPanel is under the "Version History" tab
+      const historyTab = await screen.findByRole("tab", { name: /version history/i });
+      fireEvent.mouseDown(historyTab);
+      fireEvent.click(historyTab);
 
       await screen.findByText("Second pass");
       fireEvent.click(screen.getByRole("button", { name: /revert to this version/i }));
@@ -447,6 +465,39 @@ describe("ResourcesPage", () => {
       fireEvent.click(await screen.findByRole("button", { name: /^add version$/i }));
 
       await waitFor(() => expect(screen.getByLabelText("Content")).toHaveValue("Current content"));
+    });
+  });
+
+  describe("Tabs and Attachments UI", () => {
+    it("renders Tabs for Content & Diagrams and Version History when resource is selected", async () => {
+      useAuthMock.mockReturnValue({ roles: ["member"], isLoading: false });
+      mockGetByPath({
+        resources: ok(paginated([ACTIVE_RESOURCE])),
+        resourceDetail: ok({
+          ...ACTIVE_RESOURCE,
+          current_version: {
+            ...ACTIVE_RESOURCE.current_version,
+            content: "My guide content",
+          },
+        }),
+      });
+
+      renderPage();
+      fireEvent.click(await screen.findByText("Deploy guide"));
+
+      expect(await screen.findByRole("tab", { name: /content & diagrams/i })).toBeInTheDocument();
+      expect(screen.getByRole("tab", { name: /version history/i })).toBeInTheDocument();
+
+      // Content & Diagrams is active by default
+      expect(await screen.findByText("My guide content")).toBeInTheDocument();
+      expect(screen.getByText("Diagrams & Attachments")).toBeInTheDocument();
+      expect(screen.getByText(/drag and drop diagrams or images/i)).toBeInTheDocument();
+
+      // Switch to Version History tab
+      const historyTab = screen.getByRole("tab", { name: /version history/i });
+      fireEvent.mouseDown(historyTab);
+      fireEvent.click(historyTab);
+      expect(await screen.findByText("No versions yet")).toBeInTheDocument();
     });
   });
 });

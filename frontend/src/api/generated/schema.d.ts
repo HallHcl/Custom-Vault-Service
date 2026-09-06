@@ -35,7 +35,8 @@ export interface paths {
         delete?: never;
         options?: never;
         head?: never;
-        patch?: never;
+        /** Update the authenticated user's own preferences (theme) */
+        patch: operations["updateCurrentUser"];
         trace?: never;
     };
     "/api/auth/logout": {
@@ -466,6 +467,58 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/resources/{id}/attachments": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List all active attachments for a resource ordered by created_at asc */
+        get: operations["listResourceAttachments"];
+        put?: never;
+        /** Upload an attachment for a resource (admin or member) */
+        post: operations["uploadResourceAttachment"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/resources/{id}/attachments/{attachmentId}/content": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Stream raw attachment content inline */
+        get: operations["getResourceAttachmentContent"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/resources/{id}/attachments/{attachmentId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Soft-delete a resource attachment (admin or original uploader only) */
+        delete: operations["deleteResourceAttachment"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/people": {
         parameters: {
             query?: never;
@@ -659,6 +712,8 @@ export interface components {
             /** Format: uuid */
             peopleId: string | null;
             roles: string[];
+            /** @enum {string} */
+            theme_preference?: "light" | "dark";
         };
         ErrorResponse: {
             error: {
@@ -934,6 +989,36 @@ export interface components {
             version: components["schemas"]["ResourceVersion"];
             warning?: string;
         };
+        ResourceAttachmentWithUploader: components["schemas"]["ResourceAttachment"] & {
+            uploader: {
+                /** Format: uuid */
+                id: string;
+                name: string;
+            };
+        };
+        ResourceAttachment: {
+            /** Format: uuid */
+            id: string;
+            /** Format: uuid */
+            resource_id: string;
+            /** Format: uuid */
+            created_in_version_id: string | null;
+            file_name: string;
+            file_path: string;
+            mime_type: string;
+            size_bytes: number;
+            caption: string | null;
+            /** Format: uuid */
+            uploaded_by: string;
+            /** Format: date-time */
+            created_at: string;
+            /** Format: date-time */
+            deleted_at: string | null;
+        };
+        ResourceAttachmentListResponse: components["schemas"]["ResourceAttachmentWithUploader"][];
+        DeleteAttachmentResponse: {
+            message: string;
+        };
         PersonListResponse: {
             data: components["schemas"]["Person"][];
             pagination: components["schemas"]["Pagination"];
@@ -1049,7 +1134,7 @@ export interface components {
             };
         };
         /** @enum {string} */
-        EntityType: "client" | "project" | "environment" | "server" | "credential_reference" | "people" | "resource" | "resource_version" | "schedule" | "user";
+        EntityType: "client" | "project" | "environment" | "server" | "credential_reference" | "people" | "resource" | "resource_version" | "resource_attachment" | "schedule" | "user";
         /** @enum {string} */
         ActivityAction: "create" | "update" | "delete" | "restore";
         SearchResults: {
@@ -1135,6 +1220,51 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["User"];
+                };
+            };
+            /** @description Not authenticated */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    updateCurrentUser: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    /** @enum {string} */
+                    theme_preference: "light" | "dark";
+                };
+            };
+        };
+        responses: {
+            /** @description Updated user */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["User"];
+                };
+            };
+            /** @description Validation error */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
             /** @description Not authenticated */
@@ -3471,6 +3601,212 @@ export interface operations {
             };
             /** @description Not authenticated */
             401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    listResourceAttachments: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description List of attachments */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResourceAttachmentListResponse"];
+                };
+            };
+            /** @description Not authenticated */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    uploadResourceAttachment: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "multipart/form-data": {
+                    /**
+                     * Format: binary
+                     * @description Image/diagram file (PNG, JPEG, WebP, SVG, max 10MB)
+                     */
+                    file: string;
+                    /** @description Optional caption describing the attachment */
+                    caption?: string;
+                    /**
+                     * Format: uuid
+                     * @description Optional resource version ID for provenance
+                     */
+                    created_in_version_id?: string;
+                };
+            };
+        };
+        responses: {
+            /** @description Attachment uploaded */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResourceAttachmentWithUploader"];
+                };
+            };
+            /** @description Validation error */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Not authenticated */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Insufficient permissions */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    getResourceAttachmentContent: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+                attachmentId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Binary attachment file stream */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "image/*": string;
+                };
+            };
+            /** @description Not authenticated */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    deleteResourceAttachment: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+                attachmentId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Attachment soft-deleted */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DeleteAttachmentResponse"];
+                };
+            };
+            /** @description Not authenticated */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Insufficient permissions */
+            403: {
                 headers: {
                     [name: string]: unknown;
                 };

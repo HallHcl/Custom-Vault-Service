@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { RequireRole } from "@/components/auth/RequireRole";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { PaginationControls } from "@/components/PaginationControls";
@@ -9,21 +10,25 @@ import { EmptyState } from "@/components/state/EmptyState";
 import { ErrorState } from "@/components/state/ErrorState";
 import { LoadingState } from "@/components/state/LoadingState";
 import { PageHeader } from "@/components/layout/PageHeader";
+import { HOME_SEGMENT, useBreadcrumbs } from "@/components/layout/BreadcrumbsContext";
 import { apiErrorMessage } from "@/api/errors";
 import { toast } from "@/hooks/use-toast";
 import { usePagination } from "@/hooks/usePagination";
 import {
   useDeleteResource,
+  useResource,
   useResources,
   useRestoreResource,
   type ResourceListItem,
   type ResourceSort,
 } from "@/hooks/useResources";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import ResourceFilterBar from "./components/ResourceFilterBar";
 import ResourceList from "./components/ResourceList";
-import ResourceEditorSheet from "./components/ResourceEditorSheet";
 import ResourceMetadataDialog from "./components/ResourceMetadataDialog";
 import VersionHistoryPanel from "./components/VersionHistoryPanel";
+import { AttachmentGallery } from "./components/AttachmentGallery";
+import { ImageDropzone } from "./components/ImageDropzone";
 
 const SORT_OPTIONS: { value: ResourceSort; label: string }[] = [
   { value: "title", label: "Title" },
@@ -33,6 +38,8 @@ const SORT_OPTIONS: { value: ResourceSort; label: string }[] = [
 
 
 export default function ResourcesPage() {
+  useBreadcrumbs([HOME_SEGMENT, { label: "Resources" }]);
+  const navigate = useNavigate();
   const pagination = usePagination({ initialSort: "title", initialOrder: "asc" });
   // URL-synced the same way as pagination's own fields (see usePagination.ts)
   // rather than local useState, so a refresh/shared URL reproduces the same
@@ -49,42 +56,45 @@ export default function ResourcesPage() {
     pagination.setParams({ type: value });
   }
 
+  const [selected, setSelected] = useState<ResourceListItem | undefined>(undefined);
+  const [editMetadataOpen, setEditMetadataOpen] = useState(false);
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
+
   const {
     data: resources = [],
-    pagination: pageInfo,
     isLoading,
     isError,
     error,
+    pagination: paginationMeta,
     refetch,
   } = useResources({
-    ...pagination.params,
-    sort: pagination.params.sort as ResourceSort | undefined,
+    page: pagination.page,
+    per_page: pagination.perPage,
+    sort: pagination.sort as ResourceSort,
+    order: pagination.order,
+    search: pagination.search || undefined,
     projectId,
     type,
+    deleted: pagination.deleted,
   });
 
-  const totalPages = pageInfo?.total_pages ?? 1;
+  const { data: resourceDetail, isLoading: isResourceDetailLoading } = useResource(
+    selected?.id
+  );
 
-  const [selected, setSelected] = useState<ResourceListItem | undefined>(undefined);
-  const [createOpen, setCreateOpen] = useState(false);
-  const [newVersionOpen, setNewVersionOpen] = useState(false);
-  // undefined = pre-fill from the current version (plain "Add version");
-  // set to a historical version's id by "Revert to this version".
-  const [prefillVersionId, setPrefillVersionId] = useState<string | undefined>(undefined);
-  const [editMetadataOpen, setEditMetadataOpen] = useState(false);
-  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
+  const totalPages = paginationMeta?.total_pages ?? 1;
 
   const deleteResource = useDeleteResource();
   const restoreResource = useRestoreResource();
 
   function openAddVersion() {
-    setPrefillVersionId(undefined);
-    setNewVersionOpen(true);
+    if (!selected) return;
+    navigate(`/resources/${selected.id}/new-version`);
   }
 
   function openRevertVersion(versionId: string) {
-    setPrefillVersionId(versionId);
-    setNewVersionOpen(true);
+    if (!selected) return;
+    navigate(`/resources/${selected.id}/new-version?prefill=${versionId}`);
   }
 
   function handleDelete() {
@@ -137,7 +147,7 @@ export default function ResourcesPage() {
         title="Resources"
         actions={
           <RequireRole roles={["admin", "member"]}>
-            <Button onClick={() => setCreateOpen(true)}>New resource</Button>
+            <Button onClick={() => navigate("/resources/new")}>New resource</Button>
           </RequireRole>
         }
       />
@@ -255,7 +265,68 @@ export default function ResourcesPage() {
                 </div>
               </CardHeader>
               <CardContent>
-                <VersionHistoryPanel resourceId={selected.id} onRevert={openRevertVersion} />
+                <Tabs defaultValue="content" className="w-full">
+                  <TabsList className="mb-4">
+                    <TabsTrigger value="content">Content &amp; Diagrams</TabsTrigger>
+                    <TabsTrigger value="history">Version History</TabsTrigger>
+                  </TabsList>
+
+                  <TabsContent value="content" className="space-y-6">
+                    {isResourceDetailLoading ? (
+                      <LoadingState message="Loading resource content..." />
+                    ) : (
+                      <>
+                        {resourceDetail?.current_version?.content && (
+                          <div className="space-y-2">
+                            <h3 className="text-sm font-semibold text-foreground">Content</h3>
+                            <pre className="max-h-96 overflow-auto whitespace-pre-wrap rounded-md border border-border bg-muted/20 p-4 font-mono text-xs text-foreground">
+                              {resourceDetail.current_version.content}
+                            </pre>
+                          </div>
+                        )}
+
+                        {resourceDetail?.current_version?.external_url && (
+                          <div className="space-y-1">
+                            <h3 className="text-sm font-semibold text-foreground">External URL</h3>
+                            <a
+                              href={resourceDetail.current_version.external_url}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="text-sm text-brand underline underline-offset-2 break-all"
+                            >
+                              {resourceDetail.current_version.external_url}
+                            </a>
+                          </div>
+                        )}
+
+                        {!resourceDetail?.current_version?.content &&
+                          !resourceDetail?.current_version?.external_url && (
+                            <p className="text-sm text-muted-foreground">No content recorded for this version.</p>
+                          )}
+                      </>
+                    )}
+
+                    <div className="space-y-3 pt-2">
+                      <div className="flex items-center justify-between">
+                        <h3 className="text-sm font-semibold text-foreground">Diagrams &amp; Attachments</h3>
+                      </div>
+                      <AttachmentGallery resourceId={selected.id} />
+                    </div>
+
+                    {!isDeletedSelected && (
+                      <RequireRole roles={["admin", "member"]}>
+                        <div className="space-y-2 pt-2">
+                          <h4 className="text-xs font-medium text-muted-foreground">Upload Diagram or Attachment</h4>
+                          <ImageDropzone resourceId={selected.id} />
+                        </div>
+                      </RequireRole>
+                    )}
+                  </TabsContent>
+
+                  <TabsContent value="history">
+                    <VersionHistoryPanel resourceId={selected.id} onRevert={openRevertVersion} />
+                  </TabsContent>
+                </Tabs>
               </CardContent>
             </Card>
           ) : (
@@ -264,18 +335,6 @@ export default function ResourcesPage() {
         </div>
       </div>
 
-      <ResourceEditorSheet mode="create" open={createOpen} onOpenChange={setCreateOpen} />
-      {selected && (
-        <ResourceEditorSheet
-          mode="new-version"
-          open={newVersionOpen}
-          onOpenChange={setNewVersionOpen}
-          resourceId={selected.id}
-          resourceType={selected.type}
-          currentVersionId={selected.current_version_id}
-          prefillVersionId={prefillVersionId}
-        />
-      )}
       <ResourceMetadataDialog open={editMetadataOpen} onOpenChange={setEditMetadataOpen} resource={selected} />
 
       <ConfirmDialog

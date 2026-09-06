@@ -7,6 +7,7 @@ export type EntityType =
   | "people"
   | "resource"
   | "resource_version"
+  | "resource_attachment"
   | "schedule"
   | "user";
 
@@ -168,6 +169,27 @@ export interface ResourceVersion {
   commit_message: string | null;
   author_id: string;
   created_at: string;
+}
+
+export interface ResourceAttachment {
+  id: string;
+  resource_id: string;
+  created_in_version_id: string | null;
+  file_name: string;
+  file_path: string;
+  mime_type: string;
+  size_bytes: number;
+  caption: string | null;
+  uploaded_by: string;
+  created_at: string;
+  deleted_at: string | null;
+}
+
+export interface ResourceAttachmentWithUploader extends ResourceAttachment {
+  uploader: {
+    id: string;
+    name: string;
+  };
 }
 
 export interface Schedule {

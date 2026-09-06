@@ -23,6 +23,9 @@ import {
   ResourceSchema,
   ResourceVersionListResponseSchema,
   ResourceVersionWithAuthorSchema,
+  ResourceAttachmentWithUploaderSchema,
+  ResourceAttachmentListResponseSchema,
+  DeleteAttachmentResponseSchema,
   ScheduleDetailSchema,
   ScheduleListResponseSchema,
   ScheduleSchema,
@@ -153,6 +156,22 @@ registry.registerPath({
   summary: "Get the authenticated user's profile",
   security: bearerAuth,
   responses: { 200: ok("Current user", UserSchema), ...errors(401) },
+});
+
+registry.registerPath({
+  method: "patch",
+  path: "/api/auth/me",
+  tags: ["Auth"],
+  operationId: "updateCurrentUser",
+  summary: "Update the authenticated user's own preferences (theme)",
+  security: bearerAuth,
+  request: {
+    body: {
+      required: true,
+      ...json(z.object({ theme_preference: z.enum(["light", "dark"]) })),
+    },
+  },
+  responses: { 200: ok("Updated user", UserSchema), ...errors(400, 401) },
 });
 
 registry.registerPath({
@@ -721,6 +740,99 @@ registry.registerPath({
       CreateVersionResultSchema
     ),
     ...errors(400, 401, 403, 404),
+  },
+});
+
+registry.registerPath({
+  method: "post",
+  path: "/api/resources/{id}/attachments",
+  tags: ["Resources"],
+  operationId: "uploadResourceAttachment",
+  summary: "Upload an attachment for a resource (admin or member)",
+  security: bearerAuth,
+  request: {
+    params: IdParam,
+    body: {
+      required: true,
+      content: {
+        "multipart/form-data": {
+          schema: z.object({
+            file: z
+              .string()
+              .openapi({
+                type: "string",
+                format: "binary",
+                description: "Image/diagram file (PNG, JPEG, WebP, SVG, max 10MB)",
+              }),
+            caption: z.string().optional().openapi({ description: "Optional caption describing the attachment" }),
+            created_in_version_id: z.string().uuid().optional().openapi({ description: "Optional resource version ID for provenance" }),
+          }),
+        },
+      },
+    },
+  },
+  responses: {
+    201: ok("Attachment uploaded", ResourceAttachmentWithUploaderSchema),
+    ...errors(400, 401, 403, 404),
+  },
+});
+
+registry.registerPath({
+  method: "get",
+  path: "/api/resources/{id}/attachments",
+  tags: ["Resources"],
+  operationId: "listResourceAttachments",
+  summary: "List all active attachments for a resource ordered by created_at asc",
+  security: bearerAuth,
+  request: { params: IdParam },
+  responses: {
+    200: ok("List of attachments", ResourceAttachmentListResponseSchema),
+    ...errors(401, 404),
+  },
+});
+
+registry.registerPath({
+  method: "get",
+  path: "/api/resources/{id}/attachments/{attachmentId}/content",
+  tags: ["Resources"],
+  operationId: "getResourceAttachmentContent",
+  summary: "Stream raw attachment content inline",
+  security: bearerAuth,
+  request: {
+    params: z.object({
+      id: z.string().uuid(),
+      attachmentId: z.string().uuid(),
+    }),
+  },
+  responses: {
+    200: {
+      description: "Binary attachment file stream",
+      content: {
+        "image/*": {
+          schema: { type: "string", format: "binary" },
+        },
+      },
+    },
+    ...errors(401, 404),
+  },
+});
+
+registry.registerPath({
+  method: "delete",
+  path: "/api/resources/{id}/attachments/{attachmentId}",
+  tags: ["Resources"],
+  operationId: "deleteResourceAttachment",
+  summary: "Soft-delete a resource attachment (admin or original uploader only)",
+  security: bearerAuth,
+  request: {
+    params: z.object({
+      id: z.string().uuid(),
+      attachmentId: z.string().uuid(),
+    }),
+  },
+  responses: {
+    200: ok("Attachment soft-deleted", DeleteAttachmentResponseSchema),
+    ...errors(401, 403, 404),
   },
 });
 
