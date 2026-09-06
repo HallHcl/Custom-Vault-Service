@@ -6,7 +6,7 @@ Functional Complete (8/8 modules) plus UI/UX Polish Phases 1 and 2. It is writte
 coding agent (VSCode Agent / whichever assistant implements tickets), not as
 project history — for the "why," see `decisions.md`. For system structure, see
 `architecture.md`. For the API contract, see `api-spec.md`. For what's done and
-what's next, see `progress.md`.
+what's next, see `HANDOVER.md`.
 
 If any instruction in a specific ticket conflicts with this guide, the ticket's
 explicit instruction wins for that ticket — but flag the conflict in your report
