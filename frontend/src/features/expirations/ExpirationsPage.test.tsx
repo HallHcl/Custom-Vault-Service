@@ -7,6 +7,7 @@ import ExpirationsPage from "./ExpirationsPage";
 
 const getMock = vi.fn();
 const postMock = vi.fn();
+const patchMock = vi.fn();
 const deleteMock = vi.fn();
 const useAuthMock = vi.fn();
 const toastMock = vi.fn();
@@ -34,6 +35,14 @@ vi.mock("@/features/auth/useAuth", () => ({
 
 function ok<T>(data: T) {
   return { data, error: undefined, response: new Response(null, { status: 200 }) };
+}
+
+function apiError(status: number, code: string, message: string, details?: unknown) {
+  return {
+    data: undefined,
+    error: { error: { code, message, details } },
+    response: new Response(null, { status }),
+  };
 }
 
 function paginated<T>(data: T[], totalPages = 1) {
@@ -81,6 +90,24 @@ const DELETED_EXPIRATION = {
   deleted_at: "2026-02-01T00:00:00.000Z",
 };
 
+const EXPIRED_EXPIRATION = {
+  ...SAMPLE_EXPIRATION,
+  id: "exp-expired",
+  name: "Old Expired Domain",
+  status: "expired" as const,
+  is_expired: true,
+  days_until_expiry: -5,
+};
+
+const RENEWED_EXPIRATION = {
+  ...SAMPLE_EXPIRATION,
+  id: "exp-renewed",
+  name: "Renewed Firewall License",
+  status: "renewed" as const,
+  is_expired: false,
+  days_until_expiry: 120,
+};
+
 function renderPage(initialUrl = "/expirations") {
   const queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
@@ -105,6 +132,7 @@ describe("ExpirationsPage", () => {
   beforeEach(() => {
     getMock.mockReset();
     postMock.mockReset();
+    patchMock.mockReset();
     deleteMock.mockReset();
     toastMock.mockReset();
     useAuthMock.mockReturnValue({

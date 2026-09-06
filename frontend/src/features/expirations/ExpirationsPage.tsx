@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { format } from "date-fns";
+import { useQueryClient } from "@tanstack/react-query";
 import { RequireRole } from "@/components/auth/RequireRole";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { FilterBar } from "@/components/FilterBar";
@@ -10,6 +11,16 @@ import { Toolbar } from "@/components/Toolbar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { OptionalLabel } from "@/components/ui/optional-label";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import {
   Select,
   SelectContent,
@@ -31,9 +42,10 @@ import { ErrorState } from "@/components/state/ErrorState";
 import { LoadingState } from "@/components/state/LoadingState";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { HOME_SEGMENT, useBreadcrumbs } from "@/components/layout/BreadcrumbsContext";
-import { apiErrorMessage } from "@/api/errors";
+import { ApiError, apiErrorMessage } from "@/api/errors";
 import { toast } from "@/hooks/use-toast";
 import { useClients } from "@/hooks/useClients";
+import { useConflictResolution } from "@/hooks/useConflictResolution";
 import { useHasRole } from "@/hooks/useHasRole";
 import { usePagination, type DeletedFilter, type SortOrder } from "@/hooks/usePagination";
 import {
@@ -42,6 +54,7 @@ import {
   useDeleteExpiration,
   useExpirations,
   useRestoreExpiration,
+  useUpdateExpiration,
   type Expiration,
   type ExpirationSort,
   type ExpirationStatus,
@@ -136,6 +149,79 @@ export default function ExpirationsPage() {
 
   const [deleteTarget, setDeleteTarget] = useState<Expiration | undefined>(undefined);
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
+
+  const queryClient = useQueryClient();
+  const { captureConflict } = useConflictResolution();
+  const deleteExpiration = useDeleteExpiration();
+  const restoreExpiration = useRestoreExpiration();
+  const updateExpiration = useUpdateExpiration();
+
+  const [renewTarget, setRenewTarget] = useState<Expiration | undefined>(undefined);
+  const [newExpiryDate, setNewExpiryDate] = useState("");
+  const [renewDateError, setRenewDateError] = useState<string | undefined>(undefined);
+
+  function openRenewDialog(exp: Expiration) {
+    setRenewTarget(exp);
+    setNewExpiryDate("");
+    setRenewDateError(undefined);
+  }
+
+  function closeRenewDialog() {
+    setRenewTarget(undefined);
+    setNewExpiryDate("");
+    setRenewDateError(undefined);
+  }
+
+  function handleRenewSubmit() {
+    if (!renewTarget) return;
+
+    if (newExpiryDate.trim()) {
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(newExpiryDate.trim())) {
+        setRenewDateError("Date must be in YYYY-MM-DD format.");
+        return;
+      }
+    }
+
+    const payload: { status: "renewed"; expiry_date?: string; updated_at: string } = {
+      status: "renewed",
+      updated_at: renewTarget.updated_at,
+    };
+
+    if (newExpiryDate.trim()) {
+      payload.expiry_date = newExpiryDate.trim();
+    }
+
+    updateExpiration.mutate(
+      {
+        id: renewTarget.id,
+        data: payload,
+      },
+      {
+        onSuccess: () => {
+          closeRenewDialog();
+          toast({ title: "Expiration marked as renewed" });
+        },
+        onError: (err) => {
+          if (err instanceof ApiError && captureConflict(err)) {
+            closeRenewDialog();
+            toast({
+              title: "This record was updated elsewhere",
+              description: `${err.message} The list has been refreshed with the latest version.`,
+              variant: "destructive",
+            });
+            queryClient.invalidateQueries({ queryKey: ["expirations"] });
+            queryClient.invalidateQueries({ queryKey: ["expirations-summary"] });
+            return;
+          }
+          toast({
+            title: "Couldn't mark expiration as renewed",
+            description: apiErrorMessage(err),
+            variant: "destructive",
+          });
+        },
+      }
+    );
+  }
 
   function openDeleteConfirm(exp: Expiration) {
     setDeleteTarget(exp);
@@ -417,7 +503,20 @@ export default function ExpirationsPage() {
                             </Button>
                           </RequireRole>
                         ) : (
-                          <RowActions
+                          <>
+                            {(exp.status === "active" || exp.status === "expired") && (
+                              <RequireRole roles={["admin", "member"]}>
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  disabled={updateExpiration.isPending}
+                                  onClick={() => openRenewDialog(exp)}
+                                >
+                                  Mark as Renewed
+                                </Button>
+                              </RequireRole>
+                            )}
+                            <RowActions
                               onEdit={canEdit ? () => navigate(`/expirations/${exp.id}/edit`) : undefined}
                               onDelete={canDelete ? () => openDeleteConfirm(exp) : undefined}
                             />
@@ -456,6 +555,76 @@ export default function ExpirationsPage() {
         onConfirm={handleDelete}
       />
 
+      <Dialog
+        open={Boolean(renewTarget)}
+        onOpenChange={(open) => {
+          if (!open) closeRenewDialog();
+        }}
+      >
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Mark as Renewed</DialogTitle>
+            <DialogDescription>
+              Mark &quot;{renewTarget?.name}&quot; as renewed. You can also optionally set a new expiry date.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4 py-2">
+            {renewTarget?.expiry_date && (
+              <p className="text-sm text-muted-foreground">
+                Current expiry:{" "}
+                <span className="font-medium text-foreground">
+                  {format(new Date(renewTarget.expiry_date.slice(0, 10) + "T00:00:00"), "MMM d, yyyy")}
+                </span>
+              </p>
+            )}
+
+            <div className="space-y-1">
+              <Label htmlFor="new_expiry_date">
+                New expiry date <OptionalLabel />
+              </Label>
+              <Input
+                id="new_expiry_date"
+                type="date"
+                value={newExpiryDate}
+                onChange={(e) => {
+                  setNewExpiryDate(e.target.value);
+                  if (renewDateError) setRenewDateError(undefined);
+                }}
+                aria-invalid={Boolean(renewDateError)}
+                aria-describedby={renewDateError ? "new_expiry_date_error" : undefined}
+                className={cn(renewDateError && "shadow-underline-danger focus-visible:shadow-underline-danger")}
+              />
+              {renewDateError && (
+                <p id="new_expiry_date_error" className="text-xs text-danger">
+                  {renewDateError}
+                </p>
+              )}
+              <p className="text-xs text-muted-foreground">
+                Leave blank to keep the current date and mark as renewed only.
+              </p>
+            </div>
+          </div>
+
+          <DialogFooter className="flex justify-end gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={closeRenewDialog}
+              disabled={updateExpiration.isPending}
+            >
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              onClick={handleRenewSubmit}
+              disabled={updateExpiration.isPending}
+            >
+              {updateExpiration.isPending ? "Renewing..." : "Mark as Renewed"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
