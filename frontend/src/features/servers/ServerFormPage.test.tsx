@@ -153,26 +153,9 @@ describe("ServerFormPage — Create mode", () => {
 
     fireEvent.click(screen.getByRole("button", { name: /save/i }));
 
-    expect(await screen.findByText("Display name is required.")).toBeInTheDocument();
-    expect(screen.getByText("Environment is required.")).toBeInTheDocument();
+    expect(await screen.findByText("Environment is required.")).toBeInTheDocument();
     expect(screen.getByText("Hostname is required.")).toBeInTheDocument();
-    expect(screen.getByText("Service type is required.")).toBeInTheDocument();
-    expect(screen.getByText("Access method is required.")).toBeInTheDocument();
-    expect(screen.getByText("Access host is required.")).toBeInTheDocument();
-    expect(postMock).not.toHaveBeenCalled();
-  });
-
-  it("rejects an out-of-range access_port and an access_path that doesn't start with /", async () => {
-    renderCreatePage();
-
-    fireEvent.change(screen.getByLabelText(/port/i), { target: { value: "99999" } });
-    fireEvent.change(screen.getByLabelText(/access path/i), { target: { value: "not-a-slash" } });
-    fireEvent.click(screen.getByRole("button", { name: /save/i }));
-
-    expect(
-      await screen.findByText("Port must be a whole number between 1 and 65535.")
-    ).toBeInTheDocument();
-    expect(screen.getByText("Access path must start with /.")).toBeInTheDocument();
+    expect(screen.getByText("Connection type is required.")).toBeInTheDocument();
     expect(postMock).not.toHaveBeenCalled();
   });
 
@@ -181,15 +164,15 @@ describe("ServerFormPage — Create mode", () => {
 
     fireEvent.click(screen.getByRole("button", { name: /save/i }));
 
-    await screen.findByText("Display name is required.");
-    expect(document.activeElement).toBe(screen.getByLabelText("Display name"));
+    await screen.findByText("Environment is required.");
+    expect(document.activeElement).toBe(
+      screen.getByRole("combobox", { name: /^environment$/i })
+    );
   });
 
-  it("creates a server successfully, displays toast, and navigates to /servers", async () => {
+  it("creates a server from the simplified form, deriving the hidden fields", async () => {
     postMock.mockResolvedValue(created(SAMPLE_SERVER));
     renderCreatePage();
-
-    fireEvent.change(screen.getByLabelText("Display name"), { target: { value: "Web 01" } });
 
     // Environment picker
     const envTrigger = await screen.findByRole("combobox", { name: /^environment$/i });
@@ -197,20 +180,13 @@ describe("ServerFormPage — Create mode", () => {
     fireEvent.click(await screen.findByRole("option", { name: "Production" }));
 
     fireEvent.change(screen.getByLabelText("Hostname"), { target: { value: "web-01" } });
+    fireEvent.change(screen.getByLabelText(/ip address/i), { target: { value: "10.0.0.1" } });
+    fireEvent.change(screen.getByLabelText(/username/i), { target: { value: "root" } });
+    fireEvent.change(screen.getByLabelText(/password/i), { target: { value: "s3cret" } });
 
-    // Service type
-    const serviceTrigger = screen.getByRole("combobox", { name: /service type/i });
-    fireEvent.click(serviceTrigger);
-    fireEvent.click(await screen.findByRole("option", { name: "Application" }));
-
-    // Access method
-    const accessTrigger = screen.getByRole("combobox", { name: /access method/i });
-    fireEvent.click(accessTrigger);
-    fireEvent.click(await screen.findByRole("option", { name: "SSH" }));
-
-    fireEvent.change(screen.getByLabelText("Access host"), { target: { value: "web-01.internal" } });
-    fireEvent.change(screen.getByLabelText(/port/i), { target: { value: "22" } });
-    fireEvent.change(screen.getByLabelText("Tech stack"), { target: { value: "node, postgres" } });
+    const connectionTrigger = screen.getByRole("combobox", { name: /connection type/i });
+    fireEvent.click(connectionTrigger);
+    fireEvent.click(await screen.findByRole("option", { name: "CMD" }));
 
     fireEvent.click(screen.getByRole("button", { name: /save/i }));
 
@@ -218,14 +194,16 @@ describe("ServerFormPage — Create mode", () => {
     const [path, options] = postMock.mock.calls[0];
     expect(path).toBe("/api/servers");
     expect(options.body).toMatchObject({
-      display_name: "Web 01",
       environment_id: "e1",
       hostname: "web-01",
-      service_type: "application",
+      ip_address: "10.0.0.1",
+      username: "root",
+      password: "s3cret",
+      // derived
+      display_name: "web-01",
+      service_type: "other",
       access_method: "ssh",
-      access_host: "web-01.internal",
-      access_port: 22,
-      tech_stack: ["node", "postgres"],
+      access_host: "10.0.0.1",
     });
 
     expect(toastMock).toHaveBeenCalledWith({ title: "Server created" });
@@ -251,18 +229,13 @@ describe("ServerFormPage — Create mode", () => {
 
     renderCreatePage();
 
-    fireEvent.change(screen.getByLabelText("Display name"), { target: { value: "Web 01" } });
     const envTrigger = await screen.findByRole("combobox", { name: /^environment$/i });
     fireEvent.click(envTrigger);
     fireEvent.click(await screen.findByRole("option", { name: "Production" }));
     fireEvent.change(screen.getByLabelText("Hostname"), { target: { value: "web-01" } });
-    const serviceTrigger = screen.getByRole("combobox", { name: /service type/i });
-    fireEvent.click(serviceTrigger);
-    fireEvent.click(await screen.findByRole("option", { name: "Application" }));
-    const accessTrigger = screen.getByRole("combobox", { name: /access method/i });
-    fireEvent.click(accessTrigger);
-    fireEvent.click(await screen.findByRole("option", { name: "SSH" }));
-    fireEvent.change(screen.getByLabelText("Access host"), { target: { value: "web-01.internal" } });
+    const connectionTrigger = screen.getByRole("combobox", { name: /connection type/i });
+    fireEvent.click(connectionTrigger);
+    fireEvent.click(await screen.findByRole("option", { name: "CMD" }));
 
     fireEvent.click(screen.getByRole("button", { name: /save/i }));
 

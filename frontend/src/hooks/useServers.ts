@@ -73,6 +73,8 @@ export function useCreateServer() {
       access_path?: string;
       tech_stack?: string[];
       monitoring_url?: string;
+      username?: string;
+      password?: string;
       notes?: string;
     }) => {
       const result = await apiClient.POST("/api/servers", { body: input });
@@ -104,6 +106,8 @@ export function useUpdateServer() {
         access_path?: string;
         tech_stack?: string[];
         monitoring_url?: string;
+        username?: string;
+        password?: string;
         notes?: string;
         updated_at: string;
       };

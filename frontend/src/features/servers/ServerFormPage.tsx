@@ -71,6 +71,8 @@ interface ServerInput {
   access_path?: string;
   tech_stack?: string[];
   monitoring_url?: string;
+  username?: string;
+  password?: string;
   notes?: string;
 }
 
@@ -86,6 +88,8 @@ interface FieldErrors {
   access_path?: string;
   tech_stack?: string;
   monitoring_url?: string;
+  username?: string;
+  password?: string;
   notes?: string;
 }
 
@@ -105,6 +109,8 @@ const EDITABLE_FIELDS = [
   "access_path",
   "tech_stack",
   "monitoring_url",
+  "username",
+  "password",
   "notes",
 ] as const;
 
@@ -120,6 +126,8 @@ const FIELD_DOM_ORDER: ReadonlyArray<{ key: keyof FieldErrors; elementId: string
   { key: "access_port", elementId: "access_port" },
   { key: "access_path", elementId: "access_path" },
   { key: "monitoring_url", elementId: "monitoring_url" },
+  { key: "username", elementId: "username" },
+  { key: "password", elementId: "password" },
   { key: "notes", elementId: "notes" },
 ];
 
@@ -189,6 +197,8 @@ export default function ServerFormPage({ mode: modeProp }: ServerFormPageProps) 
   const [accessPath, setAccessPath] = useState(server?.access_path ?? "");
   const [techStack, setTechStack] = useState((server?.tech_stack ?? []).join(", "));
   const [monitoringUrl, setMonitoringUrl] = useState(server?.monitoring_url ?? "");
+  const [username, setUsername] = useState(server?.username ?? "");
+  const [password, setPassword] = useState(server?.password ?? "");
   const [notes, setNotes] = useState(server?.notes ?? "");
   const [updatedAt, setUpdatedAt] = useState<string | undefined>(server?.updated_at);
 
@@ -211,6 +221,8 @@ export default function ServerFormPage({ mode: modeProp }: ServerFormPageProps) 
     setAccessPath(server.access_path ?? "");
     setTechStack((server.tech_stack ?? []).join(", "));
     setMonitoringUrl(server.monitoring_url ?? "");
+    setUsername(server.username ?? "");
+    setPassword(server.password ?? "");
     setNotes(server.notes ?? "");
     setUpdatedAt(server.updated_at);
   }, [isEdit, server]);
@@ -222,13 +234,18 @@ export default function ServerFormPage({ mode: modeProp }: ServerFormPageProps) 
   }
 
   function buildInput(): ServerInput {
+    const trimmedHost = hostname.trim();
+    // The simplified "New server" form only asks for hostname, IP, credentials,
+    // a CMD/RDP connection type, and notes. The remaining columns still exist on
+    // the record (and stay editable on the edit form) — derive sensible values
+    // here so nothing is written blank.
     return {
-      display_name: displayName.trim(),
-      hostname: hostname.trim(),
+      display_name: isEdit ? displayName.trim() : trimmedHost,
+      hostname: trimmedHost,
       ip_address: ipAddress.trim() || undefined,
-      service_type: serviceType as (typeof SERVICE_TYPES)[number],
-      access_method: accessMethod as (typeof ACCESS_METHODS)[number],
-      access_host: accessHost.trim(),
+      service_type: (serviceType ?? "other") as (typeof SERVICE_TYPES)[number],
+      access_method: (accessMethod ?? "ssh") as (typeof ACCESS_METHODS)[number],
+      access_host: isEdit ? accessHost.trim() : (ipAddress.trim() || trimmedHost),
       access_port: accessPort.trim() ? Number(accessPort) : undefined,
       access_path: accessPath.trim() || undefined,
       tech_stack: techStack
@@ -236,6 +253,8 @@ export default function ServerFormPage({ mode: modeProp }: ServerFormPageProps) 
         .map((t) => t.trim())
         .filter(Boolean),
       monitoring_url: monitoringUrl.trim() || undefined,
+      username: username.trim() || undefined,
+      password: password.trim() || undefined,
       notes: notes.trim() || undefined,
     };
   }
@@ -282,7 +301,7 @@ export default function ServerFormPage({ mode: modeProp }: ServerFormPageProps) 
     const input = buildInput();
     const nextErrors: FieldErrors = {};
 
-    if (!input.display_name) {
+    if (isEdit && !input.display_name) {
       nextErrors.display_name = "Display name is required.";
     }
     if (!isEdit && !environmentId) {
@@ -291,13 +310,15 @@ export default function ServerFormPage({ mode: modeProp }: ServerFormPageProps) 
     if (!input.hostname) {
       nextErrors.hostname = "Hostname is required.";
     }
-    if (!serviceType) {
+    if (isEdit && !serviceType) {
       nextErrors.service_type = "Service type is required.";
     }
     if (!accessMethod) {
-      nextErrors.access_method = "Access method is required.";
+      nextErrors.access_method = isEdit
+        ? "Access method is required."
+        : "Connection type is required.";
     }
-    if (!input.access_host) {
+    if (isEdit && !input.access_host) {
       nextErrors.access_host = "Access host is required.";
     }
     if (accessPort.trim()) {
@@ -364,6 +385,8 @@ export default function ServerFormPage({ mode: modeProp }: ServerFormPageProps) 
       setAccessPath(result.data.access_path ?? "");
       setTechStack((result.data.tech_stack ?? []).join(", "));
       setMonitoringUrl(result.data.monitoring_url ?? "");
+      setUsername(result.data.username ?? "");
+      setPassword(result.data.password ?? "");
       setNotes(result.data.notes ?? "");
       setUpdatedAt(result.data.updated_at);
     }
@@ -458,23 +481,25 @@ export default function ServerFormPage({ mode: modeProp }: ServerFormPageProps) 
               </p>
             )}
 
-            <div className="space-y-1">
-              <Label htmlFor="display_name">Display name</Label>
-              <Input
-                id="display_name"
-                value={displayName}
-                onChange={(e) => setDisplayName(e.target.value)}
-                required
-                aria-invalid={!!fieldErrors.display_name}
-                aria-describedby={fieldErrors.display_name ? errorId("display_name") : undefined}
-                className={cn(fieldErrors.display_name && INVALID_CONTROL)}
-              />
-              {fieldErrors.display_name && (
-                <p id={errorId("display_name")} className="text-xs text-danger">
-                  {fieldErrors.display_name}
-                </p>
-              )}
-            </div>
+            {isEdit && (
+              <div className="space-y-1">
+                <Label htmlFor="display_name">Display name</Label>
+                <Input
+                  id="display_name"
+                  value={displayName}
+                  onChange={(e) => setDisplayName(e.target.value)}
+                  required
+                  aria-invalid={!!fieldErrors.display_name}
+                  aria-describedby={fieldErrors.display_name ? errorId("display_name") : undefined}
+                  className={cn(fieldErrors.display_name && INVALID_CONTROL)}
+                />
+                {fieldErrors.display_name && (
+                  <p id={errorId("display_name")} className="text-xs text-danger">
+                    {fieldErrors.display_name}
+                  </p>
+                )}
+              </div>
+            )}
 
             <div className="space-y-1">
               <Label htmlFor="environment">Environment</Label>
@@ -545,6 +570,78 @@ export default function ServerFormPage({ mode: modeProp }: ServerFormPageProps) 
               </div>
             </div>
 
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="space-y-1">
+                <OptionalLabel htmlFor="username">Username</OptionalLabel>
+                <Input
+                  id="username"
+                  value={username}
+                  onChange={(e) => setUsername(e.target.value)}
+                  autoComplete="off"
+                  placeholder="e.g. root"
+                  aria-invalid={!!fieldErrors.username}
+                  aria-describedby={fieldErrors.username ? errorId("username") : undefined}
+                  className={cn(fieldErrors.username && INVALID_CONTROL)}
+                />
+                {fieldErrors.username && (
+                  <p id={errorId("username")} className="text-xs text-danger">
+                    {fieldErrors.username}
+                  </p>
+                )}
+              </div>
+              <div className="space-y-1">
+                <OptionalLabel htmlFor="password">Password</OptionalLabel>
+                <Input
+                  id="password"
+                  type="password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  autoComplete="new-password"
+                  aria-invalid={!!fieldErrors.password}
+                  aria-describedby={fieldErrors.password ? errorId("password") : undefined}
+                  className={cn(fieldErrors.password && INVALID_CONTROL)}
+                />
+                {fieldErrors.password && (
+                  <p id={errorId("password")} className="text-xs text-danger">
+                    {fieldErrors.password}
+                  </p>
+                )}
+              </div>
+            </div>
+
+            {!isEdit && (
+              <div className="space-y-1">
+                <Label htmlFor="access_method">Connection type</Label>
+                <Select
+                  value={accessMethod}
+                  onValueChange={(v) => {
+                    if (v) setAccessMethod(v as (typeof ACCESS_METHODS)[number]);
+                  }}
+                >
+                  <SelectTrigger
+                    id="access_method"
+                    aria-required="true"
+                    aria-invalid={!!fieldErrors.access_method}
+                    aria-describedby={fieldErrors.access_method ? errorId("access_method") : undefined}
+                    className={cn(fieldErrors.access_method && INVALID_CONTROL)}
+                  >
+                    <SelectValue placeholder="Select..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="ssh">CMD</SelectItem>
+                    <SelectItem value="rdp">RDP</SelectItem>
+                  </SelectContent>
+                </Select>
+                {fieldErrors.access_method && (
+                  <p id={errorId("access_method")} className="text-xs text-danger">
+                    {fieldErrors.access_method}
+                  </p>
+                )}
+              </div>
+            )}
+
+            {isEdit && (
+            <>
             <div className="space-y-1">
               <Label htmlFor="tech_stack">Tech stack</Label>
               <Input
@@ -718,6 +815,8 @@ export default function ServerFormPage({ mode: modeProp }: ServerFormPageProps) 
                 </p>
               )}
             </div>
+            </>
+            )}
 
             <div className="space-y-1">
               <OptionalLabel htmlFor="notes">Notes</OptionalLabel>

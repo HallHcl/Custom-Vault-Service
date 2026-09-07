@@ -930,6 +930,8 @@ export interface components {
             access_host: string;
             access_port: number | null;
             access_path: string | null;
+            username: string | null;
+            password: string | null;
         };
         /** @enum {string|null} */
         ServiceType: "application" | "database" | "proxy" | "monitoring" | "repository" | "metrics" | "jump_host" | "other" | null;
@@ -2726,6 +2728,8 @@ export interface operations {
                     tech_stack?: string[];
                     /** Format: uri */
                     monitoring_url?: string;
+                    username?: string;
+                    password?: string;
                     notes?: string;
                 };
             };
@@ -2892,6 +2896,8 @@ export interface operations {
                     tech_stack?: string[];
                     /** Format: uri */
                     monitoring_url?: string;
+                    username?: string;
+                    password?: string;
                     notes?: string;
                     updated_at: string;
                 };

@@ -409,6 +409,12 @@ components:
         access_path:
           type: string
           nullable: true
+        username:
+          type: string
+          nullable: true
+        password:
+          type: string
+          nullable: true
       required:
         - id
         - environment_id
@@ -426,6 +432,8 @@ components:
         - access_host
         - access_port
         - access_path
+        - username
+        - password
     ServiceType:
       type: string
       nullable: true
@@ -2869,6 +2877,10 @@ paths:
                 monitoring_url:
                   type: string
                   format: uri
+                username:
+                  type: string
+                password:
+                  type: string
                 notes:
                   type: string
               required:
@@ -3009,6 +3021,10 @@ paths:
                 monitoring_url:
                   type: string
                   format: uri
+                username:
+                  type: string
+                password:
+                  type: string
                 notes:
                   type: string
                 updated_at:

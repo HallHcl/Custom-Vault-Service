@@ -40,6 +40,8 @@ export const createServerSchema = z.object({
   access_path: accessPathSchema.optional(),
   tech_stack: z.array(z.string()).optional().default([]),
   monitoring_url: z.string().url().optional(),
+  username: z.string().optional(),
+  password: z.string().optional(),
   notes: z.string().optional(),
 });
 
@@ -57,6 +59,8 @@ export const updateServerSchema = z.object({
   access_path: accessPathSchema.optional(),
   tech_stack: z.array(z.string()).optional(),
   monitoring_url: z.string().url().optional(),
+  username: z.string().optional(),
+  password: z.string().optional(),
   notes: z.string().optional(),
   updated_at: z.string().min(1),
 });

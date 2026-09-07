@@ -147,6 +147,14 @@ export default function ServerDetailPage() {
                       <dd>{server.access_method ? ACCESS_METHOD_LABELS[server.access_method] : "—"}</dd>
                     </div>
                     <div className="min-w-0">
+                      <dt className="text-xs text-muted-foreground">Username</dt>
+                      <dd className="break-words">{server.username || "—"}</dd>
+                    </div>
+                    <div className="min-w-0">
+                      <dt className="text-xs text-muted-foreground">Password</dt>
+                      <dd className="break-words">{server.password || "—"}</dd>
+                    </div>
+                    <div className="min-w-0">
                       <dt className="text-xs text-muted-foreground">Access host</dt>
                       <dd className="break-words">{server.access_host || "—"}</dd>
                     </div>

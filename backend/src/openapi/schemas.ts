@@ -233,6 +233,8 @@ export const ServerSchema = z
     access_host: z.string(),
     access_port: z.number().int().nullable(),
     access_path: z.string().nullable(),
+    username: z.string().nullable(),
+    password: z.string().nullable(),
   })
   .openapi("Server");
 

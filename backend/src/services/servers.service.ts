@@ -157,9 +157,9 @@ export async function createServer(
         `INSERT INTO servers (
            environment_id, display_name, hostname, ip_address, tech_stack,
            service_type, access_method, access_host, access_port, access_path,
-           monitoring_url, notes
+           monitoring_url, username, password, notes
          )
-         VALUES ($1, $2, $3, $4, $5::jsonb, $6, $7, $8, $9, $10, $11, $12)
+         VALUES ($1, $2, $3, $4, $5::jsonb, $6, $7, $8, $9, $10, $11, $12, $13, $14)
          RETURNING *`,
         [
           input.environment_id,
@@ -173,6 +173,8 @@ export async function createServer(
           input.access_port ?? null,
           input.access_path ?? null,
           input.monitoring_url ?? null,
+          input.username ?? null,
+          input.password ?? null,
           input.notes ?? null,
         ]
       );
@@ -220,6 +222,8 @@ export async function updateServer(
              access_port = COALESCE($10, access_port),
              access_path = COALESCE($11, access_path),
              monitoring_url = COALESCE($12, monitoring_url),
+             username = COALESCE($14, username),
+             password = COALESCE($15, password),
              notes = COALESCE($13, notes),
              updated_at = now()
          WHERE id = $1
@@ -240,6 +244,8 @@ export async function updateServer(
           input.access_path ?? null,
           input.monitoring_url ?? null,
           input.notes ?? null,
+          input.username ?? null,
+          input.password ?? null,
         ]
       );
       const updated = result.rows[0];
