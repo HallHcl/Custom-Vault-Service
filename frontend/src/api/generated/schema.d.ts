@@ -35,7 +35,8 @@ export interface paths {
         delete?: never;
         options?: never;
         head?: never;
-        patch?: never;
+        /** Update the authenticated user's own preferences (theme) */
+        patch: operations["updateCurrentUser"];
         trace?: never;
     };
     "/api/auth/logout": {
@@ -466,6 +467,58 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/resources/{id}/attachments": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List all active attachments for a resource ordered by created_at asc */
+        get: operations["listResourceAttachments"];
+        put?: never;
+        /** Upload an attachment for a resource (admin or member) */
+        post: operations["uploadResourceAttachment"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/resources/{id}/attachments/{attachmentId}/content": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Stream raw attachment content inline */
+        get: operations["getResourceAttachmentContent"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/resources/{id}/attachments/{attachmentId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Soft-delete a resource attachment (admin or original uploader only) */
+        delete: operations["deleteResourceAttachment"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/people": {
         parameters: {
             query?: never;
@@ -646,6 +699,77 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/expirations": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List expirations with computed status and days until expiry */
+        get: operations["listExpirations"];
+        put?: never;
+        /** Create an expiration tracking record (admin or member) */
+        post: operations["createExpiration"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/expirations/summary": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get expiration counts partitioned into expired, critical (<=7d), warning (8-30d), and upcoming (31-90d) */
+        get: operations["getExpirationsSummary"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/expirations/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get an expiration by id with linked client, project, and server metadata */
+        get: operations["getExpirationById"];
+        put?: never;
+        post?: never;
+        /** Soft-delete an expiration record (admin only) */
+        delete: operations["deleteExpiration"];
+        options?: never;
+        head?: never;
+        /** Update an expiration record or mark as renewed (admin or member; optimistic lock) */
+        patch: operations["updateExpiration"];
+        trace?: never;
+    };
+    "/api/expirations/{id}/restore": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Restore a soft-deleted expiration record (admin only) */
+        post: operations["restoreExpiration"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -659,6 +783,8 @@ export interface components {
             /** Format: uuid */
             peopleId: string | null;
             roles: string[];
+            /** @enum {string} */
+            theme_preference?: "light" | "dark";
         };
         ErrorResponse: {
             error: {
@@ -934,6 +1060,36 @@ export interface components {
             version: components["schemas"]["ResourceVersion"];
             warning?: string;
         };
+        ResourceAttachmentWithUploader: components["schemas"]["ResourceAttachment"] & {
+            uploader: {
+                /** Format: uuid */
+                id: string;
+                name: string;
+            };
+        };
+        ResourceAttachment: {
+            /** Format: uuid */
+            id: string;
+            /** Format: uuid */
+            resource_id: string;
+            /** Format: uuid */
+            created_in_version_id: string | null;
+            file_name: string;
+            file_path: string;
+            mime_type: string;
+            size_bytes: number;
+            caption: string | null;
+            /** Format: uuid */
+            uploaded_by: string;
+            /** Format: date-time */
+            created_at: string;
+            /** Format: date-time */
+            deleted_at: string | null;
+        };
+        ResourceAttachmentListResponse: components["schemas"]["ResourceAttachmentWithUploader"][];
+        DeleteAttachmentResponse: {
+            message: string;
+        };
         PersonListResponse: {
             data: components["schemas"]["Person"][];
             pagination: components["schemas"]["Pagination"];
@@ -1049,7 +1205,7 @@ export interface components {
             };
         };
         /** @enum {string} */
-        EntityType: "client" | "project" | "environment" | "server" | "credential_reference" | "people" | "resource" | "resource_version" | "schedule" | "user";
+        EntityType: "client" | "project" | "environment" | "server" | "credential_reference" | "people" | "resource" | "resource_version" | "resource_attachment" | "schedule" | "expiration" | "user";
         /** @enum {string} */
         ActivityAction: "create" | "update" | "delete" | "restore";
         SearchResults: {
@@ -1071,6 +1227,65 @@ export interface components {
         };
         /** @enum {string} */
         SearchEntityType: "client" | "project" | "environment" | "server";
+        ExpirationListResponse: {
+            data: components["schemas"]["Expiration"][];
+            pagination: components["schemas"]["Pagination"];
+        };
+        Expiration: {
+            /** Format: uuid */
+            id: string;
+            /** Format: uuid */
+            client_id: string;
+            /** Format: uuid */
+            project_id: string | null;
+            /** Format: uuid */
+            server_id: string | null;
+            type: components["schemas"]["ExpirationType"];
+            name: string;
+            provider_or_vendor: string | null;
+            identifier: string | null;
+            expiry_date: string;
+            alert_threshold_days: number;
+            status: components["schemas"]["ExpirationStatus"];
+            notes: string | null;
+            /** Format: date-time */
+            created_at: string;
+            /** Format: date-time */
+            updated_at: string;
+            /** Format: date-time */
+            deleted_at: string | null;
+            days_until_expiry: number;
+            is_expired: boolean;
+            is_critical: boolean;
+            is_expiring_soon: boolean;
+        };
+        /** @enum {string} */
+        ExpirationType: "ssl_certificate" | "hardware_ma" | "software_license" | "warranty" | "domain_or_cloud";
+        /** @enum {string} */
+        ExpirationStatus: "active" | "renewed" | "expired";
+        ExpirationSummary: {
+            expired_count: number;
+            critical_count: number;
+            warning_count: number;
+            upcoming_count: number;
+        };
+        ExpirationDetail: components["schemas"]["Expiration"] & {
+            client: {
+                /** Format: uuid */
+                id: string;
+                name: string;
+            };
+            project: {
+                /** Format: uuid */
+                id: string;
+                name: string;
+            } | null;
+            server: {
+                /** Format: uuid */
+                id: string;
+                display_name: string;
+            } | null;
+        };
     };
     responses: never;
     parameters: never;
@@ -1135,6 +1350,51 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["User"];
+                };
+            };
+            /** @description Not authenticated */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    updateCurrentUser: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    /** @enum {string} */
+                    theme_preference: "light" | "dark";
+                };
+            };
+        };
+        responses: {
+            /** @description Updated user */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["User"];
+                };
+            };
+            /** @description Validation error */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
             /** @description Not authenticated */
@@ -3489,6 +3749,212 @@ export interface operations {
             };
         };
     };
+    listResourceAttachments: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description List of attachments */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResourceAttachmentListResponse"];
+                };
+            };
+            /** @description Not authenticated */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    uploadResourceAttachment: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "multipart/form-data": {
+                    /**
+                     * Format: binary
+                     * @description Image/diagram file (PNG, JPEG, WebP, SVG, max 10MB)
+                     */
+                    file: string;
+                    /** @description Optional caption describing the attachment */
+                    caption?: string;
+                    /**
+                     * Format: uuid
+                     * @description Optional resource version ID for provenance
+                     */
+                    created_in_version_id?: string;
+                };
+            };
+        };
+        responses: {
+            /** @description Attachment uploaded */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResourceAttachmentWithUploader"];
+                };
+            };
+            /** @description Validation error */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Not authenticated */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Insufficient permissions */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    getResourceAttachmentContent: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+                attachmentId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Binary attachment file stream */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "image/*": string;
+                };
+            };
+            /** @description Not authenticated */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    deleteResourceAttachment: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+                attachmentId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Attachment soft-deleted */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DeleteAttachmentResponse"];
+                };
+            };
+            /** @description Not authenticated */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Insufficient permissions */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
     listPeople: {
         parameters: {
             query?: {
@@ -4396,6 +4862,402 @@ export interface operations {
             };
             /** @description Not authenticated */
             401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    listExpirations: {
+        parameters: {
+            query?: {
+                /** @description Default: 1 */
+                page?: number;
+                /** @description Default: 20, max: 100 */
+                per_page?: number;
+                /** @description Default: expiry_date */
+                sort?: "expiry_date" | "name" | "created_at" | "updated_at";
+                /** @description Default: asc */
+                order?: "asc" | "desc";
+                /** @description Default: false */
+                deleted?: "false" | "true" | "all";
+                search?: string;
+                client_id?: string;
+                project_id?: string;
+                server_id?: string;
+                type?: string;
+                status?: string;
+                days_ahead?: number | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Paginated expirations */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ExpirationListResponse"];
+                };
+            };
+            /** @description Not authenticated */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    createExpiration: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    /** Format: uuid */
+                    client_id: string;
+                    /** Format: uuid */
+                    project_id?: string | null;
+                    /** Format: uuid */
+                    server_id?: string | null;
+                    /** @enum {string} */
+                    type: "ssl_certificate" | "hardware_ma" | "software_license" | "warranty" | "domain_or_cloud";
+                    name: string;
+                    provider_or_vendor?: string | null;
+                    identifier?: string | null;
+                    expiry_date: string;
+                    /** @default 30 */
+                    alert_threshold_days?: number;
+                    /**
+                     * @default active
+                     * @enum {string}
+                     */
+                    status?: "active" | "renewed" | "expired";
+                    notes?: string | null;
+                };
+            };
+        };
+        responses: {
+            /** @description Expiration created */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Expiration"];
+                };
+            };
+            /** @description Validation error */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Not authenticated */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Insufficient permissions */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    getExpirationsSummary: {
+        parameters: {
+            query?: {
+                /** @description Optionally filter counts to a specific client */
+                client_id?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Expiration counts summary */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ExpirationSummary"];
+                };
+            };
+            /** @description Not authenticated */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    getExpirationById: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Expiration detail */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ExpirationDetail"];
+                };
+            };
+            /** @description Not authenticated */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    deleteExpiration: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Expiration soft-deleted */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Expiration"];
+                };
+            };
+            /** @description Not authenticated */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Insufficient permissions */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    updateExpiration: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    /** Format: uuid */
+                    client_id?: string;
+                    /** Format: uuid */
+                    project_id?: string | null;
+                    /** Format: uuid */
+                    server_id?: string | null;
+                    /** @enum {string} */
+                    type?: "ssl_certificate" | "hardware_ma" | "software_license" | "warranty" | "domain_or_cloud";
+                    name?: string;
+                    provider_or_vendor?: string | null;
+                    identifier?: string | null;
+                    expiry_date?: string;
+                    alert_threshold_days?: number;
+                    /** @enum {string} */
+                    status?: "active" | "renewed" | "expired";
+                    notes?: string | null;
+                    updated_at: string;
+                };
+            };
+        };
+        responses: {
+            /** @description Expiration updated */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Expiration"];
+                };
+            };
+            /** @description Validation error */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Not authenticated */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Insufficient permissions */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    restoreExpiration: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Expiration restored */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Expiration"];
+                };
+            };
+            /** @description Not authenticated */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Insufficient permissions */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Conflict */
+            409: {
                 headers: {
                     [name: string]: unknown;
                 };

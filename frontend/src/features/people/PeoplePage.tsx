@@ -8,6 +8,7 @@ import { EmptyState } from "@/components/state/EmptyState";
 import { ErrorState } from "@/components/state/ErrorState";
 import { LoadingState } from "@/components/state/LoadingState";
 import { PageHeader } from "@/components/layout/PageHeader";
+import { HOME_SEGMENT, useBreadcrumbs } from "@/components/layout/BreadcrumbsContext";
 import { apiErrorMessage } from "@/api/errors";
 import { toast } from "@/hooks/use-toast";
 import { usePagination, type DeletedFilter, type SortOrder } from "@/hooks/usePagination";
@@ -24,6 +25,7 @@ import PersonDetailDialog from "./components/PersonDetailDialog";
 import PersonFormDialog from "./components/PersonFormDialog";
 
 export default function PeoplePage() {
+  useBreadcrumbs([HOME_SEGMENT, { label: "People" }]);
   const pagination = usePagination({ initialSort: "name", initialOrder: "asc" });
   // URL-synced via pagination.getParam/setParams (see usePagination.ts)
   // rather than local useState, so a refresh/shared URL reproduces the same

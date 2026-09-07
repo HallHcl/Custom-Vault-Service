@@ -63,7 +63,7 @@ describe("Sidebar", () => {
       ])
     ).toEqual([
       ["Delivery", ["Clients", "Projects", "Environments", "Servers"]],
-      ["Operations", ["Infrastructure", "Schedule", "Activity"]],
+      ["Operations", ["Infrastructure", "Schedule", "Expirations", "Activity"]],
       ["Knowledge", ["Resources", "People"]],
     ]);
   });

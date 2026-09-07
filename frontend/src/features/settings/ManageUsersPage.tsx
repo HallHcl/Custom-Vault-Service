@@ -1,10 +1,21 @@
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { PageHeader } from "@/components/layout/PageHeader";
+import { HOME_SEGMENT, useBreadcrumbs } from "@/components/layout/BreadcrumbsContext";
 import { useAuth } from "@/features/auth/useAuth";
+import { useTheme } from "@/features/theme/ThemeProvider";
+import type { Theme } from "@/lib/theme";
+
+const THEME_OPTIONS: { value: Theme; label: string }[] = [
+  { value: "light", label: "Light" },
+  { value: "dark", label: "Dark" },
+];
 
 export default function ManageUsersPage() {
+  useBreadcrumbs([HOME_SEGMENT, { label: "Manage users" }]);
   const { user } = useAuth();
+  const { theme, setTheme, isSaving } = useTheme();
 
   return (
     <div className="space-y-6">
@@ -48,6 +59,36 @@ export default function ManageUsersPage() {
           ) : (
             <p className="text-sm text-muted-foreground">Not signed in.</p>
           )}
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Theme</CardTitle>
+          <CardDescription>
+            Choose the appearance of the workspace. This preference is saved to
+            your account and follows you across devices.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div role="radiogroup" aria-label="Theme" className="flex gap-2">
+            {THEME_OPTIONS.map((option) => {
+              const selected = theme === option.value;
+              return (
+                <Button
+                  key={option.value}
+                  type="button"
+                  role="radio"
+                  aria-checked={selected}
+                  variant={selected ? "default" : "outline"}
+                  disabled={isSaving}
+                  onClick={() => setTheme(option.value)}
+                >
+                  {option.label}
+                </Button>
+              );
+            })}
+          </div>
         </CardContent>
       </Card>
     </div>

@@ -4,8 +4,10 @@
 
 @layer base {
   :root {
-    /* Design System Direction C — light theme (single, non-togglable).
-       Phase 1.1: foundation color tokens.
+    /* Design System Direction C — foundation color tokens (Phase 1.1).
+       The light theme lives here on :root. The dark theme (added for the
+       Dark Mode feature) overrides these same tokens in the `.dark` block
+       further down — activated by `class="dark"` on <html>.
 
        FORMAT — values are space-separated RGB channels (not hex/rgb()) so
        Tailwind's opacity-modifier syntax (bg-danger/10, hover:bg-warning/40,
@@ -91,6 +93,16 @@
        Use directly: background: var(--overlay). */
     --overlay: rgba(16, 24, 40, 0.48);
 
+    /* --- Elevation (box-shadow) ---
+       Moved here from tailwind.config.js so dark mode can supply its own,
+       more diffuse shadows. Consumed via `shadow-elev-{1,2,3}` — those
+       Tailwind keys are now `var(--elev-N)` passthroughs. Composite values
+       (offset + blur + baked-alpha color), so like --overlay they cannot go
+       through the rgb(var(--x) / <alpha-value>) wrapper. */
+    --elev-1: 0 1px 2px rgba(16, 24, 40, 0.04), 0 1px 3px rgba(16, 24, 40, 0.06);
+    --elev-2: 0 4px 8px -2px rgba(16, 24, 40, 0.08), 0 2px 4px -2px rgba(16, 24, 40, 0.06);
+    --elev-3: 0 20px 24px -4px rgba(16, 24, 40, 0.10), 0 8px 8px -4px rgba(16, 24, 40, 0.04);
+
     /* --- Not specified by the Direction C Phase 1.1 token set ---
        Left at its Direction B value deliberately; inventing a replacement
        would be guessing. Flagged for a later phase:
@@ -148,6 +160,124 @@
     --destructive-foreground: var(--text-on-primary);
   }
 
+  /* PLACEHOLDER — swap with real design values when delivered.
+     ------------------------------------------------------------------------
+     Drafted for the Dark Mode feature (Task 2). This is NOT a vetted palette:
+     a slate-based dark set, eyeballed for roughly WCAG-AA body-text contrast
+     against the dark surfaces. Every token declared on :root is re-stated
+     here so the design team can review the complete set in one place.
+
+     Indirection tokens (`var(--x)`) are repeated verbatim so their resolved
+     dark values are explicit — EXCEPT `--primary-foreground`, which is
+     deliberately decoupled (see its inline note).
+
+     Dark primary treatment: bright jade fill + near-black text (a common
+     dark-mode convention), rather than light mode's dark jade + white text.
+     ------------------------------------------------------------------------ */
+  .dark {
+    /* --- Surface & Canvas --- */
+    --canvas: 17 20 24;             /* #111418 — app background, darkest layer */
+    --surface: 24 28 33;            /* #181C21 — cards / panels */
+    --surface-raised: 30 35 41;     /* #1E2329 */
+    --surface-sunken: 20 23 27;     /* #14171B */
+    --surface-hover: 33 38 45;      /* #21262D */
+    --surface-active: 22 55 45;     /* #16372D — jade-tinted selected nav item */
+    --border: 44 51 60;             /* #2C333C — hairline */
+    --divider: 38 44 52;            /* #262C34 */
+    --input-underline: 138 148 165; /* #8A94A5 */
+
+    /* --- Text Hierarchy --- */
+    --text-primary: 233 236 240;    /* #E9ECF0 */
+    --text-secondary: 176 184 196;  /* #B0B8C4 */
+    --text-muted: 138 148 165;      /* #8A94A5 */
+    --text-disabled: 96 105 120;    /* #606978 — intentionally low contrast */
+    --text-on-primary: 255 255 255; /* #FFFFFF — white on the red danger fill */
+
+    /* --- Primary (Jade Green) — brightened; pairs with dark text --- */
+    --primary: 61 194 150;             /* #3DC296 */
+    --primary-hover: 82 208 166;       /* #52D0A6 */
+    --primary-active: 108 220 182;     /* #6CDCB6 */
+    --primary-tint: 22 45 38;          /* #162D26 */
+    --primary-tint-strong: 28 66 54;   /* #1C4236 */
+    --primary-border: 45 110 90;       /* #2D6E5A */
+    --primary-text: 125 214 183;       /* #7DD6B7 — jade text on dark surface */
+
+    /* --- Accent (Modern Violet) — brightened --- */
+    --accent: 141 116 250;          /* #8D74FA */
+    --accent-hover: 158 137 252;    /* #9E89FC */
+    --accent-active: 174 157 253;   /* #AE9DFD */
+    --accent-tint: 33 28 54;        /* #211C36 */
+    --accent-tint-strong: 46 38 74; /* #2E264A */
+    --accent-border: 92 74 160;     /* #5C4AA0 */
+    --accent-text: 190 176 252;     /* #BEB0FC */
+
+    /* --- Semantic Status --- */
+    /* Success (mirrors Primary jade) */
+    --success: 61 194 150;          /* #3DC296 */
+    --success-tint: 22 45 38;       /* #162D26 */
+    --success-border: 45 110 90;    /* #2D6E5A */
+    --success-text: 125 214 183;    /* #7DD6B7 */
+    /* Warning */
+    --warning: 224 148 62;          /* #E0943E */
+    --warning-tint: 48 37 22;       /* #302516 */
+    --warning-border: 122 88 44;    /* #7A582C */
+    --warning-text: 240 190 130;    /* #F0BE82 */
+    /* Danger */
+    --danger: 232 106 94;           /* #E86A5E */
+    --danger-tint: 51 26 24;        /* #331A18 */
+    --danger-border: 132 58 52;     /* #843A34 */
+    --danger-text: 245 165 158;     /* #F5A59E */
+    /* Info */
+    --info: 82 156 232;             /* #529CE8 */
+    --info-tint: 20 33 48;          /* #142130 */
+    --info-border: 52 92 140;       /* #345C8C */
+    --info-text: 154 197 243;       /* #9AC5F3 */
+    /* Neutral */
+    --neutral: 176 184 196;         /* #B0B8C4 */
+    --neutral-tint: 33 38 45;       /* #21262D */
+    --neutral-border: 62 70 82;     /* #3E4652 */
+    --neutral-text: 200 207 217;    /* #C8CFD9 */
+
+    /* --- Interaction --- */
+    --focus-ring: 61 194 150;       /* #3DC296 — matches --primary */
+    --overlay: rgba(0, 0, 0, 0.6);  /* darker scrim than light mode */
+    --background: 17 20 24;         /* #111418 — matches --canvas in dark */
+
+    --danger-hover: 240 132 120;    /* #F08478 */
+    --danger-active: 245 154 144;   /* #F59A90 */
+    --warning-hover: 235 165 85;    /* #EBA555 */
+    --warning-active: 245 185 120;  /* #F5B978 */
+
+    /* --- Elevation — blacker, more diffuse shadows for dark --- */
+    --elev-1: 0 1px 2px rgba(0, 0, 0, 0.30), 0 1px 3px rgba(0, 0, 0, 0.40);
+    --elev-2: 0 4px 10px -2px rgba(0, 0, 0, 0.45), 0 2px 6px -2px rgba(0, 0, 0, 0.35);
+    --elev-3: 0 24px 32px -6px rgba(0, 0, 0, 0.55), 0 10px 12px -4px rgba(0, 0, 0, 0.40);
+
+    /* --- Indirection tokens (resolved values stated explicitly for review) --- */
+    --foreground: var(--text-primary);
+    --card: var(--surface);
+    --card-foreground: var(--text-primary);
+    --popover: var(--surface);
+    --popover-foreground: var(--text-primary);
+    /* DECOUPLED from --background. On :root this is var(--background) (white
+       text on the light dark-jade button). In dark the button fill is bright
+       jade, so its text must be near-black, NOT the dark --background. */
+    --primary-foreground: 17 20 24;
+    --secondary: var(--surface);
+    --secondary-foreground: var(--text-primary);
+    --muted: var(--surface);
+    --muted-foreground: var(--text-secondary);
+    --shadcn-accent: var(--surface-hover);
+    --shadcn-accent-foreground: var(--text-primary);
+    --destructive: var(--danger);
+    /* DECOUPLED from --text-on-primary (white), same pattern/value as
+       --primary-foreground above. In dark, --danger is a bright coral
+       (#E86A5E) kept bright for `text-danger` error copy on dark surfaces;
+       white label text on that fill is only ~3.4:1. Near-black on the fill
+       is ~5.9:1. `text-danger` itself is untouched — different token. */
+    --destructive-foreground: 17 20 24;
+  }
+
   * {
     @apply border-border;
   }
@@ -158,5 +288,38 @@
 
   h1, h2, h3, h4, h5, h6 {
     @apply font-semibold tracking-tight;
+  }
+
+  /* Custom Scrollbar matching QQM mood */
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: rgb(var(--border)) transparent;
+  }
+
+  ::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    background-color: rgb(var(--border));
+    border-radius: 9999px;
+    border: 2px solid transparent;
+    background-clip: content-box;
+    transition: background-color 0.15s ease-in-out;
+  }
+
+  ::-webkit-scrollbar-thumb:hover {
+    background-color: rgb(var(--text-disabled));
+    border: 2px solid transparent;
+    background-clip: content-box;
+  }
+
+  ::-webkit-scrollbar-corner {
+    background: transparent;
   }
 }

@@ -21,6 +21,7 @@ import resourcesRoutes from "./routes/resources.routes";
 import schedulesRoutes from "./routes/schedules.routes";
 import activityLogsRoutes from "./routes/activityLogs.routes";
 import searchRoutes from "./routes/search.routes";
+import expirationsRoutes from "./routes/expirations.routes";
 
 dotenv.config({ quiet: true });
 
@@ -50,6 +51,7 @@ app.use("/api/credential-references", auth, credentialReferencesRoutes);
 app.use("/api/people", auth, peopleRoutes);
 app.use("/api/resources", auth, resourcesRoutes);
 app.use("/api/schedules", auth, schedulesRoutes);
+app.use("/api/expirations", auth, expirationsRoutes);
 app.use("/api/activity-logs", auth, activityLogsRoutes);
 app.use("/api/search", auth, searchRoutes);
 

@@ -85,3 +85,14 @@ export type CreateResourceInput = z.infer<typeof createResourceSchema>;
 export type UpdateMetadataInput = z.infer<typeof updateMetadataSchema>;
 export type CreateResourceVersionInput = z.infer<typeof createResourceVersionSchema>;
 export type ListResourcesQuery = z.infer<typeof listResourcesQuerySchema>;
+
+export const uploadAttachmentBodySchema = z.object({
+  caption: z.string().optional(),
+  created_in_version_id: z
+    .string()
+    .uuid()
+    .optional()
+    .or(z.literal("").transform(() => undefined)),
+});
+
+export type UploadAttachmentBodyInput = z.infer<typeof uploadAttachmentBodySchema>;

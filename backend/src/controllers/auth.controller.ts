@@ -2,13 +2,22 @@ import { Request, Response } from "express";
 import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
 import { ApiError } from "../middleware/errorHandler";
-import { changePasswordSchema, loginSchema } from "../validators/auth.validator";
+import {
+  changePasswordSchema,
+  loginSchema,
+  updateThemePreferenceSchema,
+} from "../validators/auth.validator";
 import {
   findRoleNamesForUser,
   findUserById,
   findUserByUsername,
   updateUserPassword,
+  updateUserThemePreference,
 } from "../services/auth.service";
+
+// NULL theme_preference (no explicit choice persisted yet) is surfaced to the
+// client as "light" so the frontend never has to interpret a missing value.
+const DEFAULT_THEME = "light" as const;
 import { logActivity } from "../middleware/activityLogger";
 import { requireChangedBy } from "../utils/requestContext";
 
@@ -66,6 +75,44 @@ export async function me(req: Request, res: Response) {
     email: user.email,
     peopleId: user.people_id,
     roles: req.user.roles,
+    theme_preference: user.theme_preference ?? DEFAULT_THEME,
+  });
+}
+
+export async function updateMe(req: Request, res: Response) {
+  if (!req.user) {
+    throw new ApiError(401, "Not authenticated", "UNAUTHORIZED");
+  }
+
+  const parseResult = updateThemePreferenceSchema.safeParse(req.body);
+  if (!parseResult.success) {
+    throw new ApiError(
+      400,
+      "Validation failed",
+      "VALIDATION_ERROR",
+      parseResult.error.flatten()
+    );
+  }
+
+  // Scoped to the caller's own row via the JWT identity — the request body
+  // carries no user id and none would be honoured.
+  await updateUserThemePreference(
+    req.user.id,
+    parseResult.data.theme_preference
+  );
+
+  const user = await findUserById(req.user.id);
+  if (!user) {
+    throw new ApiError(404, "User not found");
+  }
+
+  res.json({
+    id: user.id,
+    username: user.username,
+    email: user.email,
+    peopleId: user.people_id,
+    roles: req.user.roles,
+    theme_preference: user.theme_preference ?? DEFAULT_THEME,
   });
 }
 

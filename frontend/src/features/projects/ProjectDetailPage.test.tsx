@@ -89,7 +89,6 @@ describe("ProjectDetailPage", () => {
 
     expect(await screen.findByText("Migration")).toBeInTheDocument();
     expect(screen.getByText("Legacy data migration")).toBeInTheDocument();
-    expect(screen.getByText("Acme Corp")).toBeInTheDocument();
     expect(screen.getByText("active")).toBeInTheDocument();
   });
 

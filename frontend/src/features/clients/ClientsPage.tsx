@@ -26,6 +26,7 @@ import { EmptyState } from "@/components/state/EmptyState";
 import { ErrorState } from "@/components/state/ErrorState";
 import { LoadingState } from "@/components/state/LoadingState";
 import { PageHeader } from "@/components/layout/PageHeader";
+import { HOME_SEGMENT, useBreadcrumbs } from "@/components/layout/BreadcrumbsContext";
 import { RelatedCount } from "@/components/RelatedCount";
 import { RowActions } from "@/components/RowActions";
 import { PROJECTS_PER_CLIENT, useChildCounts } from "@/hooks/useChildCounts";
@@ -52,6 +53,7 @@ const SORT_OPTIONS: { value: ClientSort; label: string }[] = [
 ];
 
 export default function ClientsPage() {
+  useBreadcrumbs([HOME_SEGMENT, { label: "Clients" }]);
   const pagination = usePagination({ initialSort: "name", initialOrder: "asc" });
   const {
     data: clients = [],

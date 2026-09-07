@@ -1,8 +1,10 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import EnvironmentDetailPage from "./EnvironmentDetailPage";
+import Breadcrumbs from "@/components/layout/Breadcrumbs";
+import { BreadcrumbsProvider } from "@/components/layout/BreadcrumbsContext";
 
 const getMock = vi.fn();
 const patchMock = vi.fn();
@@ -52,15 +54,32 @@ const ENVIRONMENT_DETAIL = {
   project: { id: "p1", name: "Migration" },
 };
 
+const PROJECT_DETAIL = {
+  id: "p1",
+  client_id: "c1",
+  name: "Migration",
+  description: null as string | null,
+  owner_status: "owned",
+  created_at: "2026-01-01T00:00:00.000Z",
+  updated_at: "2026-01-01T00:00:00.000Z",
+  deleted_at: null as string | null,
+  client: { id: "c1", name: "Acme Corp" },
+};
+
 function mockGetByPath(handlers: {
   environment?: unknown;
   servers?: unknown;
   projects?: unknown;
+  project?: unknown;
   resource?: unknown;
   resources?: unknown;
 }) {
   getMock.mockImplementation((path: string) => {
     if (path === "/api/environments/{id}") return Promise.resolve(handlers.environment ?? ok(ENVIRONMENT_DETAIL));
+    // Client-segment backfill for the breadcrumb trail (Task 3). Default: a
+    // live project carrying its client. A soft-deleted project 404s here —
+    // pass `project: apiError(404, ...)` to exercise that path.
+    if (path === "/api/projects/{id}") return Promise.resolve(handlers.project ?? ok(PROJECT_DETAIL));
     if (path === "/api/servers")
       return Promise.resolve(
         handlers.servers ?? ok({ data: [], pagination: { page: 1, per_page: 20, total: 0, total_pages: 1 } })
@@ -99,9 +118,12 @@ function renderPage(initialPath = "/environments/e1") {
   return render(
     <QueryClientProvider client={queryClient}>
       <MemoryRouter initialEntries={[initialPath]}>
-        <Routes>
-          <Route path="/environments/:id" element={<EnvironmentDetailPage />} />
-        </Routes>
+        <BreadcrumbsProvider>
+          <Breadcrumbs />
+          <Routes>
+            <Route path="/environments/:id" element={<EnvironmentDetailPage />} />
+          </Routes>
+        </BreadcrumbsProvider>
       </MemoryRouter>
     </QueryClientProvider>
   );
@@ -122,14 +144,13 @@ describe("EnvironmentDetailPage", () => {
     expect(screen.getByText(/loading environment/i)).toBeInTheDocument();
   });
 
-  it("renders the environment's fields once loaded, including the parent project", async () => {
+  it("renders the environment's fields once loaded", async () => {
     mockGetByPath({});
 
     renderPage();
 
     expect(await screen.findByText("Production")).toBeInTheDocument();
     expect(screen.getByText("Primary environment")).toBeInTheDocument();
-    expect(screen.getByText("Migration")).toBeInTheDocument();
   });
 
   it("exposes the environment name as the page's single <h1>", async () => {
@@ -327,7 +348,7 @@ describe("EnvironmentDetailPage", () => {
 
       expect(patchMock).not.toHaveBeenCalled();
       await screen.findByRole("button", { name: /^edit$/i });
-      expect(screen.getByText("Production")).toBeInTheDocument();
+      expect(screen.getByRole("heading", { name: "Production", level: 1 })).toBeInTheDocument();
 
       fireEvent.click(screen.getByRole("button", { name: /^edit$/i }));
       expect(await screen.findByLabelText("Name")).toHaveValue("Production");
@@ -432,6 +453,46 @@ describe("EnvironmentDetailPage", () => {
           variant: "destructive",
         });
       });
+    });
+  });
+
+  describe("breadcrumb Client segment (backfilled via useProject)", () => {
+    it("shows the full Home > Clients > [Client] > Projects > [Project] > Environments > [Environment] trail once the project fetch resolves", async () => {
+      mockGetByPath({});
+
+      renderPage();
+
+      const nav = await screen.findByRole("navigation", { name: "Breadcrumb" });
+      expect(await within(nav).findByRole("link", { name: "Clients" })).toHaveAttribute(
+        "href",
+        "/clients"
+      );
+      expect(within(nav).getByRole("link", { name: "Acme Corp" })).toHaveAttribute(
+        "href",
+        "/clients/c1"
+      );
+      expect(within(nav).getByRole("link", { name: "Migration" })).toHaveAttribute(
+        "href",
+        "/projects/p1"
+      );
+      expect(within(nav).getByText("Production")).toHaveAttribute("aria-current", "page");
+    });
+
+    it("degrades to the shorter trail (no Client segment, no error) when the project is soft-deleted and GET /projects/:id 404s", async () => {
+      mockGetByPath({ project: apiError(404, "NOT_FOUND", "Project not found") });
+
+      renderPage();
+
+      const nav = await screen.findByRole("navigation", { name: "Breadcrumb" });
+      // The environment itself still renders fine and the trail still starts
+      // at Projects — the missing client never surfaces as an error.
+      expect(await within(nav).findByRole("link", { name: "Projects" })).toBeInTheDocument();
+      expect(within(nav).getByRole("link", { name: "Migration" })).toHaveAttribute(
+        "href",
+        "/projects/p1"
+      );
+      expect(within(nav).queryByRole("link", { name: "Clients" })).not.toBeInTheDocument();
+      expect(screen.getByText("Primary environment")).toBeInTheDocument();
     });
   });
 

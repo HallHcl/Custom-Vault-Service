@@ -19,7 +19,9 @@ const ENTITY_TYPES: EntityType[] = [
   "people",
   "resource",
   "resource_version",
+  "resource_attachment",
   "schedule",
+  "expiration",
   "user",
 ];
 

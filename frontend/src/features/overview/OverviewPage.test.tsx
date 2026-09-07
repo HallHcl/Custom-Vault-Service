@@ -45,13 +45,26 @@ const CLIENT = {
  * /api/clients also by `per_page`, since the picker's zero-arg call and the
  * "Total Clients" tile share an endpoint but are different queries.
  */
-function routeGet(totals: Record<string, number | "error">) {
+function routeGet(totals: Record<string, number | "error">, expirationSummary?: Record<string, number>) {
   getMock.mockImplementation((path: string, opts?: { params?: { query?: Record<string, unknown> } }) => {
     const query = opts?.params?.query ?? {};
     if (path === "/api/clients" && query.per_page !== 1) {
       return Promise.resolve(okResult([CLIENT], 1));
     }
     if (path === "/api/activity-logs") return Promise.resolve(okResult([], 0));
+    if (path === "/api/expirations/summary") {
+      const summaryData = expirationSummary ?? {
+        expired_count: 0,
+        critical_count: 1,
+        warning_count: 2,
+        upcoming_count: 3,
+      };
+      return Promise.resolve({
+        data: summaryData,
+        error: undefined,
+        response: new Response(null, { status: 200 }),
+      });
+    }
     const total = totals[path];
     if (total === "error") return Promise.resolve(errResult());
     return Promise.resolve(okResult([], total ?? 0));
@@ -93,7 +106,7 @@ describe("OverviewPage metric tiles", () => {
     getMock.mockReset();
   });
 
-  it("renders all six system-wide counts from pagination.total", async () => {
+  it("renders all seven system-wide counts from pagination.total", async () => {
     routeGet(ALL_OK);
     renderPage();
 
@@ -103,6 +116,7 @@ describe("OverviewPage metric tiles", () => {
     expect(tileValue("Servers")).toBe("5");
     expect(tileValue("Resources")).toBe("6");
     expect(tileValue("Pending Schedules")).toBe("2");
+    expect(tileValue("Expiring (30d)")).toBe("3");
   });
 
   it("requests exactly one row per tile and filters schedules to pending", async () => {
@@ -215,6 +229,7 @@ describe("OverviewPage metric tile navigation", () => {
     ["Servers", "/servers"],
     ["Resources", "/resources"],
     ["Pending Schedules", "/schedule?status=pending"],
+    ["Expiring (30d)", "/expirations?days_ahead=30"],
   ])("navigates from the %s tile to %s", async (label, destination) => {
     routeGet(ALL_OK);
     renderPageWithRouting();
@@ -222,7 +237,8 @@ describe("OverviewPage metric tile navigation", () => {
     await waitFor(() => expect(tileValue(label)).not.toBe("…"));
 
     // The whole tile is one button, named by its label and count.
-    fireEvent.click(screen.getByRole("button", { name: new RegExp(label) }));
+    const escapedLabel = label.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    fireEvent.click(screen.getByRole("button", { name: new RegExp(escapedLabel) }));
 
     expect(screen.getByTestId("location")).toHaveTextContent(destination);
   });
@@ -235,5 +251,43 @@ describe("OverviewPage metric tile navigation", () => {
     fireEvent.click(screen.getByRole("button", { name: /Servers/ }));
 
     expect(screen.getByTestId("location")).toHaveTextContent("/servers");
+  });
+});
+
+describe("OverviewPage expirations integration", () => {
+  beforeEach(() => {
+    getMock.mockReset();
+  });
+
+  it("renders CriticalExpirationsCard and Client Inspector expiry indicator", async () => {
+    routeGet(ALL_OK, {
+      expired_count: 0,
+      critical_count: 2,
+      warning_count: 0,
+      upcoming_count: 0,
+    });
+    renderPage();
+
+    await waitFor(() =>
+      expect(screen.getByTestId("client-expiry-indicator")).toHaveTextContent(
+        /2 items expiring soon for this client/
+      )
+    );
+  });
+
+  it("shows all-clear in Client Inspector when no expirations are expiring", async () => {
+    routeGet(ALL_OK, {
+      expired_count: 0,
+      critical_count: 0,
+      warning_count: 0,
+      upcoming_count: 0,
+    });
+    renderPage();
+
+    await waitFor(() =>
+      expect(screen.getByTestId("client-expiry-indicator")).toHaveTextContent(
+        /no upcoming expirations/i
+      )
+    );
   });
 });

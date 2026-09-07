@@ -7,7 +7,9 @@ export type EntityType =
   | "people"
   | "resource"
   | "resource_version"
+  | "resource_attachment"
   | "schedule"
+  | "expiration"
   | "user";
 
 export type ActivityAction = "create" | "update" | "delete" | "restore";
@@ -80,6 +82,7 @@ export interface User {
   username: string;
   email: string;
   password_hash: string;
+  theme_preference: "light" | "dark" | null;
   created_at: string;
   updated_at: string;
   deleted_at: string | null;
@@ -185,6 +188,27 @@ export interface ResourceVersion {
   created_at: string;
 }
 
+export interface ResourceAttachment {
+  id: string;
+  resource_id: string;
+  created_in_version_id: string | null;
+  file_name: string;
+  file_path: string;
+  mime_type: string;
+  size_bytes: number;
+  caption: string | null;
+  uploaded_by: string;
+  created_at: string;
+  deleted_at: string | null;
+}
+
+export interface ResourceAttachmentWithUploader extends ResourceAttachment {
+  uploader: {
+    id: string;
+    name: string;
+  };
+}
+
 export interface Schedule {
   id: string;
   project_id: string | null;
@@ -200,6 +224,53 @@ export interface Schedule {
   created_at: string;
   updated_at: string;
   deleted_at: string | null;
+}
+
+export type ExpirationType =
+  | "ssl_certificate"
+  | "hardware_ma"
+  | "software_license"
+  | "warranty"
+  | "domain_or_cloud";
+
+export type ExpirationStatus = "active" | "renewed" | "expired";
+
+export interface Expiration {
+  id: string;
+  client_id: string;
+  project_id: string | null;
+  server_id: string | null;
+  type: ExpirationType;
+  name: string;
+  provider_or_vendor: string | null;
+  identifier: string | null;
+  expiry_date: string;
+  alert_threshold_days: number;
+  status: ExpirationStatus;
+  notes: string | null;
+  created_at: string;
+  updated_at: string;
+  deleted_at: string | null;
+}
+
+export interface ExpirationListItem extends Expiration {
+  days_until_expiry: number;
+  is_expired: boolean;
+  is_critical: boolean;
+  is_expiring_soon: boolean;
+}
+
+export interface ExpirationDetail extends ExpirationListItem {
+  client: { id: string; name: string };
+  project: { id: string; name: string } | null;
+  server: { id: string; display_name: string } | null;
+}
+
+export interface ExpirationSummary {
+  expired_count: number;
+  critical_count: number;
+  warning_count: number;
+  upcoming_count: number;
 }
 
 export interface ActivityLog {

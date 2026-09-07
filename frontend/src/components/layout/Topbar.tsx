@@ -14,6 +14,7 @@ import { useSearchPalette } from "@/components/search/useSearchPalette";
 import { useAuth } from "@/features/auth/useAuth";
 import MobileNav from "./MobileNav";
 import NotificationBell from "./NotificationBell";
+import ThemeToggle from "./ThemeToggle";
 
 function initials(username: string) {
   return username.slice(0, 2).toUpperCase();
@@ -30,7 +31,7 @@ export default function Topbar() {
   }
 
   return (
-    <header className="flex h-14 items-center justify-between sticky top-0 z-30 backdrop-blur-md bg-white/80 border-b border-border/80 px-4">
+    <header className="flex h-14 shrink-0 items-center justify-between border-b border-border bg-surface px-4">
       <MobileNav />
       <div className="ml-auto flex items-center gap-2">
         {/* Visible entry point for the ⌘K palette — the shortcut alone is
@@ -44,6 +45,7 @@ export default function Topbar() {
         >
           <Search className="h-5 w-5" />
         </Button>
+        <ThemeToggle />
         <NotificationBell />
         <DropdownMenu>
           <DropdownMenuTrigger asChild>

@@ -1,6 +1,6 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
-import { MemoryRouter } from "react-router-dom";
+import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { addDays, format, subDays } from "date-fns";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import UrgentActionItems from "./UrgentActionItems";
@@ -99,8 +99,11 @@ function renderBox() {
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   render(
     <QueryClientProvider client={queryClient}>
-      <MemoryRouter>
-        <UrgentActionItems />
+      <MemoryRouter initialEntries={["/"]}>
+        <Routes>
+          <Route path="/" element={<UrgentActionItems />} />
+          <Route path="/schedule/:id/edit" element={<div>Edit schedule page</div>} />
+        </Routes>
       </MemoryRouter>
     </QueryClientProvider>
   );
@@ -232,7 +235,7 @@ describe("UrgentActionItems", () => {
     expect(await screen.findByText(/1 day overdue/)).toBeInTheDocument();
   });
 
-  it("opens the schedule form sheet for the clicked item", async () => {
+  it("navigates to /schedule/:id/edit for the clicked item", async () => {
     routeGet([
       schedule({ id: "now", title: "Patch database", scheduled_date: isoDate(TODAY) }),
     ]);
@@ -240,8 +243,7 @@ describe("UrgentActionItems", () => {
 
     fireEvent.click(await screen.findByRole("button", { name: /Patch database/ }));
 
-    const dialog = await screen.findByRole("dialog");
-    expect(within(dialog).getByDisplayValue("Patch database")).toBeInTheDocument();
+    expect(await screen.findByText("Edit schedule page")).toBeInTheDocument();
   });
 
   it("still lists items when the people lookup fails, just without a name", async () => {

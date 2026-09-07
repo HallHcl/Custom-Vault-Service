@@ -11,6 +11,7 @@ import { EmptyState } from "@/components/state/EmptyState";
 import { ErrorState } from "@/components/state/ErrorState";
 import { LoadingState } from "@/components/state/LoadingState";
 import { PageHeader } from "@/components/layout/PageHeader";
+import { HOME_SEGMENT, useBreadcrumbs } from "@/components/layout/BreadcrumbsContext";
 import { useClients } from "@/hooks/useClients";
 import { useProjects } from "@/hooks/useProjects";
 import { useEnvironments } from "@/hooks/useEnvironments";
@@ -19,6 +20,7 @@ import EnvironmentTabs from "./components/EnvironmentTabs";
 import ServerCard from "./components/ServerCard";
 
 export default function InfrastructurePage() {
+  useBreadcrumbs([HOME_SEGMENT, { label: "Infrastructure" }]);
   const {
     data: clients = [],
     isLoading: clientsLoading,

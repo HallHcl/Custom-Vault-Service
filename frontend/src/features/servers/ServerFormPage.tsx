@@ -1,15 +1,9 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { FormEvent } from "react";
-import {
-  Sheet,
-  SheetClose,
-  SheetContent,
-  SheetDescription,
-  SheetFooter,
-  SheetHeader,
-  SheetTitle,
-} from "@/components/ui/sheet";
+import { Link, useNavigate, useParams } from "react-router-dom";
+import { ArrowLeft } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { OptionalLabel } from "@/components/ui/optional-label";
@@ -22,9 +16,14 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { EnvironmentPicker } from "@/components/EnvironmentPicker";
+import { ConflictState } from "@/components/state/ConflictState";
+import { ErrorState } from "@/components/state/ErrorState";
+import { LoadingState } from "@/components/state/LoadingState";
+import { HOME_SEGMENT, useBreadcrumbs } from "@/components/layout/BreadcrumbsContext";
 import { ApiError, apiErrorMessage } from "@/api/errors";
 import { toast } from "@/hooks/use-toast";
-import { useCreateServer } from "@/hooks/useServers";
+import { useConflictResolution } from "@/hooks/useConflictResolution";
+import { useCreateServer, useServer, useUpdateServer } from "@/hooks/useServers";
 import { cn } from "@/lib/utils";
 import { panelSurface } from "@/lib/panelSurface";
 
@@ -90,7 +89,6 @@ interface FieldErrors {
   notes?: string;
 }
 
-/** Shape of `error.details` for a 400 VALIDATION_ERROR: Zod's ZodError.flatten(). */
 interface ValidationDetails {
   fieldErrors?: Record<string, string[]>;
 }
@@ -110,15 +108,6 @@ const EDITABLE_FIELDS = [
   "notes",
 ] as const;
 
-/**
- * Fields in the order they are rendered, paired with the DOM id of the
- * control that owns each one. Deliberately NOT reusing EDITABLE_FIELDS:
- * that list is the server-error allow-list and happens to sort tech_stack
- * last, whereas on screen tech_stack sits above the Access documentation
- * fieldset. "Focus the first invalid field" has to mean first *visually*,
- * so this is the list that drives it. The environment row is the one place
- * the error key and the element id differ (environment_id vs #environment).
- */
 const FIELD_DOM_ORDER: ReadonlyArray<{ key: keyof FieldErrors; elementId: string }> = [
   { key: "display_name", elementId: "display_name" },
   { key: "environment_id", elementId: "environment" },
@@ -134,99 +123,102 @@ const FIELD_DOM_ORDER: ReadonlyArray<{ key: keyof FieldErrors; elementId: string
   { key: "notes", elementId: "notes" },
 ];
 
-/** `aria-describedby` target for a field's error text. */
 function errorId(elementId: string) {
   return `${elementId}-error`;
 }
 
-/**
- * Danger underline on an invalid control, matching the shadow-underline
- * treatment every control here already uses (see tailwind.config.js). The
- * `focus-visible:` half keeps the error visible while the field is focused
- * — which, given we focus the first invalid field on a failed submit, is
- * the state the user actually lands in.
- */
 const INVALID_CONTROL = "shadow-underline-danger focus-visible:shadow-underline-danger";
 
-interface Props {
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
+export interface ServerFormPageProps {
+  mode?: "create" | "edit";
 }
 
-/**
- * Create-only. Editing a server is handled inline on ServerDetailPage
- * (ServerEditCard) instead of through this sheet — see the modal-to-
- * detail-page migration. This component keeps the "New server" flow as an
- * overlay since there's no detail page to navigate to for a record that
- * doesn't exist yet.
- *
- * Presented as a right-hand side sheet rather than a centred modal: at 12
- * fields the dialog scrolled its own header and footer out of view. Desktop
- * only for now — responsive/mobile treatment is deferred past Phase 8.
- */
-export default function ServerFormSheet({ open, onOpenChange }: Props) {
-  const createServer = useCreateServer();
+export default function ServerFormPage({ mode: modeProp }: ServerFormPageProps) {
+  const navigate = useNavigate();
+  const params = useParams<{ id: string }>();
 
-  const [displayName, setDisplayName] = useState("");
-  const [environmentId, setEnvironmentId] = useState<string | undefined>(undefined);
-  const [hostname, setHostname] = useState("");
-  const [ipAddress, setIpAddress] = useState("");
-  const [serviceType, setServiceType] = useState<(typeof SERVICE_TYPES)[number] | undefined>(undefined);
-  const [accessMethod, setAccessMethod] = useState<(typeof ACCESS_METHODS)[number] | undefined>(undefined);
-  const [accessHost, setAccessHost] = useState("");
-  const [accessPort, setAccessPort] = useState("");
-  const [accessPath, setAccessPath] = useState("");
-  const [techStack, setTechStack] = useState("");
-  const [monitoringUrl, setMonitoringUrl] = useState("");
-  const [notes, setNotes] = useState("");
+  const mode = modeProp ?? (params.id ? "edit" : "create");
+  const isEdit = mode === "edit";
+  const serverId = params.id;
+
+  const {
+    data: server,
+    isLoading: isServerLoading,
+    isError: isServerError,
+    error: serverError,
+    refetch: refetchServer,
+  } = useServer(isEdit ? serverId : undefined);
+
+  const createServer = useCreateServer();
+  const updateServer = useUpdateServer();
+  const { conflict: conflictInfo, isConflict, captureConflict, clearConflict } = useConflictResolution();
+
+  useBreadcrumbs(
+    isEdit
+      ? server
+        ? [
+            HOME_SEGMENT,
+            { label: "Servers", href: "/servers" },
+            { label: server.display_name, href: `/servers/${server.id}` },
+            { label: "Edit" },
+          ]
+        : [
+            HOME_SEGMENT,
+            { label: "Servers", href: "/servers" },
+            { label: "Edit" },
+          ]
+      : [
+          HOME_SEGMENT,
+          { label: "Servers", href: "/servers" },
+          { label: "New server" },
+        ]
+  );
+
+  const [displayName, setDisplayName] = useState(server?.display_name ?? "");
+  const [environmentId, setEnvironmentId] = useState<string | undefined>(server?.environment?.id);
+  const [hostname, setHostname] = useState(server?.hostname ?? "");
+  const [ipAddress, setIpAddress] = useState(server?.ip_address ?? "");
+  const [serviceType, setServiceType] = useState<(typeof SERVICE_TYPES)[number] | undefined>(
+    server?.service_type ?? undefined
+  );
+  const [accessMethod, setAccessMethod] = useState<(typeof ACCESS_METHODS)[number] | undefined>(
+    server?.access_method ?? undefined
+  );
+  const [accessHost, setAccessHost] = useState(server?.access_host ?? "");
+  const [accessPort, setAccessPort] = useState(server?.access_port != null ? String(server.access_port) : "");
+  const [accessPath, setAccessPath] = useState(server?.access_path ?? "");
+  const [techStack, setTechStack] = useState((server?.tech_stack ?? []).join(", "));
+  const [monitoringUrl, setMonitoringUrl] = useState(server?.monitoring_url ?? "");
+  const [notes, setNotes] = useState(server?.notes ?? "");
+  const [updatedAt, setUpdatedAt] = useState<string | undefined>(server?.updated_at);
+
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
   const [formError, setFormError] = useState<string | undefined>(undefined);
 
-  const scrollBodyRef = useRef<HTMLDivElement>(null);
+  const formRef = useRef<HTMLFormElement>(null);
 
-  function reset() {
-    setDisplayName("");
-    setEnvironmentId(undefined);
-    setHostname("");
-    setIpAddress("");
-    setServiceType(undefined);
-    setAccessMethod(undefined);
-    setAccessHost("");
-    setAccessPort("");
-    setAccessPath("");
-    setTechStack("");
-    setMonitoringUrl("");
-    setNotes("");
-    setFieldErrors({});
-    setFormError(undefined);
-  }
+  // Pre-fill form state when editing and server is loaded or re-fetched
+  useEffect(() => {
+    if (!isEdit || !server) return;
+    setDisplayName(server.display_name);
+    setEnvironmentId(server.environment.id);
+    setHostname(server.hostname);
+    setIpAddress(server.ip_address ?? "");
+    if (server.service_type) setServiceType(server.service_type);
+    if (server.access_method) setAccessMethod(server.access_method);
+    setAccessHost(server.access_host);
+    setAccessPort(server.access_port != null ? String(server.access_port) : "");
+    setAccessPath(server.access_path ?? "");
+    setTechStack((server.tech_stack ?? []).join(", "));
+    setMonitoringUrl(server.monitoring_url ?? "");
+    setNotes(server.notes ?? "");
+    setUpdatedAt(server.updated_at);
+  }, [isEdit, server]);
 
-  function handleOpenChange(nextOpen: boolean) {
-    if (!nextOpen) reset();
-    onOpenChange(nextOpen);
-  }
-
-  /**
-   * Moves focus to the first invalid control in render order. The elements
-   * already exist when this runs, so it does not need to wait for the
-   * re-render that paints the error state — focus is independent of it.
-   * Radix's SelectTrigger is a real button, so the three pickers take focus
-   * the same way the inputs do.
-   */
   function focusFirstInvalid(errors: FieldErrors) {
     const first = FIELD_DOM_ORDER.find(({ key }) => errors[key]);
     if (!first) return;
     document.getElementById(first.elementId)?.focus();
-  }
-
-  /**
-   * Brings the form-level banner back into view when the body is scrolled
-   * down. `scrollTo` is optional-called because jsdom does not implement it
-   * on elements — this is a purely visual affordance, so no-opping under
-   * test is the right outcome rather than something to shim.
-   */
-  function scrollFormErrorIntoView() {
-    scrollBodyRef.current?.scrollTo?.({ top: 0 });
   }
 
   function buildInput(): ServerInput {
@@ -248,21 +240,17 @@ export default function ServerFormSheet({ open, onOpenChange }: Props) {
     };
   }
 
-  /**
-   * Applies a caught mutation error to local UI state. No ConflictState
-   * branch here (unlike the old edit-mode handling) — create has no
-   * existing record to "reload" or "retry" against, so any non-validation
-   * error (including a 409, which no unique index makes reachable in
-   * practice per servers.service.ts) just becomes a form-level message.
-   * Never swallowed — every branch leaves something visible to the user.
-   */
   function applyServerError(err: unknown): void {
-    const title = "Couldn't create server";
+    const title = isEdit ? "Couldn't update server" : "Couldn't create server";
 
     if (!(err instanceof ApiError)) {
       setFormError("Something went wrong. Please try again.");
-      scrollFormErrorIntoView();
       toast({ title, description: apiErrorMessage(err), variant: "destructive" });
+      return;
+    }
+
+    if (isEdit && err.status === 409) {
+      captureConflict(err);
       return;
     }
 
@@ -283,7 +271,6 @@ export default function ServerFormSheet({ open, onOpenChange }: Props) {
     }
 
     setFormError(err.message);
-    scrollFormErrorIntoView();
     toast({ title, description: err.message, variant: "destructive" });
   }
 
@@ -295,12 +282,10 @@ export default function ServerFormSheet({ open, onOpenChange }: Props) {
     const input = buildInput();
     const nextErrors: FieldErrors = {};
 
-    // Client-side validation before hitting the network, mirroring the
-    // backend's minimum requirements.
     if (!input.display_name) {
       nextErrors.display_name = "Display name is required.";
     }
-    if (!environmentId) {
+    if (!isEdit && !environmentId) {
       nextErrors.environment_id = "Environment is required.";
     }
     if (!input.hostname) {
@@ -331,47 +316,142 @@ export default function ServerFormSheet({ open, onOpenChange }: Props) {
         nextErrors.monitoring_url = "Enter a valid URL.";
       }
     }
+
     if (Object.keys(nextErrors).length > 0) {
       setFieldErrors(nextErrors);
       focusFirstInvalid(nextErrors);
       return;
     }
 
-    if (!environmentId) return;
+    if (!isEdit && !environmentId) return;
+
+    if (isEdit) {
+      if (!serverId || !updatedAt) return;
+      try {
+        await updateServer.mutateAsync({
+          id: serverId,
+          data: { ...input, updated_at: updatedAt },
+        });
+        toast({ title: "Server updated" });
+        navigate(`/servers/${serverId}`);
+      } catch (err) {
+        applyServerError(err);
+      }
+    } else {
+      try {
+        await createServer.mutateAsync({
+          ...input,
+          environment_id: environmentId!,
+        });
+        toast({ title: "Server created" });
+        navigate("/servers");
+      } catch (err) {
+        applyServerError(err);
+      }
+    }
+  }
+
+  async function handleReloadLatest() {
+    const result = await refetchServer();
+    if (result.data) {
+      setDisplayName(result.data.display_name);
+      setHostname(result.data.hostname);
+      setIpAddress(result.data.ip_address ?? "");
+      setServiceType(result.data.service_type ?? undefined);
+      setAccessMethod(result.data.access_method ?? undefined);
+      setAccessHost(result.data.access_host);
+      setAccessPort(result.data.access_port != null ? String(result.data.access_port) : "");
+      setAccessPath(result.data.access_path ?? "");
+      setTechStack((result.data.tech_stack ?? []).join(", "));
+      setMonitoringUrl(result.data.monitoring_url ?? "");
+      setNotes(result.data.notes ?? "");
+      setUpdatedAt(result.data.updated_at);
+    }
+    clearConflict();
+  }
+
+  async function handleRetryWithLatest() {
+    if (!serverId) return;
+    const result = await refetchServer();
+    if (!result.data) return;
+
+    const freshUpdatedAt = result.data.updated_at;
+    setUpdatedAt(freshUpdatedAt);
+    clearConflict();
 
     try {
-      await createServer.mutateAsync({ ...input, environment_id: environmentId });
-      toast({ title: "Server created" });
-      handleOpenChange(false);
+      await updateServer.mutateAsync({
+        id: serverId,
+        data: { ...buildInput(), updated_at: freshUpdatedAt },
+      });
+      toast({ title: "Server updated" });
+      navigate(`/servers/${serverId}`);
     } catch (err) {
       applyServerError(err);
     }
   }
 
-  const isSubmitting = createServer.isPending;
+  function handleCancel() {
+    if (isEdit && serverId) {
+      navigate(`/servers/${serverId}`);
+    } else {
+      navigate("/servers");
+    }
+  }
+
+  const isSubmitting = createServer.isPending || updateServer.isPending;
+
+  if (isEdit && isServerLoading) {
+    return <LoadingState message="Loading server..." />;
+  }
+
+  if (isEdit && (isServerError || !server)) {
+    return (
+      <ErrorState
+        error={serverError}
+        message="This server could not be found."
+        onRetry={() => refetchServer()}
+      />
+    );
+  }
+
+  const backHref = isEdit && serverId ? `/servers/${serverId}` : "/servers";
+  const backLabel = isEdit && server ? `Back to ${server.display_name}` : isEdit ? "Back to server" : "Back to servers";
 
   return (
-    <Sheet open={open} onOpenChange={handleOpenChange}>
-      <SheetContent side="right" size="form" className="p-0">
-        <form onSubmit={handleSubmit} noValidate className="flex h-full flex-col">
-          <SheetHeader className="shrink-0 border-b border-border px-6 py-4 pr-12">
-            <SheetTitle>New server</SheetTitle>
-            <SheetDescription>Add a new server to an environment.</SheetDescription>
-          </SheetHeader>
+    <div className="space-y-6">
+      <Link
+        to={backHref}
+        className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground"
+      >
+        <ArrowLeft className="h-4 w-4" />
+        {backLabel}
+      </Link>
 
-          <div ref={scrollBodyRef} className="flex-1 space-y-4 overflow-y-auto px-6 py-4">
-            {/*
-              role="alert" so this is announced even though it can sit
-              scrolled out of view in a tall sheet. It is NOT focused: moving
-              focus onto a non-interactive banner strands keyboard users
-              somewhere they cannot act, and the live region already does the
-              announcing. Scrolling the body back to the top (see
-              applyServerError) is enough to make it visible. Note this and
-              the field errors are mutually exclusive in practice —
-              applyServerError only falls through to formError when no field
-              error was mappable — so this never competes with the
-              focus-first-invalid behaviour below.
-            */}
+      <Card>
+        <CardHeader>
+          <CardTitle asChild>
+            <h1>{isEdit ? "Edit server" : "New server"}</h1>
+          </CardTitle>
+          <CardDescription>
+            {isEdit
+              ? "Update server configuration, tech stack, or access details."
+              : "Add a new server to an environment."}
+          </CardDescription>
+        </CardHeader>
+
+        {isConflict && conflictInfo && (
+          <div className="p-6 pt-0">
+            <ConflictState
+              message={conflictInfo.message}
+              onReloadLatest={handleReloadLatest}
+              onKeepEditing={handleRetryWithLatest}
+            />
+          </div>
+        )}
+
+        <form ref={formRef} onSubmit={handleSubmit} noValidate>
+          <CardContent className="space-y-4">
             {formError && (
               <p role="alert" className="text-sm text-danger">
                 {formError}
@@ -398,23 +478,38 @@ export default function ServerFormSheet({ open, onOpenChange }: Props) {
 
             <div className="space-y-1">
               <Label htmlFor="environment">Environment</Label>
-              <EnvironmentPicker
-                id="environment"
-                value={environmentId}
-                onChange={setEnvironmentId}
-                placeholder="Select an environment"
-                aria-invalid={!!fieldErrors.environment_id}
-                aria-describedby={fieldErrors.environment_id ? errorId("environment") : undefined}
-                className={cn(fieldErrors.environment_id && INVALID_CONTROL)}
-              />
-              {fieldErrors.environment_id && (
-                <p id={errorId("environment")} className="text-xs text-danger">
-                  {fieldErrors.environment_id}
-                </p>
+              {isEdit && server ? (
+                <>
+                  <Input
+                    id="environment"
+                    value={server.environment.name}
+                    disabled
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    A server's environment can't be changed after creation.
+                  </p>
+                </>
+              ) : (
+                <>
+                  <EnvironmentPicker
+                    id="environment"
+                    value={environmentId}
+                    onChange={setEnvironmentId}
+                    placeholder="Select an environment"
+                    aria-invalid={!!fieldErrors.environment_id}
+                    aria-describedby={fieldErrors.environment_id ? errorId("environment") : undefined}
+                    className={cn(fieldErrors.environment_id && INVALID_CONTROL)}
+                  />
+                  {fieldErrors.environment_id && (
+                    <p id={errorId("environment")} className="text-xs text-danger">
+                      {fieldErrors.environment_id}
+                    </p>
+                  )}
+                </>
               )}
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-1">
                 <Label htmlFor="hostname">Hostname</Label>
                 <Input
@@ -470,16 +565,18 @@ export default function ServerFormSheet({ open, onOpenChange }: Props) {
             </div>
 
             <fieldset className={cn(panelSurface(), "space-y-4 p-3")}>
-              <legend className="px-1 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+              <legend className="px-1 text-label text-muted-foreground">
                 Access documentation
               </legend>
 
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-1">
                   <Label htmlFor="service_type">Service type</Label>
                   <Select
                     value={serviceType}
-                    onValueChange={(v) => setServiceType(v as (typeof SERVICE_TYPES)[number])}
+                    onValueChange={(v) => {
+                      if (v) setServiceType(v as (typeof SERVICE_TYPES)[number]);
+                    }}
                   >
                     <SelectTrigger
                       id="service_type"
@@ -508,7 +605,9 @@ export default function ServerFormSheet({ open, onOpenChange }: Props) {
                   <Label htmlFor="access_method">Access method</Label>
                   <Select
                     value={accessMethod}
-                    onValueChange={(v) => setAccessMethod(v as (typeof ACCESS_METHODS)[number])}
+                    onValueChange={(v) => {
+                      if (v) setAccessMethod(v as (typeof ACCESS_METHODS)[number]);
+                    }}
                   >
                     <SelectTrigger
                       id="access_method"
@@ -535,7 +634,7 @@ export default function ServerFormSheet({ open, onOpenChange }: Props) {
                 </div>
               </div>
 
-              <div className="grid grid-cols-[1fr_auto] gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-[1fr_auto] gap-4">
                 <div className="space-y-1">
                   <Label htmlFor="access_host">Access host</Label>
                   <Input
@@ -554,15 +653,6 @@ export default function ServerFormSheet({ open, onOpenChange }: Props) {
                     </p>
                   )}
                 </div>
-                {/* Deliberately no fixed width: the enclosing grid's second
-                    track is `auto`, so this column sizes to its own content —
-                    which is the label, not the input (Input is `w-full`). A
-                    hardcoded `w-24` (96px) lived here and silently broke when
-                    #54's label unification made OptionalLabel an `inline-flex`
-                    that cannot wrap: "PORT (optional)" measures ~124px and
-                    spilled ~15px past the panel border. Letting the track do
-                    the measuring cannot drift that way again, whatever the
-                    label says or which font is loaded. */}
                 <div className="space-y-1">
                   <OptionalLabel htmlFor="access_port">Port</OptionalLabel>
                   <Input
@@ -646,20 +736,18 @@ export default function ServerFormSheet({ open, onOpenChange }: Props) {
                 </p>
               )}
             </div>
-          </div>
+          </CardContent>
 
-          <SheetFooter>
-            <SheetClose asChild>
-              <Button type="button" variant="ghost">
-                Cancel
-              </Button>
-            </SheetClose>
+          <CardFooter className="flex justify-end gap-2 border-t border-border pt-4">
+            <Button type="button" variant="ghost" onClick={handleCancel}>
+              Cancel
+            </Button>
             <Button type="submit" disabled={isSubmitting}>
               {isSubmitting ? "Saving..." : "Save"}
             </Button>
-          </SheetFooter>
+          </CardFooter>
         </form>
-      </SheetContent>
-    </Sheet>
+      </Card>
+    </div>
   );
 }

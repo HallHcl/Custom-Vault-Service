@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { format } from "date-fns";
 import { RequireRole } from "@/components/auth/RequireRole";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
@@ -17,6 +18,7 @@ import { EmptyState } from "@/components/state/EmptyState";
 import { ErrorState } from "@/components/state/ErrorState";
 import { LoadingState } from "@/components/state/LoadingState";
 import { PageHeader } from "@/components/layout/PageHeader";
+import { HOME_SEGMENT, useBreadcrumbs } from "@/components/layout/BreadcrumbsContext";
 import { apiErrorMessage } from "@/api/errors";
 import { toast } from "@/hooks/use-toast";
 import { usePagination, type DeletedFilter, type SortOrder } from "@/hooks/usePagination";
@@ -30,7 +32,6 @@ import {
 import type { Schedule } from "@/types";
 import ScheduleCalendar from "./components/ScheduleCalendar";
 import ScheduleList from "./components/ScheduleList";
-import ScheduleFormSheet from "./components/ScheduleFormSheet";
 
 const SORT_OPTIONS: { value: ScheduleSort; label: string }[] = [
   { value: "scheduled_date", label: "Scheduled date" },
@@ -39,6 +40,7 @@ const SORT_OPTIONS: { value: ScheduleSort; label: string }[] = [
 ];
 
 export default function SchedulePage() {
+  useBreadcrumbs([HOME_SEGMENT, { label: "Schedule" }]);
   const pagination = usePagination({ initialSort: "scheduled_date", initialOrder: "asc" });
   // URL-synced the same way as pagination's own fields (see usePagination.ts)
   // rather than local useState, so a refresh/shared URL reproduces the same
@@ -57,8 +59,8 @@ export default function SchedulePage() {
     pagination.setParams({ date: value ? format(value, "yyyy-MM-dd") : undefined });
   }
 
-  const [formOpen, setFormOpen] = useState(false);
-  const [editingSchedule, setEditingSchedule] = useState<Schedule | undefined>(undefined);
+  const navigate = useNavigate();
+
   const [deleteTarget, setDeleteTarget] = useState<Schedule | undefined>(undefined);
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
 
@@ -98,13 +100,11 @@ export default function SchedulePage() {
     : schedules;
 
   function openCreateForm() {
-    setEditingSchedule(undefined);
-    setFormOpen(true);
+    navigate("/schedule/new");
   }
 
   function openEditForm(schedule: Schedule) {
-    setEditingSchedule(schedule);
-    setFormOpen(true);
+    navigate(`/schedule/${schedule.id}/edit`);
   }
 
   function openDeleteConfirm(schedule: Schedule) {
@@ -272,7 +272,6 @@ export default function SchedulePage() {
         </div>
       </div>
 
-      <ScheduleFormSheet open={formOpen} onOpenChange={setFormOpen} schedule={editingSchedule} />
 
       <ConfirmDialog
         open={deleteConfirmOpen}

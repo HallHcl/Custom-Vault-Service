@@ -89,7 +89,7 @@ export default function MobileNav() {
                 >
                   <p
                     id={labelId}
-                    className="px-3 pb-1 text-xs font-medium uppercase tracking-wider text-muted-foreground"
+                    className="px-3 pb-1 text-label text-muted-foreground"
                   >
                     {group.label}
                   </p>

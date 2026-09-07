@@ -30,11 +30,11 @@ import { EmptyState } from "@/components/state/EmptyState";
 import { ErrorState } from "@/components/state/ErrorState";
 import { LoadingState } from "@/components/state/LoadingState";
 import { PageHeader } from "@/components/layout/PageHeader";
+import { HOME_SEGMENT, useBreadcrumbs } from "@/components/layout/BreadcrumbsContext";
 import { apiErrorMessage } from "@/api/errors";
 import { InitialsAvatar } from "@/components/ui/initials-avatar";
 import { cn } from "@/lib/utils";
 import { toast } from "@/hooks/use-toast";
-import ServerFormSheet from "./components/ServerFormSheet";
 import { useEnvironments } from "@/hooks/useEnvironments";
 import {
   useDeleteServer,
@@ -71,6 +71,7 @@ const ACCESS_METHOD_LABELS: Record<string, string> = {
 };
 
 export default function ServersPage() {
+  useBreadcrumbs([HOME_SEGMENT, { label: "Servers" }]);
   const navigate = useNavigate();
   const canEdit = useHasRole(["admin", "member"]);
   const canDelete = useHasRole(["admin"]);
@@ -95,7 +96,6 @@ export default function ServersPage() {
 
   const totalPages = pageInfo?.total_pages ?? 1;
 
-  const [formOpen, setFormOpen] = useState(false);
   const [deletingServer, setDeletingServer] = useState<Server | undefined>(undefined);
   const [restoringServer, setRestoringServer] = useState<Server | undefined>(undefined);
 
@@ -103,13 +103,11 @@ export default function ServersPage() {
   const restoreServer = useRestoreServer();
 
   function openCreateForm() {
-    setFormOpen(true);
+    navigate("/servers/new");
   }
 
-  // Editing now lives on ServerDetailPage's inline edit mode, not this
-  // sheet — see ServerFormSheet's create-only migration.
   function openEditForm(server: Server) {
-    navigate(`/servers/${server.id}?edit=true`);
+    navigate(`/servers/${server.id}/edit`);
   }
 
   function confirmDelete() {
@@ -362,8 +360,6 @@ export default function ServersPage() {
           />
         </>
       )}
-
-      <ServerFormSheet open={formOpen} onOpenChange={setFormOpen} />
 
       <ConfirmDialog
         open={Boolean(deletingServer)}

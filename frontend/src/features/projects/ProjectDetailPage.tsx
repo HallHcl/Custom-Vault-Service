@@ -5,6 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { DetailPageShell } from "@/components/DetailPageShell";
+import { HOME_SEGMENT, useBreadcrumbs } from "@/components/layout/BreadcrumbsContext";
 import ProjectFormDialog from "./components/ProjectFormDialog";
 import ProjectRoster from "./components/ProjectRoster";
 import { useProject } from "@/hooks/useProjects";
@@ -13,6 +14,20 @@ export default function ProjectDetailPage() {
   const { id } = useParams<{ id: string }>();
   const { data: project, isLoading, isError, error, refetch } = useProject(id);
   const [formOpen, setFormOpen] = useState(false);
+
+  // Falls back to "Home > Clients > Projects" while loading, so the trail
+  // never shows a blank/placeholder segment.
+  useBreadcrumbs(
+    project
+      ? [
+          HOME_SEGMENT,
+          { label: "Clients", href: "/clients" },
+          { label: project.client.name, href: `/clients/${project.client.id}` },
+          { label: "Projects", href: "/projects" },
+          { label: project.name },
+        ]
+      : [HOME_SEGMENT, { label: "Clients", href: "/clients" }, { label: "Projects", href: "/projects" }]
+  );
 
   return (
     /**
@@ -42,7 +57,6 @@ export default function ProjectDetailPage() {
                 </CardTitle>
                 <div className="mt-1 flex items-center gap-2">
                   <Badge variant="outline">{project.owner_status}</Badge>
-                  <span className="text-sm text-muted-foreground">{project.client.name}</span>
                 </div>
               </div>
               <RequireRole roles={["admin"]}>

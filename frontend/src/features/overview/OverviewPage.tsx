@@ -1,5 +1,4 @@
 import { useEffect, useState } from "react";
-import { formatDistanceToNow } from "date-fns";
 import {
   Card,
   CardContent,
@@ -15,27 +14,33 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import {
+  AlertTriangle,
   BookText,
   Building2,
   CalendarClock,
+  CheckCircle2,
   FolderKanban,
   HardDrive,
   Layers,
+  ShieldAlert,
 } from "lucide-react";
 import { PageHeader } from "@/components/layout/PageHeader";
+import { HOME_SEGMENT, useBreadcrumbs } from "@/components/layout/BreadcrumbsContext";
 import { MetricCard } from "@/components/MetricCard";
 import UrgentActionItems from "./UrgentActionItems";
+import CriticalExpirationsCard from "./CriticalExpirationsCard";
 import { useClients } from "@/hooks/useClients";
 import { useProjects } from "@/hooks/useProjects";
 import { useEnvironments } from "@/hooks/useEnvironments";
 import { useServers } from "@/hooks/useServers";
 import { useResources } from "@/hooks/useResources";
 import { useSchedules } from "@/hooks/useSchedules";
-import { useActivityLogs } from "@/hooks/useActivityLogs";
+import { useExpirationsSummary } from "@/hooks/useExpirations";
 import { cn } from "@/lib/utils";
 import { panelSurface } from "@/lib/panelSurface";
 
 export default function OverviewPage() {
+  useBreadcrumbs([HOME_SEGMENT, { label: "Overview" }]);
   const { data: clients = [] } = useClients();
   const [clientId, setClientId] = useState<string | undefined>(undefined);
 
@@ -47,7 +52,12 @@ export default function OverviewPage() {
 
   const client = clients.find((c) => c.id === clientId);
   const { data: projects = [] } = useProjects(clientId);
-  const { data: activity = [] } = useActivityLogs();
+  const clientExpirySummary = useExpirationsSummary(clientId);
+  const clientExpiringSoonCount = clientExpirySummary.data
+    ? (clientExpirySummary.data.critical_count ?? 0) +
+      (clientExpirySummary.data.warning_count ?? 0) +
+      (clientExpirySummary.data.expired_count ?? 0)
+    : 0;
 
   // System-wide KPI counts. Each is its own independent query asking for a
   // single row and reading `pagination.total` off it — the same trick
@@ -70,11 +80,17 @@ export default function OverviewPage() {
   const serverCount = useServers(undefined, { per_page: 1 });
   const resourceCount = useResources({ per_page: 1 });
   const pendingScheduleCount = useSchedules({ status: "pending", per_page: 1 });
+  const expiringSoonCount = useExpirationsSummary();
+  const expiringSoonTotal = expiringSoonCount.data
+    ? (expiringSoonCount.data.critical_count ?? 0) +
+      (expiringSoonCount.data.warning_count ?? 0) +
+      (expiringSoonCount.data.expired_count ?? 0)
+    : undefined;
 
   // `to` carries any pre-applied filter as search params — the destination
   // page reads them back through usePagination's getParam, so the filter
-  // survives a refresh or a shared link. Only Pending Schedules needs one;
-  // the other five are unfiltered list views.
+  // survives a refresh or a shared link. Only Pending Schedules and Expiring
+  // need one; the other five are unfiltered list views.
   const metrics = [
     { label: "Total Clients", query: clientCount, icon: Building2, to: "/clients" },
     { label: "Total Projects", query: projectCount, icon: FolderKanban, to: "/projects" },
@@ -87,9 +103,17 @@ export default function OverviewPage() {
       icon: CalendarClock,
       to: "/schedule?status=pending",
     },
+    {
+      label: "Expiring (30d)",
+      query: {
+        pagination: { total: expiringSoonTotal },
+        isLoading: expiringSoonCount.isLoading,
+        isError: expiringSoonCount.isError,
+      },
+      icon: ShieldAlert,
+      to: "/expirations?days_ahead=30",
+    },
   ];
-
-  const recentActivity = activity.slice(0, 10);
 
   return (
     <div className="space-y-6">
@@ -97,11 +121,13 @@ export default function OverviewPage() {
 
       <UrgentActionItems />
 
+      <CriticalExpirationsCard />
+
       {/* 2 cols at 375px keeps each tile wide enough for a label like "Pending
-          Schedules" on two lines; 6 across at lg puts the whole system on one
+          Schedules" on two lines; 7 across at lg puts the whole system on one
           row at laptop width without the tiles going narrower than their
           longest label. */}
-      <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-6">
+      <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-7">
         {metrics.map(({ label, query, icon, to }) => (
           <MetricCard
             key={label}
@@ -147,6 +173,22 @@ export default function OverviewPage() {
               {client.description ?? "No description provided."}
             </p>
 
+            <div className="flex items-center gap-2 text-xs" data-testid="client-expiry-indicator">
+              {clientExpirySummary.isLoading ? (
+                <span className="text-muted-foreground">Checking expirations...</span>
+              ) : clientExpiringSoonCount > 0 ? (
+                <span className="flex items-center gap-1.5 font-medium text-warning-text">
+                  <AlertTriangle className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+                  {clientExpiringSoonCount} {clientExpiringSoonCount === 1 ? "item" : "items"} expiring soon for this client
+                </span>
+              ) : (
+                <span className="flex items-center gap-1.5 text-muted-foreground">
+                  <CheckCircle2 className="h-3.5 w-3.5 shrink-0 text-success-text" aria-hidden="true" />
+                  No upcoming expirations
+                </span>
+              )}
+            </div>
+
             <div>
               <h3 className="mb-2 text-sm font-medium">Projects</h3>
               {projects.length === 0 ? (
@@ -173,33 +215,6 @@ export default function OverviewPage() {
           </CardContent>
         </Card>
       )}
-
-      <Card>
-        <CardHeader>
-          <CardTitle>Recent activity</CardTitle>
-        </CardHeader>
-        <CardContent>
-          {recentActivity.length === 0 ? (
-            <p className="text-sm text-muted-foreground">No recent activity.</p>
-          ) : (
-            <ul className="space-y-3">
-              {recentActivity.map((log) => (
-                <li key={log.id} className="flex items-center justify-between text-sm">
-                  <span>
-                    <span className="font-medium capitalize">{log.action}</span>{" "}
-                    <span className="text-muted-foreground">
-                      {log.entity_type.replace("_", " ")}
-                    </span>
-                  </span>
-                  <span className="text-xs text-muted-foreground">
-                    {formatDistanceToNow(new Date(log.created_at), { addSuffix: true })}
-                  </span>
-                </li>
-              ))}
-            </ul>
-          )}
-        </CardContent>
-      </Card>
     </div>
   );
 }

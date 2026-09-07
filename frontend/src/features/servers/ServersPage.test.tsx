@@ -237,6 +237,28 @@ describe("ServersPage", () => {
       expect(screen.getByRole("button", { name: /new server/i })).toBeInTheDocument();
     });
 
+    it("navigates to /servers/new when New server button is clicked", async () => {
+      useAuthMock.mockReturnValue({ roles: ["member"], isLoading: false });
+      mockGetByPath({ servers: okResult([SAMPLE_SERVER]), environments: okResult([SAMPLE_ENVIRONMENT]) });
+      renderPage();
+      await screen.findByText("Web 01");
+
+      fireEvent.click(screen.getByRole("button", { name: /new server/i }));
+      expect(navigateMock).toHaveBeenCalledWith("/servers/new");
+    });
+
+    it("navigates to /servers/:id/edit when Edit menu item is clicked", async () => {
+      useAuthMock.mockReturnValue({ roles: ["member"], isLoading: false });
+      mockGetByPath({ servers: okResult([SAMPLE_SERVER]), environments: okResult([SAMPLE_ENVIRONMENT]) });
+      renderPage();
+      await screen.findByText("Web 01");
+
+      fireEvent.pointerDown(screen.getByRole("button", { name: "Actions" }), { button: 0 });
+      fireEvent.click(await screen.findByRole("menuitem", { name: "Edit" }));
+
+      expect(navigateMock).toHaveBeenCalledWith("/servers/s1/edit");
+    });
+
     it("shows Edit but not Delete to a member", async () => {
       useAuthMock.mockReturnValue({ roles: ["member"], isLoading: false });
       mockGetByPath({ servers: okResult([SAMPLE_SERVER]), environments: okResult([SAMPLE_ENVIRONMENT]) });

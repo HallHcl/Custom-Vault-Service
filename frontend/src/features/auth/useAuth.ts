@@ -8,6 +8,9 @@ export interface AuthUser {
   email: string;
   peopleId: string | null;
   roles: string[];
+  /** Present on GET /auth/me (NULL resolved to "light" server-side); absent
+   *  from the POST /auth/login payload. */
+  theme_preference?: "light" | "dark";
 }
 
 interface AuthState {
@@ -70,8 +73,17 @@ export function useAuth() {
       { username, password }
     );
     setToken(data.token);
-    setState({ user: data.user, status: "authenticated" });
-    return data.user;
+    // Re-fetch through /auth/me so `user` carries fields the login payload
+    // omits (theme_preference) — the theme wiring reads it as its source of
+    // truth on boot.
+    try {
+      const me = await api.get<AuthUser>("/auth/me");
+      setState({ user: me.data, status: "authenticated" });
+      return me.data;
+    } catch {
+      setState({ user: data.user, status: "authenticated" });
+      return data.user;
+    }
   }, []);
 
   const logout = useCallback(async () => {

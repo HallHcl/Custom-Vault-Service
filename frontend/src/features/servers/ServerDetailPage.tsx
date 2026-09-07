@@ -1,16 +1,15 @@
-import { Link, useParams } from "react-router-dom";
+import { useNavigate, useParams } from "react-router-dom";
 import { RequireRole } from "@/components/auth/RequireRole";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { DetailPageShell } from "@/components/DetailPageShell";
+import { HOME_SEGMENT, useBreadcrumbs } from "@/components/layout/BreadcrumbsContext";
 import CredentialRefList from "@/features/infrastructure/components/CredentialRefList";
-import ServerEditCard from "./components/ServerEditCard";
+import { useProject } from "@/hooks/useProjects";
 import { useServer, type ServerDetail } from "@/hooks/useServers";
-import { useHasRole } from "@/hooks/useHasRole";
 import { cn } from "@/lib/utils";
 import { panelSurface } from "@/lib/panelSurface";
-import { usePagination } from "@/hooks/usePagination";
 
 const SERVICE_TYPE_LABELS: Record<string, string> = {
   application: "Application",
@@ -32,27 +31,43 @@ const ACCESS_METHOD_LABELS: Record<string, string> = {
 };
 
 export default function ServerDetailPage() {
+  const navigate = useNavigate();
   const { id } = useParams<{ id: string }>();
   const { data: server, isLoading, isError, error, refetch } = useServer(id);
-  // Server create/update is admin+member (requireAnyRole), NOT admin-only
-  // like Environments — verified against backend/src/routes/servers.routes.ts.
-  const canEdit = useHasRole(["admin", "member"]);
 
-  // Only the ?edit escape hatch of usePagination is used here — this page
-  // has nothing to paginate. Reflecting edit mode in the URL (rather than
-  // local state) is what makes the list page's row-action "Edit" and this
-  // page's own Edit button converge on the same state, and keeps edit mode
-  // shareable/deep-linkable/bookmarkable.
-  const { getParam, setParams } = usePagination();
-  const isEditing = canEdit && getParam("edit") === "true";
-
-  function enterEdit() {
-    setParams({ edit: "true" });
-  }
-
-  function exitEdit() {
-    setParams({ edit: undefined });
-  }
+  // ServerDetail only embeds environment.project as { id, name }, so the
+  // Client segment is backfilled by a separate useProject fetch (cache-shared
+  // with ProjectDetailPage). useProject already guards on `Boolean(id)`, so a
+  // possibly-undefined project id is safe. Until it resolves — or if the
+  // project is soft-deleted and the fetch 404s (`data` stays undefined, never
+  // throws) — the trail simply omits the Client segment, same as the loading
+  // fallback below.
+  const { data: project } = useProject(server?.environment.project.id);
+  useBreadcrumbs(
+    server
+      ? [
+          HOME_SEGMENT,
+          ...(project?.client
+            ? [
+                { label: "Clients", href: "/clients" },
+                {
+                  label: project.client.name,
+                  href: `/clients/${project.client.id}`,
+                },
+              ]
+            : []),
+          { label: "Projects", href: "/projects" },
+          {
+            label: server.environment.project.name,
+            href: `/projects/${server.environment.project.id}`,
+          },
+          { label: "Environments", href: "/environments" },
+          { label: server.environment.name, href: `/environments/${server.environment.id}` },
+          { label: "Servers", href: "/servers" },
+          { label: server.display_name },
+        ]
+      : [HOME_SEGMENT, { label: "Servers", href: "/servers" }]
+  );
 
   return (
     <DetailPageShell<ServerDetail>
@@ -67,11 +82,6 @@ export default function ServerDetailPage() {
       notFoundMessage="This server could not be found."
       main={(server) => (
         <Card>
-          {/* The header is rendered in both modes so the page's <h1> is always
-              present — it previously lived inside a `!isEditing` guard, which
-              left the page with no heading at all while editing. Only the
-              hostname/environment subtext and the Edit button are still
-              mode-dependent; view mode is unchanged. */}
           <CardHeader className="flex flex-row items-start justify-between gap-2">
             <div>
               <div className="flex items-center gap-2">
@@ -80,37 +90,22 @@ export default function ServerDetailPage() {
                 </CardTitle>
                 {server.deleted_at && <Badge variant="neutral">Deleted</Badge>}
               </div>
-              {!isEditing && (
-                <>
-                  <p className="mt-1 text-sm text-muted-foreground">{server.hostname}</p>
-                  <div className="mt-1">
-                    <Link
-                      to={`/environments/${server.environment.id}`}
-                      className="text-sm text-muted-foreground hover:text-foreground hover:underline"
-                    >
-                      {server.environment.name}
-                    </Link>
-                    <span className="text-sm text-muted-foreground"> · {server.environment.project.name}</span>
-                  </div>
-                </>
-              )}
+              <p className="mt-1 text-sm text-muted-foreground">{server.hostname}</p>
             </div>
-            {!isEditing && (
-              <RequireRole roles={["admin", "member"]}>
-                <Button variant="secondary" size="sm" onClick={enterEdit}>
-                  Edit
-                </Button>
-              </RequireRole>
-            )}
+            <RequireRole roles={["admin", "member"]}>
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={() => navigate(`/servers/${server.id}/edit`)}
+              >
+                Edit
+              </Button>
+            </RequireRole>
           </CardHeader>
           <CardContent className="space-y-4">
-            {isEditing ? (
-              <ServerEditCard server={server} onSaved={exitEdit} onCancel={exitEdit} />
-            ) : (
-              <>
-                {server.ip_address && (
+            {server.ip_address && (
                   <div>
-                    <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                    <span className="text-label text-muted-foreground">
                       IP address
                     </span>
                     <p className="text-sm">{server.ip_address}</p>
@@ -119,7 +114,7 @@ export default function ServerDetailPage() {
 
                 {server.tech_stack.length > 0 && (
                   <div>
-                    <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                    <span className="text-label text-muted-foreground">
                       Tech stack
                     </span>
                     <div className="mt-1 flex flex-wrap gap-1">
@@ -133,7 +128,7 @@ export default function ServerDetailPage() {
                 )}
 
                 <div className={cn(panelSurface(), "p-3")}>
-                  <p className="mb-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                  <p className="mb-2 text-label text-muted-foreground">
                     Access documentation
                   </p>
                   {/* Single column until sm, two above it. This block used to
@@ -168,7 +163,7 @@ export default function ServerDetailPage() {
 
                 {server.monitoring_url && (
                   <div>
-                    <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                    <span className="text-label text-muted-foreground">
                       Monitoring
                     </span>
                     <p>
@@ -186,14 +181,12 @@ export default function ServerDetailPage() {
 
                 {server.notes && (
                   <div>
-                    <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                    <span className="text-label text-muted-foreground">
                       Notes
                     </span>
                     <p className="text-sm text-muted-foreground">{server.notes}</p>
                   </div>
                 )}
-              </>
-            )}
           </CardContent>
         </Card>
       )}
