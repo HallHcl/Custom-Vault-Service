@@ -1,0 +1,15 @@
+# Overlay for deploying to a remote host, layered on top of docker-compose.yml:
+#
+#   docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build
+#
+# The only server-specific bit is the API URL baked into the frontend bundle at
+# build time — it must be an address the *browser* (on someone else's device)
+# can reach, i.e. the deploy host's LAN/public address, not localhost.
+#
+# Override the address without editing this file by exporting VITE_API_BASE_URL
+# before the deploy command.
+services:
+  frontend:
+    build:
+      args:
+        VITE_API_BASE_URL: ${VITE_API_BASE_URL:-http://192.168.1.85:4000/api}
