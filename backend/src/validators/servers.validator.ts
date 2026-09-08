@@ -33,8 +33,8 @@ export const createServerSchema = z.object({
   display_name: z.string().min(1),
   hostname: z.string().min(1),
   ip_address: z.string().optional(),
-  service_type: z.enum(SERVICE_TYPES),
-  access_method: z.enum(ACCESS_METHODS),
+  service_type: z.string().trim().min(1).max(100).optional(),
+  access_method: z.enum(ACCESS_METHODS).optional(),
   // Optional on create: the quick-add form doesn't ask for it. When absent
   // the service derives it as `username@host` (host = ip_address or hostname).
   access_host: accessHostSchema.optional(),
@@ -54,7 +54,7 @@ export const updateServerSchema = z.object({
   display_name: z.string().min(1).optional(),
   hostname: z.string().min(1).optional(),
   ip_address: z.string().optional(),
-  service_type: z.enum(SERVICE_TYPES).optional(),
+  service_type: z.string().trim().min(1).max(100).optional(),
   access_method: z.enum(ACCESS_METHODS).optional(),
   access_host: accessHostSchema.optional(),
   access_port: z.number().int().min(1).max(65535).optional(),
@@ -74,7 +74,7 @@ export const listServersQuerySchema = z.object({
   order: z.enum(["asc", "desc"]),
   search: z.string().optional(),
   environment_id: z.string().uuid().optional(),
-  service_type: z.enum(SERVICE_TYPES).optional(),
+  service_type: z.string().trim().min(1).max(100).optional(),
   access_method: z.enum(ACCESS_METHODS).optional(),
   deleted: z.enum(["false", "true", "all"]),
 });

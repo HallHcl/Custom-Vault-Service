@@ -505,6 +505,16 @@ registry.registerPath({
 });
 
 registry.registerPath({
+  method: "get",
+  path: "/api/servers/service-types",
+  tags: ["Servers"],
+  operationId: "listServerServiceTypes",
+  summary: "List all distinct existing service types across servers",
+  security: bearerAuth,
+  responses: { 200: ok("List of service types", z.array(z.string())), ...errors(401) },
+});
+
+registry.registerPath({
   method: "post",
   path: "/api/servers",
   tags: ["Servers"],

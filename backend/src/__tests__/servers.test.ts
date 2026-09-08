@@ -191,14 +191,20 @@ describe("POST /api/servers", () => {
     expect(res.body.access_host).toBe(`bare-${RUN_ID}.internal`);
   });
 
-  it("returns 400 VALIDATION_ERROR for an invalid service_type", async () => {
-    const res = await createServerAs(
+  it("accepts custom service_type and returns 400 VALIDATION_ERROR for empty service_type", async () => {
+    const customRes = await createServerAs(
       adminToken,
-      validServerBody({ display_name: `${PREFIX}BadServiceType`, service_type: "not_a_real_type" })
+      validServerBody({ display_name: `${PREFIX}CustomServiceType`, service_type: "Redis" })
     );
+    expect(customRes.status).toBe(201);
+    expect(customRes.body.service_type).toBe("Redis");
 
-    expect(res.status).toBe(400);
-    expect(res.body.error.code).toBe("VALIDATION_ERROR");
+    const emptyRes = await createServerAs(
+      adminToken,
+      validServerBody({ display_name: `${PREFIX}BadServiceType`, service_type: "" })
+    );
+    expect(emptyRes.status).toBe(400);
+    expect(emptyRes.body.error.code).toBe("VALIDATION_ERROR");
   });
 
   it("returns 400 VALIDATION_ERROR for access_port = 99999 (caught before the DB CHECK constraint)", async () => {
@@ -219,6 +225,16 @@ describe("POST /api/servers", () => {
 
     expect(res.status).toBe(400);
     expect(res.body.error.code).toBe("VALIDATION_ERROR");
+  });
+
+  it("lists distinct service types via GET /api/servers/service-types", async () => {
+    const res = await request(app)
+      .get("/api/servers/service-types")
+      .set("Authorization", `Bearer ${adminToken}`);
+
+    expect(res.status).toBe(200);
+    expect(Array.isArray(res.body)).toBe(true);
+    expect(res.body).toContain("Redis");
   });
 });
 

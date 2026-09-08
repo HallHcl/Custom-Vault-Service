@@ -176,8 +176,8 @@ export async function createServer(
           input.hostname,
           input.ip_address ?? null,
           JSON.stringify(input.tech_stack ?? []),
-          input.service_type,
-          input.access_method,
+          input.service_type ?? null,
+          input.access_method ?? null,
           accessHost,
           input.access_port ?? null,
           input.access_path ?? null,
@@ -346,3 +346,14 @@ export async function restoreServer(
     }
   });
 }
+
+export async function getDistinctServiceTypes(): Promise<string[]> {
+  const result = await pool.query<{ service_type: string }>(
+    `SELECT DISTINCT service_type
+     FROM servers
+     WHERE service_type IS NOT NULL AND TRIM(service_type) != '' AND deleted_at IS NULL
+     ORDER BY service_type ASC`
+  );
+  return result.rows.map((r) => r.service_type);
+}
+

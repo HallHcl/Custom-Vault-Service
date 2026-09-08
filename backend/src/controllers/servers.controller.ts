@@ -7,6 +7,7 @@ import {
 } from "../validators/servers.validator";
 import {
   createServer,
+  getDistinctServiceTypes,
   getServerById,
   listServers,
   ListServersParams,
@@ -99,4 +100,9 @@ export async function restore(req: Request, res: Response) {
   const changedBy = requireChangedBy(req);
   const restored = await restoreServer(paramId(req, "id"), changedBy);
   res.json(restored);
+}
+
+export async function listServiceTypes(_req: Request, res: Response) {
+  const types = await getDistinctServiceTypes();
+  res.json(types);
 }

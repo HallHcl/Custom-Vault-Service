@@ -2872,15 +2872,8 @@ paths:
                   type: string
                 service_type:
                   type: string
-                  enum:
-                    - application
-                    - database
-                    - proxy
-                    - monitoring
-                    - repository
-                    - metrics
-                    - jump_host
-                    - other
+                  minLength: 1
+                  maxLength: 100
                 access_method:
                   type: string
                   enum:
@@ -2916,8 +2909,6 @@ paths:
                 - environment_id
                 - display_name
                 - hostname
-                - service_type
-                - access_method
       responses:
         "201":
           description: Server created
@@ -2945,6 +2936,29 @@ paths:
                 $ref: "#/components/schemas/ErrorResponse"
         "409":
           description: Conflict
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /api/servers/service-types:
+    get:
+      tags:
+        - Servers
+      operationId: listServerServiceTypes
+      summary: List all distinct existing service types across servers
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: List of service types
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: string
+        "401":
+          description: Not authenticated
           content:
             application/json:
               schema:
@@ -3016,15 +3030,8 @@ paths:
                   type: string
                 service_type:
                   type: string
-                  enum:
-                    - application
-                    - database
-                    - proxy
-                    - monitoring
-                    - repository
-                    - metrics
-                    - jump_host
-                    - other
+                  minLength: 1
+                  maxLength: 100
                 access_method:
                   type: string
                   enum:
