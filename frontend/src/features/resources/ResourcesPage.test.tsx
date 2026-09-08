@@ -490,14 +490,97 @@ describe("ResourcesPage", () => {
 
       // Content & Diagrams is active by default
       expect(await screen.findByText("My guide content")).toBeInTheDocument();
-      expect(screen.getByText("Diagrams & Attachments")).toBeInTheDocument();
-      expect(screen.getByText(/drag and drop diagrams or images/i)).toBeInTheDocument();
+      expect(screen.queryByText("Diagrams & Attachments")).not.toBeInTheDocument();
+      expect(screen.queryByText(/drag and drop diagrams or images/i)).not.toBeInTheDocument();
 
       // Switch to Version History tab
       const historyTab = screen.getByRole("tab", { name: /version history/i });
       fireEvent.mouseDown(historyTab);
       fireEvent.click(historyTab);
       expect(await screen.findByText("No versions yet")).toBeInTheDocument();
+    });
+
+    it("renders Diagrams & Attachments when the resource has attachments, but hides upload dropzone", async () => {
+      useAuthMock.mockReturnValue({ roles: ["member"], isLoading: false });
+      mockGetByPath({
+        resources: ok(paginated([ACTIVE_RESOURCE])),
+        resourceDetail: ok({
+          ...ACTIVE_RESOURCE,
+          current_version: {
+            ...ACTIVE_RESOURCE.current_version,
+            content: "My guide content",
+          },
+        }),
+        attachments: ok([
+          {
+            id: "att-1",
+            resource_id: "r1",
+            created_in_version_id: null,
+            file_name: "architecture.png",
+            file_size: 1024,
+            mime_type: "image/png",
+            uploaded_by: "p1",
+            created_at: "2026-01-01T00:00:00.000Z",
+            deleted_at: null,
+            uploader: { id: "p1", name: "Alex" },
+          },
+        ]),
+      });
+
+      renderPage();
+      fireEvent.click(await screen.findByText("Deploy guide"));
+
+      expect(await screen.findByText("Diagrams & Attachments")).toBeInTheDocument();
+      expect(await screen.findByText("architecture.png")).toBeInTheDocument();
+      expect(screen.queryByText(/drag and drop diagrams or images/i)).not.toBeInTheDocument();
+    });
+
+    it("returns to the resource file list table when clicking Back to resources from in-memory selection", async () => {
+      useAuthMock.mockReturnValue({ roles: ["member"], isLoading: false });
+      mockGetByPath({
+        resources: ok(paginated([ACTIVE_RESOURCE])),
+        resourceDetail: ok({
+          ...ACTIVE_RESOURCE,
+          current_version: {
+            ...ACTIVE_RESOURCE.current_version,
+            content: "My guide content",
+          },
+        }),
+      });
+
+      renderPage();
+      fireEvent.click(await screen.findByText("Deploy guide"));
+
+      expect(await screen.findByText("My guide content")).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: /back to resources/i })).toBeInTheDocument();
+
+      fireEvent.click(screen.getByRole("button", { name: /back to resources/i }));
+
+      expect(await screen.findByRole("heading", { name: "Resources", level: 1 })).toBeInTheDocument();
+      expect(screen.queryByText("My guide content")).not.toBeInTheDocument();
+    });
+
+    it("returns to the file list table when clicking Back to resources loaded via URL selected param", async () => {
+      useAuthMock.mockReturnValue({ roles: ["member"], isLoading: false });
+      mockGetByPath({
+        resources: ok(paginated([ACTIVE_RESOURCE])),
+        resourceDetail: ok({
+          ...ACTIVE_RESOURCE,
+          current_version: {
+            ...ACTIVE_RESOURCE.current_version,
+            content: "My guide content",
+          },
+        }),
+      });
+
+      renderPage(["/resources?selected=r1"]);
+
+      expect(await screen.findByText("My guide content")).toBeInTheDocument();
+      const backBtn = screen.getByRole("button", { name: /back to resources/i });
+      fireEvent.click(backBtn);
+
+      expect(await screen.findByRole("heading", { name: "Resources", level: 1 })).toBeInTheDocument();
+      expect(screen.queryByText("My guide content")).not.toBeInTheDocument();
     });
   });
 });

@@ -1,7 +1,7 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { FormEvent } from "react";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, FileUp } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -128,6 +128,38 @@ export default function ResourceFormPage({ mode: modeProp }: ResourceFormPagePro
   const [fieldErrors, setFieldErrors] = useState<FormFieldErrors>({});
   const [showDuplicateConfirm, setShowDuplicateConfirm] = useState(false);
   const [stagedFiles, setStagedFiles] = useState<File[]>([]);
+  const contentFileInputRef = useRef<HTMLInputElement | null>(null);
+
+  async function handleContentFileChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    try {
+      const text = await file.text();
+      setContent(text);
+      setFieldErrors((prev) => ({ ...prev, content: undefined }));
+
+      // If title is currently empty (create mode), infer title from file name
+      if (!title.trim() && !isNewVersion) {
+        const baseName = file.name.replace(/\.[^/.]+$/, "").replace(/[-_]/g, " ");
+        setTitle(baseName);
+        setFieldErrors((prev) => ({ ...prev, title: undefined }));
+      }
+
+      toast({
+        title: "File loaded",
+        description: `Loaded content from "${file.name}"`,
+      });
+    } catch {
+      toast({
+        title: "Failed to read file",
+        description: "Could not read text content from the selected file.",
+        variant: "destructive",
+      });
+    } finally {
+      e.target.value = "";
+    }
+  }
 
   // Pre-fill form when prefillVersion is loaded in new-version mode
   useEffect(() => {
@@ -272,7 +304,7 @@ export default function ResourceFormPage({ mode: modeProp }: ResourceFormPagePro
 
   if (isNewVersion && isResourceLoading) {
     return (
-      <div className="space-y-4">
+      <div className="space-y-6">
         <Link to={backTo} className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground">
           <ArrowLeft className="h-4 w-4" />
           {backLabel}
@@ -284,7 +316,7 @@ export default function ResourceFormPage({ mode: modeProp }: ResourceFormPagePro
 
   if (isNewVersion && isResourceError) {
     return (
-      <div className="space-y-4">
+      <div className="space-y-6">
         <Link to={backTo} className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground">
           <ArrowLeft className="h-4 w-4" />
           {backLabel}
@@ -296,7 +328,7 @@ export default function ResourceFormPage({ mode: modeProp }: ResourceFormPagePro
 
   if (isNewVersion && !resource) {
     return (
-      <div className="space-y-4">
+      <div className="space-y-6">
         <Link to={backTo} className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground">
           <ArrowLeft className="h-4 w-4" />
           {backLabel}
@@ -307,15 +339,16 @@ export default function ResourceFormPage({ mode: modeProp }: ResourceFormPagePro
   }
 
   return (
-    <div className="space-y-4">
-      <div>
-        <Link to={backTo} className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground">
-          <ArrowLeft className="h-4 w-4" />
-          {backLabel}
-        </Link>
-      </div>
+    <div className="space-y-6">
+      <Link
+        to={backTo}
+        className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground"
+      >
+        <ArrowLeft className="h-4 w-4" />
+        {backLabel}
+      </Link>
 
-      <Card className="max-w-3xl">
+      <Card>
         <CardHeader>
           <CardTitle asChild>
             <h1>
@@ -407,7 +440,30 @@ export default function ResourceFormPage({ mode: modeProp }: ResourceFormPagePro
               )}
 
               <div className="space-y-1">
-                <Label htmlFor="content">Content</Label>
+                <div className="flex items-center justify-between">
+                  <Label htmlFor="content">Content</Label>
+                  <div className="flex items-center gap-2">
+                    <input
+                      ref={contentFileInputRef}
+                      type="file"
+                      accept=".md,.txt,.markdown,.json,.yaml,.yml,.sh,.sql,.env,.conf,text/*"
+                      className="hidden"
+                      id="content-file-input"
+                      data-testid="content-file-input"
+                      onChange={handleContentFileChange}
+                    />
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="h-7 text-xs gap-1.5"
+                      onClick={() => contentFileInputRef.current?.click()}
+                    >
+                      <FileUp className="h-3.5 w-3.5" />
+                      Choose File
+                    </Button>
+                  </div>
+                </div>
                 <Textarea
                   id="content"
                   rows={6}
@@ -415,7 +471,8 @@ export default function ResourceFormPage({ mode: modeProp }: ResourceFormPagePro
                   onChange={(e) => setContent(e.target.value)}
                   aria-invalid={!!fieldErrors.content}
                   aria-describedby={fieldErrors.content ? errorId("content") : undefined}
-                  className={cn(fieldErrors.content && INVALID_CONTROL)}
+                  className={cn(fieldErrors.content && INVALID_CONTROL, "font-mono text-xs")}
+                  placeholder="Enter markdown or text content, or click 'Choose File' to load from a file..."
                 />
                 {fieldErrors.content && (
                   <p id={errorId("content")} className="text-xs text-danger">

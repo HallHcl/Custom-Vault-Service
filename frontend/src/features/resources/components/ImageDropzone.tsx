@@ -1,5 +1,5 @@
 import React, { useRef, useState } from "react";
-import { AlertCircle, ImagePlus, Loader2 } from "lucide-react";
+import { AlertCircle, ImagePlus, Loader2, Upload } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { toast } from "@/hooks/use-toast";
 import { apiErrorMessage } from "@/api/errors";
@@ -216,6 +216,19 @@ export function ImageDropzone({
                 PNG, JPEG, WebP, SVG up to 10 MB each
               </p>
             </div>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="mt-1 text-xs gap-1.5"
+              onClick={(e) => {
+                e.stopPropagation();
+                handleClick();
+              }}
+            >
+              <Upload className="h-3.5 w-3.5" />
+              Choose File
+            </Button>
           </div>
         )}
       </div>

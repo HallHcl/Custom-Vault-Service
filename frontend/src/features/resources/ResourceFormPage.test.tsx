@@ -189,6 +189,26 @@ describe("ResourceFormPage — create mode", () => {
     expect(await screen.findByText("Resources list page")).toBeInTheDocument();
   });
 
+  it("loads content from file and infers title when Choose File is used", async () => {
+    renderCreatePage();
+
+    const fileInput = screen.getByTestId("content-file-input");
+    const file = new File(["# Incident Response Runbook\n\nStep 1: Check logs"], "incident_response.md", {
+      type: "text/markdown",
+    });
+
+    fireEvent.change(fileInput, { target: { files: [file] } });
+
+    expect(await screen.findByDisplayValue("incident response")).toBeInTheDocument();
+    expect(screen.getByLabelText("Content")).toHaveValue(
+      "# Incident Response Runbook\n\nStep 1: Check logs"
+    );
+    expect(toastMock).toHaveBeenCalledWith({
+      title: "File loaded",
+      description: 'Loaded content from "incident_response.md"',
+    });
+  });
+
   it("navigates back on Cancel without saving", async () => {
     renderCreatePage();
     fireEvent.click(screen.getByRole("button", { name: /cancel/i }));

@@ -1,5 +1,6 @@
-import { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { useNavigate, useParams, useSearchParams } from "react-router-dom";
+import { ArrowLeft, FileText, History } from "lucide-react";
 import { RequireRole } from "@/components/auth/RequireRole";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { PaginationControls } from "@/components/PaginationControls";
@@ -22,13 +23,14 @@ import {
   type ResourceListItem,
   type ResourceSort,
 } from "@/hooks/useResources";
+import { useProjects } from "@/hooks/useProjects";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import ResourceFilterBar from "./components/ResourceFilterBar";
-import ResourceList from "./components/ResourceList";
+import ResourceFileTable from "./components/ResourceFileTable";
 import ResourceMetadataDialog from "./components/ResourceMetadataDialog";
 import VersionHistoryPanel from "./components/VersionHistoryPanel";
 import { AttachmentGallery } from "./components/AttachmentGallery";
-import { ImageDropzone } from "./components/ImageDropzone";
+import { useResourceAttachments } from "@/hooks/useResourceAttachments";
 
 const SORT_OPTIONS: { value: ResourceSort; label: string }[] = [
   { value: "title", label: "Title" },
@@ -36,15 +38,13 @@ const SORT_OPTIONS: { value: ResourceSort; label: string }[] = [
   { value: "updated_at", label: "Updated" },
 ];
 
-
 export default function ResourcesPage() {
-  useBreadcrumbs([HOME_SEGMENT, { label: "Resources" }]);
   const navigate = useNavigate();
+  const params = useParams<{ id: string }>();
+  const [searchParams] = useSearchParams();
+  const selectedIdFromUrl = params.id ?? searchParams.get("selected") ?? undefined;
+
   const pagination = usePagination({ initialSort: "title", initialOrder: "asc" });
-  // URL-synced the same way as pagination's own fields (see usePagination.ts)
-  // rather than local useState, so a refresh/shared URL reproduces the same
-  // filtered view. Matches pre-migration behavior exactly: neither filter
-  // resets the page on change (only pagination.setSearch does that).
   const projectId = pagination.getParam("project_id") ?? undefined;
   const type = pagination.getParam("type") ?? undefined;
 
@@ -57,6 +57,7 @@ export default function ResourcesPage() {
   }
 
   const [selected, setSelected] = useState<ResourceListItem | undefined>(undefined);
+  const [activeTab, setActiveTab] = useState<"content" | "history">("content");
   const [editMetadataOpen, setEditMetadataOpen] = useState(false);
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
 
@@ -79,7 +80,58 @@ export default function ResourcesPage() {
   });
 
   const { data: resourceDetail, isLoading: isResourceDetailLoading } = useResource(
-    selected?.id
+    selected?.id ?? selectedIdFromUrl
+  );
+
+  const { data: projects = [] } = useProjects();
+  const projectById = useMemo(
+    () => new Map(projects.map((p) => [p.id, p])),
+    [projects]
+  );
+  const selectedProject = selected?.project_id ? projectById.get(selected.project_id) : undefined;
+
+  const prevSelectedIdFromUrl = useRef(selectedIdFromUrl);
+
+  function handleBackToResources() {
+    setSelected(undefined);
+    if (params.id) {
+      navigate("/resources");
+    } else if (searchParams.has("selected")) {
+      const nextParams = new URLSearchParams(searchParams);
+      nextParams.delete("selected");
+      const qs = nextParams.toString();
+      navigate(qs ? `/resources?${qs}` : "/resources", { replace: true });
+    }
+  }
+
+  // Clear selected when user navigates away from a URL that had a resource ID
+  useEffect(() => {
+    if (prevSelectedIdFromUrl.current && !selectedIdFromUrl) {
+      setSelected(undefined);
+    }
+    prevSelectedIdFromUrl.current = selectedIdFromUrl;
+  }, [selectedIdFromUrl]);
+
+  // Auto-sync selected with URL if available
+  useEffect(() => {
+    if (selectedIdFromUrl) {
+      const match = resources.find((r) => r.id === selectedIdFromUrl);
+      if (match) {
+        setSelected(match);
+      } else if (resourceDetail && resourceDetail.id === selectedIdFromUrl) {
+        setSelected(resourceDetail);
+      }
+    }
+  }, [selectedIdFromUrl, resources, resourceDetail]);
+
+  useBreadcrumbs(
+    selected
+      ? [
+          HOME_SEGMENT,
+          { label: "Resources", href: "/resources" },
+          { label: selected.title },
+        ]
+      : [HOME_SEGMENT, { label: "Resources" }]
   );
 
   const totalPages = paginationMeta?.total_pages ?? 1;
@@ -115,12 +167,6 @@ export default function ResourcesPage() {
     });
   }
 
-  // Restore's 409 ("Resource is not deleted") is a business-rule conflict,
-  // not a stale-write conflict — it's surfaced as a plain error toast here,
-  // never routed through useConflictResolution/ConflictState (that
-  // primitive is for stale `updated_at` on PATCH, which this isn't, and
-  // this button only ever appears on rows the list itself reports as
-  // deleted, so it should be rare/impossible to trigger in practice).
   function handleRestore() {
     if (!selected) return;
     const target = selected;
@@ -140,36 +186,38 @@ export default function ResourcesPage() {
   }
 
   const isDeletedSelected = Boolean(selected?.deleted_at);
+  const { data: rawAttachments } = useResourceAttachments(selected?.id);
+  const attachments = Array.isArray(rawAttachments) ? rawAttachments : [];
 
   return (
     <div className="space-y-6">
-      <PageHeader
-        title="Resources"
-        actions={
-          <RequireRole roles={["admin", "member"]}>
-            <Button onClick={() => navigate("/resources/new")}>New resource</Button>
-          </RequireRole>
-        }
-      />
+      {!selected ? (
+        <>
+          <PageHeader
+            title="Resources"
+            actions={
+              <RequireRole roles={["admin", "member"]}>
+                <Button onClick={() => navigate("/resources/new")}>New resource</Button>
+              </RequireRole>
+            }
+          />
 
-      <ResourceFilterBar
-        search={pagination.search}
-        onSearchChange={pagination.setSearch}
-        type={type}
-        onTypeChange={setType}
-        projectId={projectId}
-        onProjectIdChange={setProjectId}
-        sort={pagination.sort}
-        onSortChange={pagination.setSort}
-        sortOptions={SORT_OPTIONS}
-        order={pagination.order}
-        onOrderChange={pagination.setOrder}
-        deleted={pagination.deleted}
-        onDeletedChange={pagination.setDeleted}
-      />
+          <ResourceFilterBar
+            search={pagination.search}
+            onSearchChange={pagination.setSearch}
+            type={type}
+            onTypeChange={setType}
+            projectId={projectId}
+            onProjectIdChange={setProjectId}
+            sort={pagination.sort}
+            onSortChange={pagination.setSort}
+            sortOptions={SORT_OPTIONS}
+            order={pagination.order}
+            onOrderChange={pagination.setOrder}
+            deleted={pagination.deleted}
+            onDeletedChange={pagination.setDeleted}
+          />
 
-      <div className="grid gap-4 lg:grid-cols-[320px_1fr]">
-        <div className="space-y-3">
           {isLoading ? (
             <LoadingState message="Loading resources..." />
           ) : isError ? (
@@ -182,8 +230,14 @@ export default function ResourcesPage() {
               }
             />
           ) : (
-            <>
-              <ResourceList resources={resources} selectedId={selected?.id} onSelect={setSelected} />
+            <div className="space-y-4">
+              <ResourceFileTable
+                resources={resources}
+                onSelect={(resource) => {
+                  setSelected(resource);
+                  setActiveTab("content");
+                }}
+              />
 
               <PaginationControls
                 page={pagination.page}
@@ -193,149 +247,184 @@ export default function ResourcesPage() {
                 onNextPage={pagination.nextPage}
                 onPerPageChange={pagination.setPerPage}
               />
-            </>
+            </div>
           )}
-        </div>
+        </>
+      ) : (
+        <div className="space-y-4">
+          <div>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={handleBackToResources}
+              className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground -ml-2"
+            >
+              <ArrowLeft className="h-4 w-4" />
+              Back to resources
+            </Button>
+          </div>
 
-        <div>
-          {selected ? (
-            <Card>
-              <CardHeader className="flex flex-row items-start justify-between">
-                <div>
-                  <CardTitle className="flex items-center gap-2">
-                    {selected.title}
-                    {isDeletedSelected && <Badge variant="neutral">Deleted</Badge>}
-                  </CardTitle>
-                  <div className="mt-1 flex items-center gap-2">
-                    <Badge variant="outline">{selected.type}</Badge>
-                    {selected.category && (
-                      <span className="text-xs text-muted-foreground">{selected.category}</span>
-                    )}
-                  </div>
+          <Card>
+            <CardHeader className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 border-b pb-4">
+              <div>
+                <CardTitle className="flex items-center gap-2 text-xl">
+                  {selected.title}
+                  {isDeletedSelected && <Badge variant="neutral">Deleted</Badge>}
+                </CardTitle>
+                <div className="mt-1.5 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+                  <Badge variant="outline">{selected.type}</Badge>
+                  {selected.category && (
+                    <span className="inline-flex items-center px-2 py-0.5 rounded bg-muted/40 border border-border/50 text-[11px]">
+                      {selected.category}
+                    </span>
+                  )}
+                  {selectedProject && (
+                    <span>
+                      Project: <strong className="text-foreground">{selectedProject.name}</strong>
+                    </span>
+                  )}
+                  {selected.current_version?.version_number && (
+                    <span className="font-mono">v{selected.current_version.version_number}</span>
+                  )}
                 </div>
+              </div>
 
-                <div className="flex items-center gap-2">
-                  {isDeletedSelected ? (
+              <div className="flex flex-wrap items-center gap-2">
+                {isDeletedSelected ? (
+                  <RequireRole
+                    roles={["admin"]}
+                    fallback={
+                      <p className="max-w-[220px] text-right text-xs text-muted-foreground">
+                        Restoring a deleted resource requires admin access.
+                      </p>
+                    }
+                  >
+                    <Button variant="secondary" size="sm" onClick={handleRestore}>
+                      Restore
+                    </Button>
+                  </RequireRole>
+                ) : (
+                  <>
+                    <Button
+                      variant={activeTab === "history" ? "secondary" : "outline"}
+                      size="sm"
+                      onClick={() => setActiveTab((prev) => (prev === "history" ? "content" : "history"))}
+                      className="flex items-center gap-1.5"
+                      aria-label="History"
+                    >
+                      <History className="h-4 w-4" />
+                      History
+                    </Button>
+
+                    <RequireRole roles={["admin", "member"]}>
+                      <Button variant="secondary" size="sm" onClick={openAddVersion}>
+                        Add version
+                      </Button>
+                    </RequireRole>
+
                     <RequireRole
                       roles={["admin"]}
                       fallback={
                         <p className="max-w-[220px] text-right text-xs text-muted-foreground">
-                          Restoring a deleted resource requires admin access.
+                          Editing this resource&apos;s title/category/tags requires admin access.
+                          You can still add new versions.
                         </p>
                       }
                     >
-                      <Button variant="secondary" size="sm" onClick={handleRestore}>
-                        Restore
+                      <Button variant="ghost" size="sm" onClick={() => setEditMetadataOpen(true)}>
+                        Edit
                       </Button>
                     </RequireRole>
+                    <RequireRole roles={["admin"]}>
+                      <Button variant="ghost" size="sm" onClick={() => setDeleteConfirmOpen(true)}>
+                        Delete
+                      </Button>
+                    </RequireRole>
+                  </>
+                )}
+              </div>
+            </CardHeader>
+
+            <CardContent className="pt-6">
+              <Tabs
+                value={activeTab}
+                onValueChange={(v) => setActiveTab(v as "content" | "history")}
+                className="w-full"
+              >
+                <TabsList className="mb-6">
+                  <TabsTrigger value="content" className="flex items-center gap-1.5">
+                    <FileText className="h-4 w-4" />
+                    Content &amp; Diagrams
+                  </TabsTrigger>
+                  <TabsTrigger value="history" className="flex items-center gap-1.5">
+                    <History className="h-4 w-4" />
+                    Version History
+                  </TabsTrigger>
+                </TabsList>
+
+                <TabsContent value="content" className="space-y-6">
+                  {isResourceDetailLoading ? (
+                    <LoadingState message="Loading resource content..." />
                   ) : (
                     <>
-                      <RequireRole roles={["admin", "member"]}>
-                        <Button variant="secondary" size="sm" onClick={openAddVersion}>
-                          Add version
-                        </Button>
-                      </RequireRole>
-                      {/* Member users can create resources and add versions, but
-                          metadata edits (title/category/tags) are admin-only — a
-                          real asymmetry (verified against
-                          backend/src/routes/resources.routes.ts), not a bug. A
-                          plain disabled button with only a native tooltip would
-                          leave that unexplained, so a member sees this note
-                          instead of the Edit button. */}
-                      <RequireRole
-                        roles={["admin"]}
-                        fallback={
-                          <p className="max-w-[220px] text-right text-xs text-muted-foreground">
-                            Editing this resource&apos;s title/category/tags requires admin access.
-                            You can still add new versions.
+                      {resourceDetail?.current_version?.content && (
+                        <div className="space-y-2">
+                          <h3 className="text-sm font-semibold text-foreground">Content</h3>
+                          <pre className="max-h-[500px] overflow-auto whitespace-pre-wrap rounded-md border border-border bg-muted/20 p-4 font-mono text-xs text-foreground">
+                            {resourceDetail.current_version.content}
+                          </pre>
+                        </div>
+                      )}
+
+                      {resourceDetail?.current_version?.external_url && (
+                        <div className="space-y-1">
+                          <h3 className="text-sm font-semibold text-foreground">External URL</h3>
+                          <a
+                            href={resourceDetail.current_version.external_url}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="text-sm text-brand underline underline-offset-2 break-all"
+                          >
+                            {resourceDetail.current_version.external_url}
+                          </a>
+                        </div>
+                      )}
+
+                      {!resourceDetail?.current_version?.content &&
+                        !resourceDetail?.current_version?.external_url && (
+                          <p className="text-sm text-muted-foreground">
+                            No content recorded for this version.
                           </p>
-                        }
-                      >
-                        <Button variant="ghost" size="sm" onClick={() => setEditMetadataOpen(true)}>
-                          Edit
-                        </Button>
-                      </RequireRole>
-                      <RequireRole roles={["admin"]}>
-                        <Button variant="ghost" size="sm" onClick={() => setDeleteConfirmOpen(true)}>
-                          Delete
-                        </Button>
-                      </RequireRole>
+                        )}
                     </>
                   )}
-                </div>
-              </CardHeader>
-              <CardContent>
-                <Tabs defaultValue="content" className="w-full">
-                  <TabsList className="mb-4">
-                    <TabsTrigger value="content">Content &amp; Diagrams</TabsTrigger>
-                    <TabsTrigger value="history">Version History</TabsTrigger>
-                  </TabsList>
 
-                  <TabsContent value="content" className="space-y-6">
-                    {isResourceDetailLoading ? (
-                      <LoadingState message="Loading resource content..." />
-                    ) : (
-                      <>
-                        {resourceDetail?.current_version?.content && (
-                          <div className="space-y-2">
-                            <h3 className="text-sm font-semibold text-foreground">Content</h3>
-                            <pre className="max-h-96 overflow-auto whitespace-pre-wrap rounded-md border border-border bg-muted/20 p-4 font-mono text-xs text-foreground">
-                              {resourceDetail.current_version.content}
-                            </pre>
-                          </div>
-                        )}
-
-                        {resourceDetail?.current_version?.external_url && (
-                          <div className="space-y-1">
-                            <h3 className="text-sm font-semibold text-foreground">External URL</h3>
-                            <a
-                              href={resourceDetail.current_version.external_url}
-                              target="_blank"
-                              rel="noreferrer"
-                              className="text-sm text-brand underline underline-offset-2 break-all"
-                            >
-                              {resourceDetail.current_version.external_url}
-                            </a>
-                          </div>
-                        )}
-
-                        {!resourceDetail?.current_version?.content &&
-                          !resourceDetail?.current_version?.external_url && (
-                            <p className="text-sm text-muted-foreground">No content recorded for this version.</p>
-                          )}
-                      </>
-                    )}
-
+                  {attachments.length > 0 && (
                     <div className="space-y-3 pt-2">
                       <div className="flex items-center justify-between">
-                        <h3 className="text-sm font-semibold text-foreground">Diagrams &amp; Attachments</h3>
+                        <h3 className="text-sm font-semibold text-foreground">
+                          Diagrams &amp; Attachments
+                        </h3>
                       </div>
                       <AttachmentGallery resourceId={selected.id} />
                     </div>
+                  )}
+                </TabsContent>
 
-                    {!isDeletedSelected && (
-                      <RequireRole roles={["admin", "member"]}>
-                        <div className="space-y-2 pt-2">
-                          <h4 className="text-xs font-medium text-muted-foreground">Upload Diagram or Attachment</h4>
-                          <ImageDropzone resourceId={selected.id} />
-                        </div>
-                      </RequireRole>
-                    )}
-                  </TabsContent>
-
-                  <TabsContent value="history">
-                    <VersionHistoryPanel resourceId={selected.id} onRevert={openRevertVersion} />
-                  </TabsContent>
-                </Tabs>
-              </CardContent>
-            </Card>
-          ) : (
-            <p className="text-sm text-muted-foreground">Select a resource to view its details.</p>
-          )}
+                <TabsContent value="history">
+                  <VersionHistoryPanel resourceId={selected.id} onRevert={openRevertVersion} />
+                </TabsContent>
+              </Tabs>
+            </CardContent>
+          </Card>
         </div>
-      </div>
+      )}
 
-      <ResourceMetadataDialog open={editMetadataOpen} onOpenChange={setEditMetadataOpen} resource={selected} />
+      <ResourceMetadataDialog
+        open={editMetadataOpen}
+        onOpenChange={setEditMetadataOpen}
+        resource={selected}
+      />
 
       <ConfirmDialog
         open={deleteConfirmOpen}
