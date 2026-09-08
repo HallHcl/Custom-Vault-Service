@@ -149,6 +149,9 @@ describe("ServerFormPage — Create mode", () => {
           ok({ data: [SAMPLE_ENVIRONMENT], pagination: { page: 1, per_page: 20, total: 1, total_pages: 1 } })
         );
       }
+      if (path === "/api/servers/service-types") {
+        return Promise.resolve(ok(["Jump host", "Application"]));
+      }
       throw new Error(`Unexpected GET in test: ${path}`);
     });
   });
@@ -180,7 +183,8 @@ describe("ServerFormPage — Create mode", () => {
     expect(await screen.findByText("Project is required.")).toBeInTheDocument();
     expect(screen.getByText("Environment is required.")).toBeInTheDocument();
     expect(screen.getByText("Hostname is required.")).toBeInTheDocument();
-    expect(screen.getByText("Connection type is required.")).toBeInTheDocument();
+    expect(screen.queryByText("Service type is required.")).not.toBeInTheDocument();
+    expect(screen.queryByText("Connection type is required.")).not.toBeInTheDocument();
     expect(postMock).not.toHaveBeenCalled();
   });
 
@@ -195,20 +199,24 @@ describe("ServerFormPage — Create mode", () => {
     );
   });
 
-  it("creates a server from the simplified form, deriving the hidden fields", async () => {
+  it("creates a server from the simplified form, supporting Jump host and RDP", async () => {
     postMock.mockResolvedValue(created(SAMPLE_SERVER));
     renderCreatePage();
 
     await pickProjectAndEnvironment();
 
-    fireEvent.change(screen.getByLabelText("Hostname"), { target: { value: "web-01" } });
+    fireEvent.change(screen.getByLabelText("Hostname"), { target: { value: "jump-01" } });
     fireEvent.change(screen.getByLabelText(/ip address/i), { target: { value: "10.0.0.1" } });
     fireEvent.change(screen.getByLabelText(/username/i), { target: { value: "root" } });
     fireEvent.change(screen.getByLabelText(/password/i), { target: { value: "s3cret" } });
 
+    const serviceTrigger = screen.getByRole("combobox", { name: /service type/i });
+    fireEvent.click(serviceTrigger);
+    fireEvent.click(await screen.findByRole("option", { name: "Jump host" }));
+
     const connectionTrigger = screen.getByRole("combobox", { name: /connection type/i });
     fireEvent.click(connectionTrigger);
-    fireEvent.click(await screen.findByRole("option", { name: "CMD" }));
+    fireEvent.click(await screen.findByRole("option", { name: "RDP" }));
 
     fireEvent.click(screen.getByRole("button", { name: /save/i }));
 
@@ -217,20 +225,66 @@ describe("ServerFormPage — Create mode", () => {
     expect(path).toBe("/api/servers");
     expect(options.body).toMatchObject({
       environment_id: "e1",
-      hostname: "web-01",
+      hostname: "jump-01",
       ip_address: "10.0.0.1",
       username: "root",
       password: "s3cret",
       // derived
-      display_name: "web-01",
-      service_type: "other",
-      access_method: "ssh",
+      display_name: "jump-01",
+      service_type: "Jump host",
+      access_method: "rdp",
     });
     // access_host is not sent on create — the backend derives username@host.
     expect(options.body.access_host).toBeUndefined();
 
     expect(toastMock).toHaveBeenCalledWith({ title: "Server created" });
     expect(await screen.findByText("Servers list page")).toBeInTheDocument();
+  });
+
+  it("creates a server without service_type and connection_type if omitted", async () => {
+    postMock.mockResolvedValue(created(SAMPLE_SERVER));
+    renderCreatePage();
+
+    await pickProjectAndEnvironment();
+
+    fireEvent.change(screen.getByLabelText("Hostname"), { target: { value: "bare-01" } });
+
+    fireEvent.click(screen.getByRole("button", { name: /save/i }));
+
+    await waitFor(() => expect(postMock).toHaveBeenCalledTimes(1));
+    const [path, options] = postMock.mock.calls[0];
+    expect(path).toBe("/api/servers");
+    expect(options.body).toMatchObject({
+      environment_id: "e1",
+      hostname: "bare-01",
+      display_name: "bare-01",
+    });
+    expect(options.body.service_type).toBeUndefined();
+    expect(options.body.access_method).toBeUndefined();
+  });
+
+  it("allows entering and saving a custom service_type like Redis", async () => {
+    postMock.mockResolvedValue(created(SAMPLE_SERVER));
+    renderCreatePage();
+
+    await pickProjectAndEnvironment();
+
+    fireEvent.change(screen.getByLabelText("Hostname"), { target: { value: "redis-01" } });
+
+    const serviceTrigger = screen.getByRole("combobox", { name: /service type/i });
+    fireEvent.click(serviceTrigger);
+
+    const searchInput = screen.getByPlaceholderText(/search or type new/i);
+    fireEvent.change(searchInput, { target: { value: "Redis" } });
+
+    const addOption = await screen.findByText(/add "redis"/i);
+    fireEvent.click(addOption);
+
+    fireEvent.click(screen.getByRole("button", { name: /save/i }));
+
+    await waitFor(() => expect(postMock).toHaveBeenCalledTimes(1));
+    const [, options] = postMock.mock.calls[0];
+    expect(options.body.service_type).toBe("Redis");
   });
 
   it("navigates back to /servers on cancel without mutation", async () => {
@@ -254,9 +308,6 @@ describe("ServerFormPage — Create mode", () => {
 
     await pickProjectAndEnvironment();
     fireEvent.change(screen.getByLabelText("Hostname"), { target: { value: "web-01" } });
-    const connectionTrigger = screen.getByRole("combobox", { name: /connection type/i });
-    fireEvent.click(connectionTrigger);
-    fireEvent.click(await screen.findByRole("option", { name: "CMD" }));
 
     fireEvent.click(screen.getByRole("button", { name: /save/i }));
 
@@ -278,6 +329,7 @@ describe("ServerFormPage — Edit mode", () => {
 
     getMock.mockImplementation((path: string) => {
       if (path === "/api/servers/{id}") return Promise.resolve(ok(SAMPLE_SERVER));
+      if (path === "/api/servers/service-types") return Promise.resolve(ok(["Application", "Database"]));
       throw new Error(`Unexpected GET in test: ${path}`);
     });
   });

@@ -8,6 +8,7 @@ import {
   useRestoreServer,
   useServer,
   useServers,
+  useServiceTypes,
   useUpdateServer,
 } from "./useServers";
 
@@ -281,5 +282,21 @@ describe("useRestoreServer", () => {
     const [path, options] = postMock.mock.calls[0];
     expect(path).toBe("/api/servers/{id}/restore");
     expect(options.params.path).toEqual({ id: "s1" });
+  });
+});
+
+describe("useServiceTypes", () => {
+  it("fetches distinct service types from /api/servers/service-types", async () => {
+    getMock.mockReset();
+    getMock.mockResolvedValue(mockOkResponse(["Application", "Database", "Redis"]));
+
+    const { result } = renderHook(() => useServiceTypes(), { wrapper });
+
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+
+    expect(getMock).toHaveBeenCalledTimes(1);
+    const [path] = getMock.mock.calls[0];
+    expect(path).toBe("/api/servers/service-types");
+    expect(result.current.data).toEqual(["Application", "Database", "Redis"]);
   });
 });

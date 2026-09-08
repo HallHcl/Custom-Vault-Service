@@ -305,6 +305,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/servers/service-types": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List all distinct existing service types across servers */
+        get: operations["listServerServiceTypes"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/servers/{id}": {
         parameters: {
             query?: never;
@@ -2728,10 +2745,9 @@ export interface operations {
                     display_name: string;
                     hostname: string;
                     ip_address?: string;
+                    service_type?: string;
                     /** @enum {string} */
-                    service_type: "application" | "database" | "proxy" | "monitoring" | "repository" | "metrics" | "jump_host" | "other";
-                    /** @enum {string} */
-                    access_method: "ssh" | "rdp" | "telnet" | "web" | "other";
+                    access_method?: "ssh" | "rdp" | "telnet" | "web" | "other";
                     access_host?: string;
                     access_port?: number;
                     access_path?: string;
@@ -2784,6 +2800,35 @@ export interface operations {
             };
             /** @description Conflict */
             409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    listServerServiceTypes: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description List of service types */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": string[];
+                };
+            };
+            /** @description Not authenticated */
+            401: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -2897,8 +2942,7 @@ export interface operations {
                     display_name?: string;
                     hostname?: string;
                     ip_address?: string;
-                    /** @enum {string} */
-                    service_type?: "application" | "database" | "proxy" | "monitoring" | "repository" | "metrics" | "jump_host" | "other";
+                    service_type?: string;
                     /** @enum {string} */
                     access_method?: "ssh" | "rdp" | "telnet" | "web" | "other";
                     access_host?: string;

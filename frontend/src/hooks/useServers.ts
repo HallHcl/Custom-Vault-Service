@@ -58,6 +58,18 @@ export function useServer(id: string | undefined) {
   });
 }
 
+const SERVICE_TYPES_KEY = ["servers", "service-types"];
+
+export function useServiceTypes() {
+  return useQuery({
+    queryKey: SERVICE_TYPES_KEY,
+    queryFn: async () => {
+      const result = await apiClient.GET("/api/servers/service-types");
+      return unwrapApiResult(result);
+    },
+  });
+}
+
 export function useCreateServer() {
   const queryClient = useQueryClient();
   return useMutation({
@@ -66,8 +78,8 @@ export function useCreateServer() {
       display_name: string;
       hostname: string;
       ip_address?: string;
-      service_type: "application" | "database" | "proxy" | "monitoring" | "repository" | "metrics" | "jump_host" | "other";
-      access_method: "ssh" | "rdp" | "telnet" | "web" | "other";
+      service_type?: string;
+      access_method?: "ssh" | "rdp" | "telnet" | "web" | "other";
       // Optional: the backend derives `username@host` when omitted.
       access_host?: string;
       access_port?: number;
@@ -81,7 +93,10 @@ export function useCreateServer() {
       const result = await apiClient.POST("/api/servers", { body: input });
       return unwrapApiResult(result);
     },
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: [KEY] }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: [KEY] });
+      queryClient.invalidateQueries({ queryKey: SERVICE_TYPES_KEY });
+    },
   });
 }
 
@@ -100,7 +115,7 @@ export function useUpdateServer() {
         display_name?: string;
         hostname?: string;
         ip_address?: string;
-        service_type?: "application" | "database" | "proxy" | "monitoring" | "repository" | "metrics" | "jump_host" | "other";
+        service_type?: string;
         access_method?: "ssh" | "rdp" | "telnet" | "web" | "other";
         access_host?: string;
         access_port?: number;
@@ -119,7 +134,10 @@ export function useUpdateServer() {
       });
       return unwrapApiResult(result);
     },
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: [KEY] }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: [KEY] });
+      queryClient.invalidateQueries({ queryKey: SERVICE_TYPES_KEY });
+    },
   });
 }
 

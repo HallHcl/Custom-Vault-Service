@@ -27,31 +27,9 @@ import { useConflictResolution } from "@/hooks/useConflictResolution";
 import { useCreateServer, useServer, useUpdateServer } from "@/hooks/useServers";
 import { cn } from "@/lib/utils";
 import { panelSurface } from "@/lib/panelSurface";
-
-/** Verified against backend/src/validators/servers.validator.ts. */
-const SERVICE_TYPES = [
-  "application",
-  "database",
-  "proxy",
-  "monitoring",
-  "repository",
-  "metrics",
-  "jump_host",
-  "other",
-] as const;
+import { ServiceTypeCombobox } from "@/components/ServiceTypeCombobox";
 
 const ACCESS_METHODS = ["ssh", "rdp", "telnet", "web", "other"] as const;
-
-const SERVICE_TYPE_LABELS: Record<(typeof SERVICE_TYPES)[number], string> = {
-  application: "Application",
-  database: "Database",
-  proxy: "Proxy",
-  monitoring: "Monitoring",
-  repository: "Repository",
-  metrics: "Metrics",
-  jump_host: "Jump host",
-  other: "Other",
-};
 
 const ACCESS_METHOD_LABELS: Record<(typeof ACCESS_METHODS)[number], string> = {
   ssh: "SSH",
@@ -65,8 +43,8 @@ interface ServerInput {
   display_name: string;
   hostname: string;
   ip_address?: string;
-  service_type: (typeof SERVICE_TYPES)[number];
-  access_method: (typeof ACCESS_METHODS)[number];
+  service_type?: string;
+  access_method?: (typeof ACCESS_METHODS)[number];
   access_host?: string;
   access_port?: number;
   access_path?: string;
@@ -193,7 +171,7 @@ export default function ServerFormPage({ mode: modeProp }: ServerFormPageProps) 
   const [environmentId, setEnvironmentId] = useState<string | undefined>(server?.environment?.id);
   const [hostname, setHostname] = useState(server?.hostname ?? "");
   const [ipAddress, setIpAddress] = useState(server?.ip_address ?? "");
-  const [serviceType, setServiceType] = useState<(typeof SERVICE_TYPES)[number] | undefined>(
+  const [serviceType, setServiceType] = useState<string | undefined>(
     server?.service_type ?? undefined
   );
   const [accessMethod, setAccessMethod] = useState<(typeof ACCESS_METHODS)[number] | undefined>(
@@ -242,16 +220,14 @@ export default function ServerFormPage({ mode: modeProp }: ServerFormPageProps) 
 
   function buildInput(): ServerInput {
     const trimmedHost = hostname.trim();
-    // The simplified "New server" form only asks for hostname, IP, credentials,
-    // a CMD/RDP connection type, and notes. The remaining columns still exist on
-    // the record (and stay editable on the edit form) — derive sensible values
-    // here so nothing is written blank.
+    // The simplified "New server" form allows choosing service type and
+    // connection type optionally (defaulting to none/unselected).
     return {
       display_name: isEdit ? displayName.trim() : trimmedHost,
       hostname: trimmedHost,
       ip_address: ipAddress.trim() || undefined,
-      service_type: (serviceType ?? "other") as (typeof SERVICE_TYPES)[number],
-      access_method: (accessMethod ?? "ssh") as (typeof ACCESS_METHODS)[number],
+      service_type: serviceType,
+      access_method: accessMethod,
       // Create: omit — the backend derives `username@host`. Edit: send the
       // field the form actually exposes.
       access_host: isEdit ? accessHost.trim() : undefined,
@@ -322,13 +298,8 @@ export default function ServerFormPage({ mode: modeProp }: ServerFormPageProps) 
     if (!input.hostname) {
       nextErrors.hostname = "Hostname is required.";
     }
-    if (isEdit && !serviceType) {
-      nextErrors.service_type = "Service type is required.";
-    }
-    if (!accessMethod) {
-      nextErrors.access_method = isEdit
-        ? "Access method is required."
-        : "Connection type is required.";
+    if (isEdit && !accessMethod) {
+      nextErrors.access_method = "Access method is required.";
     }
     if (isEdit && !input.access_host) {
       nextErrors.access_host = "Access host is required.";
@@ -645,33 +616,55 @@ export default function ServerFormPage({ mode: modeProp }: ServerFormPageProps) 
             </div>
 
             {!isEdit && (
-              <div className="space-y-1">
-                <Label htmlFor="access_method">Connection type</Label>
-                <Select
-                  value={accessMethod}
-                  onValueChange={(v) => {
-                    if (v) setAccessMethod(v as (typeof ACCESS_METHODS)[number]);
-                  }}
-                >
-                  <SelectTrigger
-                    id="access_method"
-                    aria-required="true"
-                    aria-invalid={!!fieldErrors.access_method}
-                    aria-describedby={fieldErrors.access_method ? errorId("access_method") : undefined}
-                    className={cn(fieldErrors.access_method && INVALID_CONTROL)}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="space-y-1">
+                  <OptionalLabel htmlFor="service_type">Service type</OptionalLabel>
+                  <ServiceTypeCombobox
+                    id="service_type"
+                    value={serviceType}
+                    onChange={setServiceType}
+                    aria-invalid={!!fieldErrors.service_type}
+                    aria-describedby={fieldErrors.service_type ? errorId("service_type") : undefined}
+                    className={cn(fieldErrors.service_type && INVALID_CONTROL)}
+                  />
+                  {fieldErrors.service_type && (
+                    <p id={errorId("service_type")} className="text-xs text-danger">
+                      {fieldErrors.service_type}
+                    </p>
+                  )}
+                </div>
+
+                <div className="space-y-1">
+                  <OptionalLabel htmlFor="access_method">Connection type</OptionalLabel>
+                  <Select
+                    value={accessMethod}
+                    onValueChange={(v) => {
+                      setAccessMethod(v === "none" ? undefined : (v as (typeof ACCESS_METHODS)[number]));
+                    }}
                   >
-                    <SelectValue placeholder="Select..." />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="ssh">CMD</SelectItem>
-                    <SelectItem value="rdp">RDP</SelectItem>
-                  </SelectContent>
-                </Select>
-                {fieldErrors.access_method && (
-                  <p id={errorId("access_method")} className="text-xs text-danger">
-                    {fieldErrors.access_method}
-                  </p>
-                )}
+                    <SelectTrigger
+                      id="access_method"
+                      aria-invalid={!!fieldErrors.access_method}
+                      aria-describedby={fieldErrors.access_method ? errorId("access_method") : undefined}
+                      className={cn(fieldErrors.access_method && INVALID_CONTROL)}
+                    >
+                      <SelectValue placeholder="Select..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">None</SelectItem>
+                      {ACCESS_METHODS.map((m) => (
+                        <SelectItem key={m} value={m}>
+                          {ACCESS_METHOD_LABELS[m]}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  {fieldErrors.access_method && (
+                    <p id={errorId("access_method")} className="text-xs text-danger">
+                      {fieldErrors.access_method}
+                    </p>
+                  )}
+                </div>
               </div>
             )}
 
@@ -703,30 +696,15 @@ export default function ServerFormPage({ mode: modeProp }: ServerFormPageProps) 
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-1">
-                  <Label htmlFor="service_type">Service type</Label>
-                  <Select
+                  <OptionalLabel htmlFor="service_type">Service type</OptionalLabel>
+                  <ServiceTypeCombobox
+                    id="service_type"
                     value={serviceType}
-                    onValueChange={(v) => {
-                      if (v) setServiceType(v as (typeof SERVICE_TYPES)[number]);
-                    }}
-                  >
-                    <SelectTrigger
-                      id="service_type"
-                      aria-required="true"
-                      aria-invalid={!!fieldErrors.service_type}
-                      aria-describedby={fieldErrors.service_type ? errorId("service_type") : undefined}
-                      className={cn(fieldErrors.service_type && INVALID_CONTROL)}
-                    >
-                      <SelectValue placeholder="Select..." />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {SERVICE_TYPES.map((t) => (
-                        <SelectItem key={t} value={t}>
-                          {SERVICE_TYPE_LABELS[t]}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                    onChange={setServiceType}
+                    aria-invalid={!!fieldErrors.service_type}
+                    aria-describedby={fieldErrors.service_type ? errorId("service_type") : undefined}
+                    className={cn(fieldErrors.service_type && INVALID_CONTROL)}
+                  />
                   {fieldErrors.service_type && (
                     <p id={errorId("service_type")} className="text-xs text-danger">
                       {fieldErrors.service_type}

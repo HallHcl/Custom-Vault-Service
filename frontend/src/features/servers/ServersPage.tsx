@@ -284,7 +284,7 @@ export default function ServersPage() {
                         )}
                       </div>
                       <p className="text-xs text-muted-foreground">
-                        {server.service_type ? SERVICE_TYPE_LABELS[server.service_type] : "—"}
+                        {server.service_type ? (SERVICE_TYPE_LABELS[server.service_type] ?? server.service_type) : "—"}
                       </p>
                     </TableCell>
                     <TableCell className="text-muted-foreground">

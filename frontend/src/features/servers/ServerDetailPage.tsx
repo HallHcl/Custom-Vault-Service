@@ -144,7 +144,7 @@ export default function ServerDetailPage() {
                   <dl className="grid grid-cols-1 gap-3 text-sm sm:grid-cols-2">
                     <div>
                       <dt className="text-xs text-muted-foreground">Service type</dt>
-                      <dd>{server.service_type ? SERVICE_TYPE_LABELS[server.service_type] : "—"}</dd>
+                      <dd>{server.service_type ? (SERVICE_TYPE_LABELS[server.service_type] ?? server.service_type) : "—"}</dd>
                     </div>
                     <div>
                       <dt className="text-xs text-muted-foreground">Access method</dt>
