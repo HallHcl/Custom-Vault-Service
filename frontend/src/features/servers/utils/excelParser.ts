@@ -51,45 +51,54 @@ const COMMON_USERNAMES = new Set([
 
 /**
  * Splits raw clipboard text from Excel (TSV) into 2D string array.
- * Handles quoted cells and standard newlines.
+ * Robust parser that respects quotes across newlines (e.g. cells with Alt+Enter in Excel).
  */
 export function parseTsv(text: string): string[][] {
-  const trimmed = text.trim();
-  if (!trimmed) return [];
+  if (!text) return [];
 
   const rows: string[][] = [];
-  const lines = trimmed.split(/\r\n|\n|\r/);
+  let currentRow: string[] = [];
+  let currentCell = "";
+  let inQuotes = false;
 
-  for (const line of lines) {
-    if (!line.trim()) continue;
+  for (let i = 0; i < text.length; i++) {
+    const char = text[i];
 
-    // Simple robust TSV parser:
-    const cells: string[] = [];
-    let current = "";
-    let inQuotes = false;
-
-    for (let i = 0; i < line.length; i++) {
-      const char = line[i];
-      if (char === '"') {
-        if (inQuotes && line[i + 1] === '"') {
-          current += '"';
-          i++; // skip escaped quote
-        } else {
-          inQuotes = !inQuotes;
-        }
-      } else if (char === "\t" && !inQuotes) {
-        cells.push(current.trim());
-        current = "";
+    if (char === '"') {
+      if (inQuotes && text[i + 1] === '"') {
+        currentCell += '"';
+        i++; // skip escaped quote
       } else {
-        current += char;
+        inQuotes = !inQuotes;
       }
+    } else if (char === "\t" && !inQuotes) {
+      currentRow.push(currentCell.trim());
+      currentCell = "";
+    } else if ((char === "\r" || char === "\n") && !inQuotes) {
+      if (char === "\r" && text[i + 1] === "\n") {
+        i++; // skip \n in CRLF
+      }
+      currentRow.push(currentCell.trim());
+      // Only push non-empty rows
+      if (currentRow.some((cell) => cell.length > 0)) {
+        rows.push(currentRow);
+      }
+      currentRow = [];
+      currentCell = "";
+    } else {
+      currentCell += char;
     }
-    cells.push(current.trim());
-    rows.push(cells);
+  }
+
+  // Push last cell & row if any
+  currentRow.push(currentCell.trim());
+  if (currentRow.some((cell) => cell.length > 0)) {
+    rows.push(currentRow);
   }
 
   return rows;
 }
+
 
 /**
  * Checks if the first row appears to be a header row.

@@ -22,6 +22,21 @@ describe("excelParser", () => {
     expect(rows).toEqual([["web-01", "cpu 4\tram 8", "root"]]);
   });
 
+  it("handles multiline cells created with Alt+Enter in Excel without breaking into multiple rows", () => {
+    const raw =
+      'zabbix-db\t10.99.3.241\t"CPU: 4 Memroy: 15 Disk: sda : 100G\nsdb : 300G"\troot\tsecret123\n' +
+      'zabbix-proxy1\t10.99.3.242\t"CPU: 4 Memroy: 8 Disk: sda : 50G"\troot\tsecret123';
+    const rows = parseTsv(raw);
+    expect(rows).toHaveLength(2);
+    expect(rows[0][0]).toBe("zabbix-db");
+    expect(rows[0][1]).toBe("10.99.3.241");
+    expect(rows[0][2]).toBe("CPU: 4 Memroy: 15 Disk: sda : 100G\nsdb : 300G");
+    expect(rows[0][3]).toBe("root");
+    expect(rows[0][4]).toBe("secret123");
+    expect(rows[1][0]).toBe("zabbix-proxy1");
+  });
+
+
   it("identifies header rows correctly", () => {
     expect(isHeaderRow(["Hostname", "IP Address", "Username", "Password", "Spec"])).toBe(true);
     expect(isHeaderRow(["web-01", "10.99.3.244", "root", "123456"])).toBe(false);
