@@ -1,7 +1,8 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { ShieldCheck } from "lucide-react";
+import { ShieldCheck, FileSpreadsheet } from "lucide-react";
 import { RequireRole } from "@/components/auth/RequireRole";
+import { ServerImportDialog } from "./components/ServerImportDialog";
 import { RowActions } from "@/components/RowActions";
 import { useHasRole } from "@/hooks/useHasRole";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
@@ -76,6 +77,7 @@ export default function ServersPage() {
   const navigate = useNavigate();
   const canEdit = useHasRole(["admin", "member"]);
   const canDelete = useHasRole(["admin"]);
+  const [isImportOpen, setIsImportOpen] = useState(false);
   const pagination = usePagination({ initialSort: "display_name", initialOrder: "asc" });
   const {
     data: servers = [],
@@ -201,8 +203,19 @@ export default function ServersPage() {
             admin-only like Environments — verified against
             backend/src/routes/servers.routes.ts. */}
         <RequireRole roles={["admin", "member"]}>
-          <Button onClick={openCreateForm}>New server</Button>
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              onClick={() => setIsImportOpen(true)}
+              className="flex items-center gap-1.5"
+            >
+              <FileSpreadsheet className="h-4 w-4" />
+              Import from Excel
+            </Button>
+            <Button onClick={openCreateForm}>New server</Button>
+          </div>
         </RequireRole>
+
       </Toolbar>
 
       {isLoading ? (
@@ -403,6 +416,13 @@ export default function ServersPage() {
         confirmLabel="Restore"
         onConfirm={confirmRestore}
       />
+
+      <ServerImportDialog
+        open={isImportOpen}
+        onOpenChange={setIsImportOpen}
+        onSuccess={() => refetch()}
+      />
     </div>
   );
 }
+
