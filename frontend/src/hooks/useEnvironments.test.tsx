@@ -46,7 +46,7 @@ type UpdateEnvironmentInput = Parameters<ReturnType<typeof useUpdateEnvironment>
 
 const _createRejectsVpnResourceId: CreateEnvironmentInput = {
   project_id: "p1",
-  name: "x",
+  name: "DEV",
   // @ts-expect-error vpn_resource_id cannot be set at creation
   vpn_resource_id: "r1",
 };
@@ -200,12 +200,12 @@ describe("useCreateEnvironment", () => {
   it("posts project_id, name, and description — vpn_resource_id is not part of this payload", async () => {
     const { result } = renderHook(() => useCreateEnvironment(), { wrapper });
 
-    await result.current.mutateAsync({ project_id: "p1", name: "Staging", description: "desc" });
+    await result.current.mutateAsync({ project_id: "p1", name: "UAT", description: "desc" });
 
     expect(postMock).toHaveBeenCalledTimes(1);
     const [path, options] = postMock.mock.calls[0];
     expect(path).toBe("/api/environments");
-    expect(options.body).toEqual({ project_id: "p1", name: "Staging", description: "desc" });
+    expect(options.body).toEqual({ project_id: "p1", name: "UAT", description: "desc" });
   });
 });
 

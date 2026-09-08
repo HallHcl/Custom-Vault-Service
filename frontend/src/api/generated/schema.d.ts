@@ -888,6 +888,7 @@ export interface components {
             project_id: string;
             name: string;
             description: string | null;
+            status: components["schemas"]["EnvironmentStatus"];
             /** Format: date-time */
             created_at: string;
             /** Format: date-time */
@@ -897,6 +898,8 @@ export interface components {
             /** Format: uuid */
             vpn_resource_id: string | null;
         };
+        /** @enum {string} */
+        EnvironmentStatus: "implementation" | "warranty" | "in_operation" | "on_hold" | "decommissioned";
         EnvironmentDetail: components["schemas"]["Environment"] & {
             project: {
                 /** Format: uuid */
@@ -1900,7 +1903,7 @@ export interface operations {
             content: {
                 "application/json": {
                     /** Format: uuid */
-                    client_id: string;
+                    client_id?: string;
                     name: string;
                     description?: string;
                     /** @default active */
@@ -2381,8 +2384,14 @@ export interface operations {
                 "application/json": {
                     /** Format: uuid */
                     project_id: string;
-                    name: string;
+                    /** @enum {string} */
+                    name: "DEV" | "UAT" | "PROD";
                     description?: string;
+                    /**
+                     * @default implementation
+                     * @enum {string}
+                     */
+                    status?: "implementation" | "warranty" | "in_operation" | "on_hold" | "decommissioned";
                 };
             };
         };
@@ -2537,6 +2546,8 @@ export interface operations {
                 "application/json": {
                     name?: string;
                     description?: string;
+                    /** @enum {string} */
+                    status?: "implementation" | "warranty" | "in_operation" | "on_hold" | "decommissioned";
                     /** Format: uuid */
                     vpn_resource_id?: string | null;
                     updated_at: string;
@@ -2721,7 +2732,7 @@ export interface operations {
                     service_type: "application" | "database" | "proxy" | "monitoring" | "repository" | "metrics" | "jump_host" | "other";
                     /** @enum {string} */
                     access_method: "ssh" | "rdp" | "telnet" | "web" | "other";
-                    access_host: string;
+                    access_host?: string;
                     access_port?: number;
                     access_path?: string;
                     /** @default [] */

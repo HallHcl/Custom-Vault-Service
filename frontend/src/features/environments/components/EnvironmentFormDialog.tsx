@@ -9,24 +9,38 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { OptionalLabel } from "@/components/ui/optional-label";
 import { Textarea } from "@/components/ui/textarea";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { ProjectPicker } from "@/components/ProjectPicker";
 import { ApiError, apiErrorMessage } from "@/api/errors";
 import { toast } from "@/hooks/use-toast";
-import { useCreateEnvironment } from "@/hooks/useEnvironments";
+import {
+  useCreateEnvironment,
+  ENVIRONMENT_NAME_OPTIONS,
+  ENVIRONMENT_STATUS_OPTIONS,
+  type EnvironmentName,
+  type EnvironmentStatus,
+} from "@/hooks/useEnvironments";
 
 interface EnvironmentInput {
-  name: string;
+  name: EnvironmentName;
   description?: string;
+  status: EnvironmentStatus;
 }
 
 interface FieldErrors {
   name?: string;
   project_id?: string;
   description?: string;
+  status?: string;
 }
 
 /** Shape of `error.details` for a 400 VALIDATION_ERROR: Zod's ZodError.flatten(). */
@@ -34,7 +48,7 @@ interface ValidationDetails {
   fieldErrors?: Record<string, string[]>;
 }
 
-const EDITABLE_FIELDS = ["name", "project_id", "description"] as const;
+const EDITABLE_FIELDS = ["name", "project_id", "description", "status"] as const;
 
 // Environments have a duplicate-name 409, scoped to (project_id, name) —
 // confirmed against environments.service.ts (same shape as Projects' own
@@ -59,9 +73,10 @@ interface Props {
 export default function EnvironmentFormDialog({ open, onOpenChange }: Props) {
   const createEnvironment = useCreateEnvironment();
 
-  const [name, setName] = useState("");
+  const [name, setName] = useState<EnvironmentName | "">("");
   const [projectId, setProjectId] = useState<string | undefined>(undefined);
   const [description, setDescription] = useState("");
+  const [status, setStatus] = useState<EnvironmentStatus>("implementation");
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
   const [formError, setFormError] = useState<string | undefined>(undefined);
 
@@ -69,6 +84,7 @@ export default function EnvironmentFormDialog({ open, onOpenChange }: Props) {
     setName("");
     setProjectId(undefined);
     setDescription("");
+    setStatus("implementation");
     setFieldErrors({});
     setFormError(undefined);
   }
@@ -80,8 +96,9 @@ export default function EnvironmentFormDialog({ open, onOpenChange }: Props) {
 
   function buildInput(): EnvironmentInput {
     return {
-      name: name.trim(),
+      name: name as EnvironmentName,
       description: description.trim() || undefined,
+      status,
     };
   }
 
@@ -130,10 +147,9 @@ export default function EnvironmentFormDialog({ open, onOpenChange }: Props) {
     setFieldErrors({});
     setFormError(undefined);
 
-    const input = buildInput();
     const nextErrors: FieldErrors = {};
 
-    if (!input.name) {
+    if (!name) {
       nextErrors.name = "Name is required.";
     }
     if (!projectId) {
@@ -144,10 +160,10 @@ export default function EnvironmentFormDialog({ open, onOpenChange }: Props) {
       return;
     }
 
-    if (!projectId) return;
+    if (!projectId || !name) return;
 
     try {
-      await createEnvironment.mutateAsync({ ...input, project_id: projectId });
+      await createEnvironment.mutateAsync({ ...buildInput(), project_id: projectId });
       toast({ title: "Environment created" });
       handleOpenChange(false);
     } catch (err) {
@@ -170,7 +186,18 @@ export default function EnvironmentFormDialog({ open, onOpenChange }: Props) {
 
           <div className="space-y-1">
             <Label htmlFor="name">Name</Label>
-            <Input id="name" value={name} onChange={(e) => setName(e.target.value)} required />
+            <Select value={name} onValueChange={(v) => setName(v as EnvironmentName)}>
+              <SelectTrigger id="name">
+                <SelectValue placeholder="Select an environment" />
+              </SelectTrigger>
+              <SelectContent>
+                {ENVIRONMENT_NAME_OPTIONS.map((opt) => (
+                  <SelectItem key={opt} value={opt}>
+                    {opt}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
             {fieldErrors.name && <p className="text-xs text-danger">{fieldErrors.name}</p>}
           </div>
 
@@ -185,6 +212,23 @@ export default function EnvironmentFormDialog({ open, onOpenChange }: Props) {
             {fieldErrors.project_id && (
               <p className="text-xs text-danger">{fieldErrors.project_id}</p>
             )}
+          </div>
+
+          <div className="space-y-1">
+            <Label htmlFor="status">Status</Label>
+            <Select value={status} onValueChange={(v) => setStatus(v as EnvironmentStatus)}>
+              <SelectTrigger id="status">
+                <SelectValue placeholder="Select a status" />
+              </SelectTrigger>
+              <SelectContent>
+                {ENVIRONMENT_STATUS_OPTIONS.map((opt) => (
+                  <SelectItem key={opt.value} value={opt.value}>
+                    {opt.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            {fieldErrors.status && <p className="text-xs text-danger">{fieldErrors.status}</p>}
           </div>
 
           <div className="space-y-1">

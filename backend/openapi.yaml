@@ -308,6 +308,8 @@ components:
         description:
           type: string
           nullable: true
+        status:
+          $ref: "#/components/schemas/EnvironmentStatus"
         created_at:
           type: string
           format: date-time
@@ -327,10 +329,19 @@ components:
         - project_id
         - name
         - description
+        - status
         - created_at
         - updated_at
         - deleted_at
         - vpn_resource_id
+    EnvironmentStatus:
+      type: string
+      enum:
+        - implementation
+        - warranty
+        - in_operation
+        - on_hold
+        - decommissioned
     EnvironmentDetail:
       allOf:
         - $ref: "#/components/schemas/Environment"
@@ -2028,7 +2039,6 @@ paths:
                   type: string
                   default: active
               required:
-                - client_id
                 - name
       responses:
         "201":
@@ -2491,10 +2501,21 @@ paths:
                   format: uuid
                 name:
                   type: string
-                  minLength: 1
-                  maxLength: 100
+                  enum:
+                    - DEV
+                    - UAT
+                    - PROD
                 description:
                   type: string
+                status:
+                  type: string
+                  enum:
+                    - implementation
+                    - warranty
+                    - in_operation
+                    - on_hold
+                    - decommissioned
+                  default: implementation
               required:
                 - project_id
                 - name
@@ -2591,6 +2612,14 @@ paths:
                   maxLength: 100
                 description:
                   type: string
+                status:
+                  type: string
+                  enum:
+                    - implementation
+                    - warranty
+                    - in_operation
+                    - on_hold
+                    - decommissioned
                 vpn_resource_id:
                   type: string
                   nullable: true
@@ -2889,7 +2918,6 @@ paths:
                 - hostname
                 - service_type
                 - access_method
-                - access_host
       responses:
         "201":
           description: Server created

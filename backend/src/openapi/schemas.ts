@@ -192,12 +192,17 @@ export const ProjectDetailSchema = ProjectSchema.extend({
 
 const ProjectRefSchema = z.object({ id: z.string().uuid(), name: z.string() });
 
+export const EnvironmentStatusSchema = z
+  .enum(["implementation", "warranty", "in_operation", "on_hold", "decommissioned"])
+  .openapi("EnvironmentStatus");
+
 export const EnvironmentSchema = z
   .object({
     id: z.string().uuid(),
     project_id: z.string().uuid(),
     name: z.string(),
     description: z.string().nullable(),
+    status: EnvironmentStatusSchema,
     created_at: z.string().datetime(),
     updated_at: z.string().datetime(),
     deleted_at: z.string().datetime().nullable(),

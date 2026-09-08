@@ -34,6 +34,21 @@ async function createEnvironmentAsAdmin(body: Record<string, unknown>) {
   return res;
 }
 
+// Environment `name` is now constrained to DEV/UAT/PROD, unique per project —
+// so each test that needs its own environment gets its own throwaway project
+// rather than sharing one and disambiguating by a unique name.
+async function createProjectAsAdmin(name: string): Promise<string> {
+  const res = await request(app)
+    .post("/api/projects")
+    .set("Authorization", `Bearer ${adminToken}`)
+    .send({ client_id: clientId, name });
+  if (res.status !== 201) {
+    throw new Error(`Failed to create fixture project: ${JSON.stringify(res.body)}`);
+  }
+  createdProjectIds.push(res.body.id);
+  return res.body.id;
+}
+
 beforeAll(async () => {
   const roleRow = await pool.query<{ id: string }>(
     `SELECT id FROM roles WHERE name = 'member' AND deleted_at IS NULL`
@@ -64,7 +79,6 @@ beforeAll(async () => {
     .send({ username: MEMBER_USERNAME, password: MEMBER_PASSWORD });
   memberToken = memberLogin.body.token;
 
-  // Test 1: fixture client -> project via the real APIs.
   const clientRes = await request(app)
     .post("/api/clients")
     .set("Authorization", `Bearer ${adminToken}`)
@@ -76,22 +90,8 @@ beforeAll(async () => {
   createdClientIds.push(clientId);
 
   projectName = `${PREFIX}Project`;
-  const projectRes = await request(app)
-    .post("/api/projects")
-    .set("Authorization", `Bearer ${adminToken}`)
-    .send({ client_id: clientId, name: projectName });
-  if (projectRes.status !== 201) {
-    throw new Error(`Failed to create fixture project: ${JSON.stringify(projectRes.body)}`);
-  }
-  projectId = projectRes.body.id;
-  createdProjectIds.push(projectId);
-
-  const otherProjectRes = await request(app)
-    .post("/api/projects")
-    .set("Authorization", `Bearer ${adminToken}`)
-    .send({ client_id: clientId, name: `${PREFIX}OtherProject` });
-  otherProjectId = otherProjectRes.body.id;
-  createdProjectIds.push(otherProjectId);
+  projectId = await createProjectAsAdmin(projectName);
+  otherProjectId = await createProjectAsAdmin(`${PREFIX}OtherProject`);
 });
 
 afterAll(async () => {
@@ -111,19 +111,41 @@ afterAll(async () => {
 
 describe("POST /api/environments", () => {
   it("creates an environment as admin with a valid project_id (201)", async () => {
-    const res = await createEnvironmentAsAdmin({ project_id: projectId, name: `${PREFIX}PROD` });
+    const p = await createProjectAsAdmin(`${PREFIX}Create201`);
+    const res = await createEnvironmentAsAdmin({ project_id: p, name: "PROD" });
 
     expect(res.status).toBe(201);
-    expect(res.body.name).toBe(`${PREFIX}PROD`);
-    expect(res.body.project_id).toBe(projectId);
+    expect(res.body.name).toBe("PROD");
+    expect(res.body.project_id).toBe(p);
+    expect(res.body.status).toBe("implementation");
     expect(res.body.deleted_at).toBeNull();
+  });
+
+  it("persists an explicit status on create", async () => {
+    const p = await createProjectAsAdmin(`${PREFIX}CreateStatus`);
+    const res = await createEnvironmentAsAdmin({
+      project_id: p,
+      name: "PROD",
+      status: "in_operation",
+    });
+
+    expect(res.status).toBe(201);
+    expect(res.body.status).toBe("in_operation");
+  });
+
+  it("returns 400 VALIDATION_ERROR for a name outside DEV/UAT/PROD", async () => {
+    const p = await createProjectAsAdmin(`${PREFIX}BadName`);
+    const res = await createEnvironmentAsAdmin({ project_id: p, name: "Staging" });
+
+    expect(res.status).toBe(400);
+    expect(res.body.error.code).toBe("VALIDATION_ERROR");
   });
 
   it("returns 403 FORBIDDEN when a member (non-admin) tries to create an environment", async () => {
     const res = await request(app)
       .post("/api/environments")
       .set("Authorization", `Bearer ${memberToken}`)
-      .send({ project_id: projectId, name: `${PREFIX}ShouldNotExist` });
+      .send({ project_id: projectId, name: "DEV" });
 
     expect(res.status).toBe(403);
     expect(res.body.error.code).toBe("FORBIDDEN");
@@ -132,7 +154,7 @@ describe("POST /api/environments", () => {
   it("returns 400 VALIDATION_ERROR for a non-existent project_id", async () => {
     const res = await createEnvironmentAsAdmin({
       project_id: "00000000-0000-0000-0000-000000000000",
-      name: `${PREFIX}OrphanEnv`,
+      name: "DEV",
     });
 
     expect(res.status).toBe(400);
@@ -142,14 +164,17 @@ describe("POST /api/environments", () => {
 
 describe("uniqueness of (project_id, name)", () => {
   it("returns 409 CONFLICT when the SAME project already has an environment with this name", async () => {
-    const res = await createEnvironmentAsAdmin({ project_id: projectId, name: `${PREFIX}PROD` });
+    const first = await createEnvironmentAsAdmin({ project_id: projectId, name: "PROD" });
+    expect(first.status).toBe(201);
+
+    const res = await createEnvironmentAsAdmin({ project_id: projectId, name: "PROD" });
 
     expect(res.status).toBe(409);
     expect(res.body.error.code).toBe("CONFLICT");
   });
 
   it("allows the SAME name under a DIFFERENT project (201, scoped uniqueness)", async () => {
-    const res = await createEnvironmentAsAdmin({ project_id: otherProjectId, name: `${PREFIX}PROD` });
+    const res = await createEnvironmentAsAdmin({ project_id: otherProjectId, name: "PROD" });
 
     expect(res.status).toBe(201);
     expect(res.body.project_id).toBe(otherProjectId);
@@ -158,34 +183,41 @@ describe("uniqueness of (project_id, name)", () => {
 
 describe("GET /api/environments?project_id=", () => {
   it("returns only that project's environments", async () => {
+    const p = await createProjectAsAdmin(`${PREFIX}ListScope`);
+    await createEnvironmentAsAdmin({ project_id: p, name: "DEV" });
+    await createEnvironmentAsAdmin({ project_id: p, name: "PROD" });
+
     const res = await request(app)
       .get("/api/environments")
-      .query({ project_id: projectId, per_page: 100 })
+      .query({ project_id: p, per_page: 100 })
       .set("Authorization", `Bearer ${adminToken}`);
 
     expect(res.status).toBe(200);
-    expect(res.body.data.length).toBeGreaterThan(0);
-    expect(res.body.data.every((e: { project_id: string }) => e.project_id === projectId)).toBe(true);
+    expect(res.body.data.length).toBe(2);
+    expect(res.body.data.every((e: { project_id: string }) => e.project_id === p)).toBe(true);
   });
 });
 
 describe("PATCH /api/environments/:id (optimistic concurrency)", () => {
   it("updates an environment when updated_at matches (200)", async () => {
-    const createRes = await createEnvironmentAsAdmin({ project_id: projectId, name: `${PREFIX}PatchTarget` });
+    const p = await createProjectAsAdmin(`${PREFIX}PatchTarget`);
+    const createRes = await createEnvironmentAsAdmin({ project_id: p, name: "DEV" });
     const env = createRes.body;
 
     const patchRes = await request(app)
       .patch(`/api/environments/${env.id}`)
       .set("Authorization", `Bearer ${adminToken}`)
-      .send({ description: "patched", updated_at: env.updated_at });
+      .send({ description: "patched", status: "warranty", updated_at: env.updated_at });
 
     expect(patchRes.status).toBe(200);
     expect(patchRes.body.description).toBe("patched");
+    expect(patchRes.body.status).toBe("warranty");
     expect(patchRes.body.updated_at).not.toBe(env.updated_at);
   });
 
   it("returns 409 CONFLICT when updated_at is stale", async () => {
-    const createRes = await createEnvironmentAsAdmin({ project_id: projectId, name: `${PREFIX}StaleTarget` });
+    const p = await createProjectAsAdmin(`${PREFIX}StaleTarget`);
+    const createRes = await createEnvironmentAsAdmin({ project_id: p, name: "DEV" });
     const env = createRes.body;
     const staleUpdatedAt = env.updated_at;
 
@@ -205,7 +237,8 @@ describe("PATCH /api/environments/:id (optimistic concurrency)", () => {
   });
 
   it("returns 400 VALIDATION_ERROR when attempting to change project_id", async () => {
-    const createRes = await createEnvironmentAsAdmin({ project_id: projectId, name: `${PREFIX}ReparentTarget` });
+    const p = await createProjectAsAdmin(`${PREFIX}ReparentTarget`);
+    const createRes = await createEnvironmentAsAdmin({ project_id: p, name: "DEV" });
     const env = createRes.body;
 
     const res = await request(app)
@@ -220,7 +253,8 @@ describe("PATCH /api/environments/:id (optimistic concurrency)", () => {
 
 describe("DELETE and restore", () => {
   it("soft-deletes then GET by id 404s; GET ?deleted=true shows it", async () => {
-    const createRes = await createEnvironmentAsAdmin({ project_id: projectId, name: `${PREFIX}ToDelete` });
+    const p = await createProjectAsAdmin(`${PREFIX}ToDelete`);
+    const createRes = await createEnvironmentAsAdmin({ project_id: p, name: "DEV" });
     const env = createRes.body;
 
     const deleteRes = await request(app)
@@ -236,13 +270,14 @@ describe("DELETE and restore", () => {
 
     const listDeleted = await request(app)
       .get("/api/environments")
-      .query({ project_id: projectId, deleted: "true", per_page: 100 })
+      .query({ project_id: p, deleted: "true", per_page: 100 })
       .set("Authorization", `Bearer ${adminToken}`);
     expect(listDeleted.body.data.some((e: { id: string }) => e.id === env.id)).toBe(true);
   });
 
   it("restores a deleted environment (200); restoring again returns 409 CONFLICT", async () => {
-    const createRes = await createEnvironmentAsAdmin({ project_id: projectId, name: `${PREFIX}Restorable` });
+    const p = await createProjectAsAdmin(`${PREFIX}Restorable`);
+    const createRes = await createEnvironmentAsAdmin({ project_id: p, name: "DEV" });
     const env = createRes.body;
     await request(app)
       .delete(`/api/environments/${env.id}`)
@@ -264,7 +299,9 @@ describe("DELETE and restore", () => {
 
 describe("GET /api/environments/:id (parent project inline)", () => {
   it("includes the parent project's id and name inline", async () => {
-    const createRes = await createEnvironmentAsAdmin({ project_id: projectId, name: `${PREFIX}WithProject` });
+    const pName = `${PREFIX}WithProject`;
+    const p = await createProjectAsAdmin(pName);
+    const createRes = await createEnvironmentAsAdmin({ project_id: p, name: "DEV" });
     const env = createRes.body;
 
     const getRes = await request(app)
@@ -272,16 +309,14 @@ describe("GET /api/environments/:id (parent project inline)", () => {
       .set("Authorization", `Bearer ${adminToken}`);
 
     expect(getRes.status).toBe(200);
-    expect(getRes.body.project).toEqual({ id: projectId, name: projectName });
+    expect(getRes.body.project).toEqual({ id: p, name: pName });
   });
 });
 
 describe("activity_logs coverage for the environment lifecycle", () => {
   it("has a row for create, update, delete, and restore performed in this suite", async () => {
-    const createRes = await createEnvironmentAsAdmin({
-      project_id: projectId,
-      name: `${PREFIX}ActivityLifecycle`,
-    });
+    const p = await createProjectAsAdmin(`${PREFIX}ActivityLifecycle`);
+    const createRes = await createEnvironmentAsAdmin({ project_id: p, name: "DEV" });
     const env = createRes.body;
 
     const updateRes = await request(app)

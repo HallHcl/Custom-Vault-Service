@@ -124,10 +124,10 @@ export async function createEnvironment(
 
     try {
       const result = await tx.query<Environment>(
-        `INSERT INTO environments (project_id, name, description)
-         VALUES ($1, $2, $3)
+        `INSERT INTO environments (project_id, name, description, status)
+         VALUES ($1, $2, $3, $4)
          RETURNING *`,
-        [input.project_id, input.name, input.description ?? null]
+        [input.project_id, input.name, input.description ?? null, input.status]
       );
       const created = result.rows[0];
       await logActivity("environment", created.id, "create", actingPeopleId, null, created, tx);
@@ -185,6 +185,7 @@ export async function updateEnvironment(
         `UPDATE environments
          SET name = COALESCE($3, name),
              description = COALESCE($4, description),
+             status = COALESCE($7, status),
              vpn_resource_id = CASE WHEN $5 THEN $6 ELSE vpn_resource_id END,
              updated_at = now()
          WHERE id = $1
@@ -198,6 +199,7 @@ export async function updateEnvironment(
           input.description ?? null,
           vpnResourceProvided,
           input.vpn_resource_id ?? null,
+          input.status ?? null,
         ]
       );
       const updated = result.rows[0];

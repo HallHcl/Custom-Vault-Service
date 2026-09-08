@@ -10,6 +10,22 @@ export type EnvironmentSort = "name" | "created_at" | "updated_at";
 
 export type Environment = components["schemas"]["Environment"];
 export type EnvironmentDetail = components["schemas"]["EnvironmentDetail"];
+export type EnvironmentStatus = components["schemas"]["EnvironmentStatus"];
+export type EnvironmentName = "DEV" | "UAT" | "PROD";
+
+export const ENVIRONMENT_NAME_OPTIONS: EnvironmentName[] = ["DEV", "UAT", "PROD"];
+
+export const ENVIRONMENT_STATUS_OPTIONS: { value: EnvironmentStatus; label: string }[] = [
+  { value: "implementation", label: "Implementation" },
+  { value: "warranty", label: "Warranty" },
+  { value: "in_operation", label: "In operation" },
+  { value: "on_hold", label: "On hold" },
+  { value: "decommissioned", label: "Decommissioned" },
+];
+
+export function environmentStatusLabel(status: string): string {
+  return ENVIRONMENT_STATUS_OPTIONS.find((o) => o.value === status)?.label ?? status;
+}
 
 // projectId stays a separate positional arg (not folded into params), mirroring
 // useProjects(clientId, params) — InfrastructurePage calls this today as
@@ -63,7 +79,12 @@ export function useCreateEnvironment() {
     // vpn_resource_id cannot be set at creation — the backend doesn't accept
     // it in this payload at all (set it via update once the environment
     // exists).
-    mutationFn: async (input: { project_id: string; name: string; description?: string }) => {
+    mutationFn: async (input: {
+      project_id: string;
+      name: EnvironmentName;
+      description?: string;
+      status?: EnvironmentStatus;
+    }) => {
       const result = await apiClient.POST("/api/environments", { body: input });
       return unwrapApiResult(result);
     },
@@ -85,6 +106,7 @@ export function useUpdateEnvironment() {
       data: {
         name?: string;
         description?: string;
+        status?: EnvironmentStatus;
         vpn_resource_id?: string | null;
         updated_at: string;
       };

@@ -122,11 +122,19 @@ export interface ProjectPeople {
   created_at: string;
 }
 
+export type EnvironmentStatus =
+  | "implementation"
+  | "warranty"
+  | "in_operation"
+  | "on_hold"
+  | "decommissioned";
+
 export interface Environment {
   id: string;
   project_id: string;
   name: string;
   description: string | null;
+  status: EnvironmentStatus;
   created_at: string;
   updated_at: string;
   deleted_at: string | null;

@@ -112,7 +112,7 @@ beforeAll(async () => {
   projectId = projectRes.body.id;
   createdProjectIds.push(projectId);
 
-  environmentName = `${PREFIX}PROD`;
+  environmentName = "PROD";
   const environmentRes = await request(app)
     .post("/api/environments")
     .set("Authorization", `Bearer ${adminToken}`)

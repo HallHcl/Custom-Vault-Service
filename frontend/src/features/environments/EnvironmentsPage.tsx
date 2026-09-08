@@ -42,6 +42,7 @@ import {
   useDeleteEnvironment,
   useEnvironments,
   useRestoreEnvironment,
+  environmentStatusLabel,
   type Environment,
   type EnvironmentSort,
 } from "@/hooks/useEnvironments";
@@ -207,6 +208,7 @@ export default function EnvironmentsPage() {
               <TableRow>
                 <TableHead>Name</TableHead>
                 <TableHead>Project</TableHead>
+                <TableHead>Status</TableHead>
                 <TableHead>Description</TableHead>
                 <TableHead>Updated</TableHead>
                 <TableHead className="text-right">Actions</TableHead>
@@ -250,6 +252,9 @@ export default function EnvironmentsPage() {
                     </TableCell>
                     <TableCell className="text-muted-foreground">
                       {projectNameById.get(environment.project_id) ?? "—"}
+                    </TableCell>
+                    <TableCell>
+                      <Badge variant="neutral">{environmentStatusLabel(environment.status)}</Badge>
                     </TableCell>
                     <TableCell className="text-muted-foreground">
                       {environment.description ?? "—"}

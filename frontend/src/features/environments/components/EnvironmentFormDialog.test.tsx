@@ -99,9 +99,10 @@ describe("EnvironmentFormDialog — create", () => {
     const { onOpenChange, invalidateSpy } = renderDialog();
 
     await screen.findByLabelText("Name");
-    fireEvent.change(screen.getByLabelText("Name"), { target: { value: "New Environment" } });
+    fireEvent.click(screen.getByLabelText("Name"));
+    fireEvent.click(await screen.findByRole("option", { name: "DEV" }));
 
-    fireEvent.click(screen.getByRole("combobox"));
+    fireEvent.click(screen.getByLabelText("Project"));
     fireEvent.click(await screen.findByRole("option", { name: "Migration" }));
 
     fireEvent.click(screen.getByRole("button", { name: /save/i }));
@@ -111,7 +112,12 @@ describe("EnvironmentFormDialog — create", () => {
     expect(postMock).toHaveBeenCalledTimes(1);
     const [path, options] = postMock.mock.calls[0];
     expect(path).toBe("/api/environments");
-    expect(options.body).toEqual({ name: "New Environment", project_id: "p1", description: undefined });
+    expect(options.body).toEqual({
+      name: "DEV",
+      project_id: "p1",
+      description: undefined,
+      status: "implementation",
+    });
     expect(options.body.vpn_resource_id).toBeUndefined();
     expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ["environments"] });
     expect(toastMock).toHaveBeenCalledWith({ title: "Environment created" });
@@ -126,9 +132,10 @@ describe("EnvironmentFormDialog — create", () => {
     );
     renderDialog();
 
-    fireEvent.change(screen.getByLabelText("Name"), { target: { value: "x" } });
+    fireEvent.click(screen.getByLabelText("Name"));
+    fireEvent.click(await screen.findByRole("option", { name: "DEV" }));
 
-    fireEvent.click(screen.getByRole("combobox"));
+    fireEvent.click(screen.getByLabelText("Project"));
     fireEvent.click(await screen.findByRole("option", { name: "Migration" }));
 
     fireEvent.click(screen.getByRole("button", { name: /save/i }));

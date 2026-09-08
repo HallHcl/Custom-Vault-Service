@@ -5,21 +5,37 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { OptionalLabel } from "@/components/ui/optional-label";
 import { Textarea } from "@/components/ui/textarea";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { ConflictState } from "@/components/state/ConflictState";
 import { VpnResourcePicker } from "./VpnResourcePicker";
 import { ApiError, apiErrorMessage } from "@/api/errors";
 import { toast } from "@/hooks/use-toast";
-import { useEnvironment, useUpdateEnvironment, type EnvironmentDetail } from "@/hooks/useEnvironments";
+import {
+  useEnvironment,
+  useUpdateEnvironment,
+  ENVIRONMENT_NAME_OPTIONS,
+  ENVIRONMENT_STATUS_OPTIONS,
+  type EnvironmentDetail,
+  type EnvironmentStatus,
+} from "@/hooks/useEnvironments";
 import { useConflictResolution } from "@/hooks/useConflictResolution";
 
 interface EnvironmentInput {
   name: string;
   description?: string;
+  status: EnvironmentStatus;
 }
 
 interface FieldErrors {
   name?: string;
   description?: string;
+  status?: string;
 }
 
 /** Shape of `error.details` for a 400 VALIDATION_ERROR: Zod's ZodError.flatten(). */
@@ -27,7 +43,7 @@ interface ValidationDetails {
   fieldErrors?: Record<string, string[]>;
 }
 
-const EDITABLE_FIELDS = ["name", "description"] as const;
+const EDITABLE_FIELDS = ["name", "description", "status"] as const;
 
 // Environments have a duplicate-name 409, scoped to (project_id, name) —
 // confirmed against environments.service.ts (same shape as Projects' own
@@ -57,7 +73,17 @@ export default function EnvironmentEditCard({ environment, onSaved, onCancel }: 
   const { conflict: conflictInfo, isConflict, captureConflict, clearConflict } = useConflictResolution();
 
   const [name, setName] = useState(environment.name);
+  const [status, setStatus] = useState<EnvironmentStatus>(environment.status);
   const [description, setDescription] = useState(environment.description ?? "");
+
+  // The create form constrains Name to DEV/UAT/PROD, but an older environment
+  // may carry a different value — keep it selectable so an edit doesn't force
+  // a rename.
+  const nameOptions = ENVIRONMENT_NAME_OPTIONS.includes(
+    environment.name as (typeof ENVIRONMENT_NAME_OPTIONS)[number]
+  )
+    ? ENVIRONMENT_NAME_OPTIONS
+    : [environment.name, ...ENVIRONMENT_NAME_OPTIONS];
   const [vpnResourceId, setVpnResourceId] = useState<string | null>(environment.vpn_resource_id);
   const [updatedAt, setUpdatedAt] = useState(environment.updated_at);
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
@@ -67,6 +93,7 @@ export default function EnvironmentEditCard({ environment, onSaved, onCancel }: 
     return {
       name: name.trim(),
       description: description.trim() || undefined,
+      status,
     };
   }
 
@@ -149,6 +176,7 @@ export default function EnvironmentEditCard({ environment, onSaved, onCancel }: 
     const result = await refetchEnvironment();
     if (result.data) {
       setName(result.data.name);
+      setStatus(result.data.status);
       setDescription(result.data.description ?? "");
       setVpnResourceId(result.data.vpn_resource_id);
       setUpdatedAt(result.data.updated_at);
@@ -196,7 +224,18 @@ export default function EnvironmentEditCard({ environment, onSaved, onCancel }: 
 
       <div className="space-y-1">
         <Label htmlFor="name">Name</Label>
-        <Input id="name" value={name} onChange={(e) => setName(e.target.value)} required />
+        <Select value={name} onValueChange={setName}>
+          <SelectTrigger id="name">
+            <SelectValue placeholder="Select an environment" />
+          </SelectTrigger>
+          <SelectContent>
+            {nameOptions.map((opt) => (
+              <SelectItem key={opt} value={opt}>
+                {opt}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
         {fieldErrors.name && <p className="text-xs text-danger">{fieldErrors.name}</p>}
       </div>
 
@@ -206,6 +245,23 @@ export default function EnvironmentEditCard({ environment, onSaved, onCancel }: 
         <p className="text-xs text-muted-foreground">
           An environment's project can't be changed after creation.
         </p>
+      </div>
+
+      <div className="space-y-1">
+        <Label htmlFor="status">Status</Label>
+        <Select value={status} onValueChange={(v) => setStatus(v as EnvironmentStatus)}>
+          <SelectTrigger id="status">
+            <SelectValue placeholder="Select a status" />
+          </SelectTrigger>
+          <SelectContent>
+            {ENVIRONMENT_STATUS_OPTIONS.map((opt) => (
+              <SelectItem key={opt.value} value={opt.value}>
+                {opt.label}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        {fieldErrors.status && <p className="text-xs text-danger">{fieldErrors.status}</p>}
       </div>
 
       <div className="space-y-1">

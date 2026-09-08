@@ -103,7 +103,13 @@ beforeAll(async () => {
   const environmentRes = await request(app)
     .post("/api/environments")
     .set("Authorization", `Bearer ${adminToken}`)
-    .send({ project_id: projectId, name: `${PREFIX}${UNIQUE_TERM}-PROD` });
+    // Environment `name` is a fixed enum now — match via description instead,
+    // same approach as the project fixture above.
+    .send({
+      project_id: projectId,
+      name: "PROD",
+      description: `Environment provisioned for ${UNIQUE_TERM}`,
+    });
   environmentId = environmentRes.body.id;
   createdEnvironmentIds.push(environmentId);
 
