@@ -134,6 +134,8 @@ export interface Server {
   access_host: string;
   access_port: number | null;
   access_path: string | null;
+  username?: string | null;
+  password?: string | null;
 }
 
 export interface CredentialReference {

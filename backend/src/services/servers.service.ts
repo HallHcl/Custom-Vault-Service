@@ -218,6 +218,17 @@ export async function updateServer(
     const existing = existingResult.rows[0];
     if (!existing) throw new ApiError(404, "Server not found");
 
+    const existingDerivedHost = (existing.ip_address ?? existing.hostname ?? "").trim().replace(/\s+/g, "");
+    const existingDerivedUser = existing.username?.trim().replace(/\s+/g, "");
+    const existingExpectedAuto = existingDerivedUser ? `${existingDerivedUser}@${existingDerivedHost}` : existingDerivedHost;
+
+    const newHost = (input.ip_address ?? input.hostname ?? existing.ip_address ?? existing.hostname).trim().replace(/\s+/g, "");
+    const newUser = (input.username !== undefined ? input.username : existing.username)?.trim().replace(/\s+/g, "");
+    const newAutoAccessHost = newUser ? `${newUser}@${newHost}` : newHost;
+
+    const isAutoDerived = !existing.access_host || existing.access_host === existingExpectedAuto;
+    const accessHost = input.access_host?.trim() || (isAutoDerived ? newAutoAccessHost : existing.access_host);
+
     try {
       const result = await tx.query<Server>(
         `UPDATE servers
@@ -248,7 +259,7 @@ export async function updateServer(
           input.tech_stack ? JSON.stringify(input.tech_stack) : null,
           input.service_type ?? null,
           input.access_method ?? null,
-          input.access_host ?? null,
+          accessHost,
           input.access_port ?? null,
           input.access_path ?? null,
           input.monitoring_url ?? null,

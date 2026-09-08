@@ -427,6 +427,7 @@ describe("ServerFormPage — Edit mode", () => {
     const freshServer = { ...SAMPLE_SERVER, updated_at: "2026-01-03T00:00:00.000Z" };
     getMock.mockImplementation((path: string) => {
       if (path === "/api/servers/{id}") return Promise.resolve(ok(freshServer));
+      if (path === "/api/servers/service-types") return Promise.resolve(ok(["Application", "Database"]));
       throw new Error(`Unexpected GET in test: ${path}`);
     });
     patchMock.mockResolvedValueOnce(ok({ ...freshServer, hostname: "web-01-updated" }));

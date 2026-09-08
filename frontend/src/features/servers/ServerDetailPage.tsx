@@ -167,9 +167,20 @@ export default function ServerDetailPage() {
                     <div className="min-w-0">
                       <dt className="text-xs text-muted-foreground">Access host</dt>
                       <dd className="flex items-center gap-1 break-words">
-                        {server.access_host || "—"}
-                        {server.access_host && (
-                          <CopyButton value={server.access_host} label="access host" />
+                        {server.access_host ||
+                          (server.username && (server.ip_address || server.hostname)
+                            ? `${server.username}@${server.ip_address || server.hostname}`
+                            : server.ip_address || server.hostname || "—")}
+                        {(server.access_host || (server.username && (server.ip_address || server.hostname))) && (
+                          <CopyButton
+                            value={
+                              server.access_host ||
+                              (server.username && (server.ip_address || server.hostname)
+                                ? `${server.username}@${server.ip_address || server.hostname}`
+                                : server.ip_address || server.hostname || "")
+                            }
+                            label="access host"
+                          />
                         )}
                       </dd>
                     </div>

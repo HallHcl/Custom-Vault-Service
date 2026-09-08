@@ -229,8 +229,13 @@ export default function ServerFormPage({ mode: modeProp }: ServerFormPageProps) 
       service_type: serviceType,
       access_method: accessMethod,
       // Create: omit — the backend derives `username@host`. Edit: send the
-      // field the form actually exposes.
-      access_host: isEdit ? accessHost.trim() : undefined,
+      // field the form exposes, falling back to derived `username@host` if empty.
+      access_host: isEdit
+        ? (accessHost.trim() ||
+            (username.trim()
+              ? `${username.trim()}@${ipAddress.trim() || trimmedHost}`
+              : ipAddress.trim() || trimmedHost || undefined))
+        : undefined,
       access_port: accessPort.trim() ? Number(accessPort) : undefined,
       access_path: accessPath.trim() || undefined,
       tech_stack: techStack

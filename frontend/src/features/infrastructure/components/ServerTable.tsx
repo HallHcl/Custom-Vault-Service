@@ -34,8 +34,15 @@ const ACCESS_METHOD_LABELS: Record<string, string> = {
 };
 
 function accessTargetOf(server: Server): string | null {
-  if (!server.access_method) return null;
-  return `${server.access_host}${server.access_port ? `:${server.access_port}` : ""}${
+  const host =
+    server.access_host ||
+    (server.username && (server.ip_address || server.hostname)
+      ? `${server.username}@${server.ip_address || server.hostname}`
+      : server.ip_address || server.hostname || "");
+
+  if (!host) return null;
+
+  return `${host}${server.access_port ? `:${server.access_port}` : ""}${
     server.access_path ?? ""
   }`;
 }
@@ -101,9 +108,11 @@ export default function ServerTable({ servers }: Props) {
                   <TableCell>
                     {target ? (
                       <span className="inline-flex items-center gap-1">
-                        <span className="text-label text-muted-foreground">
-                          {ACCESS_METHOD_LABELS[server.access_method!] ?? server.access_method}
-                        </span>
+                        {server.access_method && (
+                          <span className="text-label text-muted-foreground">
+                            {ACCESS_METHOD_LABELS[server.access_method] ?? server.access_method}
+                          </span>
+                        )}
                         <span className="font-mono text-sm">{target}</span>
                         <CopyButton value={target} label="access host" />
                       </span>

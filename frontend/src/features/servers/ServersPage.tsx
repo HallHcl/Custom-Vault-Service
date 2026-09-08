@@ -293,7 +293,10 @@ export default function ServersPage() {
                           {server.access_method ? ACCESS_METHOD_LABELS[server.access_method] : "—"}
                         </Badge>
                         <span className="font-mono text-xs text-foreground">
-                          {server.access_host}
+                          {server.access_host ||
+                            (server.username && (server.ip_address || server.hostname)
+                              ? `${server.username}@${server.ip_address || server.hostname}`
+                              : server.ip_address || server.hostname || "—")}
                           {server.access_port ? `:${server.access_port}` : ""}
                         </span>
                       </div>
