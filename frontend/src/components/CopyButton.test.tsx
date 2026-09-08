@@ -1,7 +1,8 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
-import { CopyButton, writeTextToClipboard } from "./CopyButton";
+import { CopyButton } from "./CopyButton";
 import * as useToastModule from "@/hooks/use-toast";
+
 
 describe("CopyButton & writeTextToClipboard", () => {
   const toastMock = vi.fn();
