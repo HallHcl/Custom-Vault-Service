@@ -35,7 +35,9 @@ export const createServerSchema = z.object({
   ip_address: z.string().optional(),
   service_type: z.enum(SERVICE_TYPES),
   access_method: z.enum(ACCESS_METHODS),
-  access_host: accessHostSchema,
+  // Optional on create: the quick-add form doesn't ask for it. When absent
+  // the service derives it as `username@host` (host = ip_address or hostname).
+  access_host: accessHostSchema.optional(),
   access_port: z.number().int().min(1).max(65535).optional(),
   access_path: accessPathSchema.optional(),
   tech_stack: z.array(z.string()).optional().default([]),

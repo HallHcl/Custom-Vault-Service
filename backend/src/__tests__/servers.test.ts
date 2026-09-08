@@ -160,6 +160,37 @@ describe("POST /api/servers", () => {
     expect(res.body.access_path).toBe("/zabbix");
   });
 
+  it("derives access_host as username@ip when access_host is omitted", async () => {
+    const res = await createServerAs(
+      adminToken,
+      validServerBody({
+        display_name: `${PREFIX}DerivedHost`,
+        access_host: undefined,
+        access_path: undefined,
+        username: "userkfc",
+        ip_address: "10.20.30.40",
+      })
+    );
+
+    expect(res.status).toBe(201);
+    expect(res.body.access_host).toBe("userkfc@10.20.30.40");
+  });
+
+  it("derives access_host from hostname (no ip) and falls back to bare host with no username", async () => {
+    const res = await createServerAs(
+      adminToken,
+      validServerBody({
+        display_name: `${PREFIX}DerivedNoUser`,
+        access_host: undefined,
+        access_path: undefined,
+        hostname: `bare-${RUN_ID}.internal`,
+      })
+    );
+
+    expect(res.status).toBe(201);
+    expect(res.body.access_host).toBe(`bare-${RUN_ID}.internal`);
+  });
+
   it("returns 400 VALIDATION_ERROR for an invalid service_type", async () => {
     const res = await createServerAs(
       adminToken,

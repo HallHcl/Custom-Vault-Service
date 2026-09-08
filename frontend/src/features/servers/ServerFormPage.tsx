@@ -16,6 +16,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { EnvironmentPicker } from "@/components/EnvironmentPicker";
+import { ProjectPicker } from "@/components/ProjectPicker";
 import { ConflictState } from "@/components/state/ConflictState";
 import { ErrorState } from "@/components/state/ErrorState";
 import { LoadingState } from "@/components/state/LoadingState";
@@ -66,7 +67,7 @@ interface ServerInput {
   ip_address?: string;
   service_type: (typeof SERVICE_TYPES)[number];
   access_method: (typeof ACCESS_METHODS)[number];
-  access_host: string;
+  access_host?: string;
   access_port?: number;
   access_path?: string;
   tech_stack?: string[];
@@ -78,6 +79,7 @@ interface ServerInput {
 
 interface FieldErrors {
   display_name?: string;
+  project_id?: string;
   environment_id?: string;
   hostname?: string;
   ip_address?: string;
@@ -116,6 +118,7 @@ const EDITABLE_FIELDS = [
 
 const FIELD_DOM_ORDER: ReadonlyArray<{ key: keyof FieldErrors; elementId: string }> = [
   { key: "display_name", elementId: "display_name" },
+  { key: "project_id", elementId: "project" },
   { key: "environment_id", elementId: "environment" },
   { key: "hostname", elementId: "hostname" },
   { key: "ip_address", elementId: "ip_address" },
@@ -183,6 +186,10 @@ export default function ServerFormPage({ mode: modeProp }: ServerFormPageProps) 
   );
 
   const [displayName, setDisplayName] = useState(server?.display_name ?? "");
+  // Create-mode only: pick the Project first, then the Environment scoped to
+  // it — environment names are just DEV/UAT/PROD, so an unscoped list can't be
+  // told apart. Not sent to the API (the server is linked by environment_id).
+  const [projectId, setProjectId] = useState<string | undefined>(undefined);
   const [environmentId, setEnvironmentId] = useState<string | undefined>(server?.environment?.id);
   const [hostname, setHostname] = useState(server?.hostname ?? "");
   const [ipAddress, setIpAddress] = useState(server?.ip_address ?? "");
@@ -245,7 +252,9 @@ export default function ServerFormPage({ mode: modeProp }: ServerFormPageProps) 
       ip_address: ipAddress.trim() || undefined,
       service_type: (serviceType ?? "other") as (typeof SERVICE_TYPES)[number],
       access_method: (accessMethod ?? "ssh") as (typeof ACCESS_METHODS)[number],
-      access_host: isEdit ? accessHost.trim() : (ipAddress.trim() || trimmedHost),
+      // Create: omit — the backend derives `username@host`. Edit: send the
+      // field the form actually exposes.
+      access_host: isEdit ? accessHost.trim() : undefined,
       access_port: accessPort.trim() ? Number(accessPort) : undefined,
       access_path: accessPath.trim() || undefined,
       tech_stack: techStack
@@ -303,6 +312,9 @@ export default function ServerFormPage({ mode: modeProp }: ServerFormPageProps) 
 
     if (isEdit && !input.display_name) {
       nextErrors.display_name = "Display name is required.";
+    }
+    if (!isEdit && !projectId) {
+      nextErrors.project_id = "Project is required.";
     }
     if (!isEdit && !environmentId) {
       nextErrors.environment_id = "Environment is required.";
@@ -501,26 +513,49 @@ export default function ServerFormPage({ mode: modeProp }: ServerFormPageProps) 
               </div>
             )}
 
-            <div className="space-y-1">
-              <Label htmlFor="environment">Environment</Label>
-              {isEdit && server ? (
-                <>
-                  <Input
-                    id="environment"
-                    value={server.environment.name}
-                    disabled
+            {isEdit && server ? (
+              <div className="space-y-1">
+                <Label htmlFor="environment">Environment</Label>
+                <Input
+                  id="environment"
+                  value={`${server.environment.project.name} / ${server.environment.name}`}
+                  disabled
+                />
+                <p className="text-xs text-muted-foreground">
+                  A server's environment can't be changed after creation.
+                </p>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="space-y-1">
+                  <Label htmlFor="project">Project</Label>
+                  <ProjectPicker
+                    id="project"
+                    value={projectId}
+                    onChange={(v) => {
+                      setProjectId(v);
+                      setEnvironmentId(undefined);
+                    }}
+                    placeholder="Select a project"
+                    aria-invalid={!!fieldErrors.project_id}
+                    aria-describedby={fieldErrors.project_id ? errorId("project") : undefined}
+                    className={cn(fieldErrors.project_id && INVALID_CONTROL)}
                   />
-                  <p className="text-xs text-muted-foreground">
-                    A server's environment can't be changed after creation.
-                  </p>
-                </>
-              ) : (
-                <>
+                  {fieldErrors.project_id && (
+                    <p id={errorId("project")} className="text-xs text-danger">
+                      {fieldErrors.project_id}
+                    </p>
+                  )}
+                </div>
+                <div className="space-y-1">
+                  <Label htmlFor="environment">Environment</Label>
                   <EnvironmentPicker
                     id="environment"
                     value={environmentId}
                     onChange={setEnvironmentId}
-                    placeholder="Select an environment"
+                    projectId={projectId}
+                    disabled={!projectId}
+                    placeholder={projectId ? "Select an environment" : "Select a project first"}
                     aria-invalid={!!fieldErrors.environment_id}
                     aria-describedby={fieldErrors.environment_id ? errorId("environment") : undefined}
                     className={cn(fieldErrors.environment_id && INVALID_CONTROL)}
@@ -530,9 +565,9 @@ export default function ServerFormPage({ mode: modeProp }: ServerFormPageProps) 
                       {fieldErrors.environment_id}
                     </p>
                   )}
-                </>
-              )}
-            </div>
+                </div>
+              </div>
+            )}
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-1">

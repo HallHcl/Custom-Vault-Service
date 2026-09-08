@@ -36,6 +36,7 @@ import { InitialsAvatar } from "@/components/ui/initials-avatar";
 import { cn } from "@/lib/utils";
 import { toast } from "@/hooks/use-toast";
 import { useEnvironments } from "@/hooks/useEnvironments";
+import { useProjects } from "@/hooks/useProjects";
 import {
   useDeleteServer,
   useRestoreServer,
@@ -93,6 +94,10 @@ export default function ServersPage() {
   // extra fetch beyond this already-existing useEnvironments() call.
   const { data: environments = [] } = useEnvironments();
   const environmentById = new Map(environments.map((e) => [e.id, e]));
+  // Environment names are just DEV/UAT/PROD, so the column is qualified with
+  // the parent project to stay unambiguous.
+  const { data: projects = [] } = useProjects();
+  const projectNameById = new Map(projects.map((p) => [p.id, p.name]));
 
   const totalPages = pageInfo?.total_pages ?? 1;
 
@@ -264,7 +269,11 @@ export default function ServersPage() {
                     </TableCell>
                     <TableCell className="text-muted-foreground">
                       <div className="flex items-center gap-1.5">
-                        <span className="text-foreground">{environment?.name ?? "—"}</span>
+                        <span className="text-foreground">
+                          {environment
+                            ? `${projectNameById.get(environment.project_id) ?? "—"} / ${environment.name}`
+                            : "—"}
+                        </span>
                         {environment?.vpn_resource_id && (
                           <span title="Requires VPN connection">
                             <ShieldCheck

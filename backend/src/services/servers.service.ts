@@ -152,6 +152,15 @@ export async function createServer(
       );
     }
 
+    // The quick-add form collects username + ip (or hostname) but not
+    // access_host — derive it here as `username@host` so the detail page's
+    // Access host still shows something meaningful.
+    const derivedHost = (input.ip_address ?? input.hostname).trim().replace(/\s+/g, "");
+    const derivedUser = input.username?.trim().replace(/\s+/g, "");
+    const accessHost =
+      input.access_host?.trim() ||
+      (derivedUser ? `${derivedUser}@${derivedHost}` : derivedHost);
+
     try {
       const result = await tx.query<Server>(
         `INSERT INTO servers (
@@ -169,7 +178,7 @@ export async function createServer(
           JSON.stringify(input.tech_stack ?? []),
           input.service_type,
           input.access_method,
-          input.access_host,
+          accessHost,
           input.access_port ?? null,
           input.access_path ?? null,
           input.monitoring_url ?? null,

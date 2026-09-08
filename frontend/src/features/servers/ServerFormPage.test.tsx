@@ -41,12 +41,23 @@ vi.mock("@/features/auth/useAuth", () => ({
 const SAMPLE_ENVIRONMENT = {
   id: "e1",
   project_id: "p1",
-  name: "Production",
+  name: "PROD",
   description: null,
+  status: "implementation",
   created_at: "2026-01-01T00:00:00.000Z",
   updated_at: "2026-01-01T00:00:00.000Z",
   deleted_at: null,
   vpn_resource_id: null,
+};
+
+const SAMPLE_PROJECT = {
+  id: "p1",
+  name: "Migration",
+  description: null,
+  owner_status: "active",
+  created_at: "2026-01-01T00:00:00.000Z",
+  updated_at: "2026-01-01T00:00:00.000Z",
+  deleted_at: null,
 };
 
 const SAMPLE_SERVER = {
@@ -128,6 +139,11 @@ describe("ServerFormPage — Create mode", () => {
     toastMock.mockClear();
 
     getMock.mockImplementation((path: string) => {
+      if (path === "/api/projects") {
+        return Promise.resolve(
+          ok({ data: [SAMPLE_PROJECT], pagination: { page: 1, per_page: 20, total: 1, total_pages: 1 } })
+        );
+      }
       if (path === "/api/environments") {
         return Promise.resolve(
           ok({ data: [SAMPLE_ENVIRONMENT], pagination: { page: 1, per_page: 20, total: 1, total_pages: 1 } })
@@ -136,6 +152,14 @@ describe("ServerFormPage — Create mode", () => {
       throw new Error(`Unexpected GET in test: ${path}`);
     });
   });
+
+  /** Create mode now requires picking the Project before the Environment. */
+  async function pickProjectAndEnvironment() {
+    fireEvent.click(await screen.findByRole("combobox", { name: /^project$/i }));
+    fireEvent.click(await screen.findByRole("option", { name: "Migration" }));
+    fireEvent.click(await screen.findByRole("combobox", { name: /^environment$/i }));
+    fireEvent.click(await screen.findByRole("option", { name: "PROD" }));
+  }
 
   it("renders empty form with breadcrumbs and back link", async () => {
     renderCreatePage();
@@ -153,7 +177,8 @@ describe("ServerFormPage — Create mode", () => {
 
     fireEvent.click(screen.getByRole("button", { name: /save/i }));
 
-    expect(await screen.findByText("Environment is required.")).toBeInTheDocument();
+    expect(await screen.findByText("Project is required.")).toBeInTheDocument();
+    expect(screen.getByText("Environment is required.")).toBeInTheDocument();
     expect(screen.getByText("Hostname is required.")).toBeInTheDocument();
     expect(screen.getByText("Connection type is required.")).toBeInTheDocument();
     expect(postMock).not.toHaveBeenCalled();
@@ -164,9 +189,9 @@ describe("ServerFormPage — Create mode", () => {
 
     fireEvent.click(screen.getByRole("button", { name: /save/i }));
 
-    await screen.findByText("Environment is required.");
+    await screen.findByText("Project is required.");
     expect(document.activeElement).toBe(
-      screen.getByRole("combobox", { name: /^environment$/i })
+      screen.getByRole("combobox", { name: /^project$/i })
     );
   });
 
@@ -174,10 +199,7 @@ describe("ServerFormPage — Create mode", () => {
     postMock.mockResolvedValue(created(SAMPLE_SERVER));
     renderCreatePage();
 
-    // Environment picker
-    const envTrigger = await screen.findByRole("combobox", { name: /^environment$/i });
-    fireEvent.click(envTrigger);
-    fireEvent.click(await screen.findByRole("option", { name: "Production" }));
+    await pickProjectAndEnvironment();
 
     fireEvent.change(screen.getByLabelText("Hostname"), { target: { value: "web-01" } });
     fireEvent.change(screen.getByLabelText(/ip address/i), { target: { value: "10.0.0.1" } });
@@ -203,8 +225,9 @@ describe("ServerFormPage — Create mode", () => {
       display_name: "web-01",
       service_type: "other",
       access_method: "ssh",
-      access_host: "10.0.0.1",
     });
+    // access_host is not sent on create — the backend derives username@host.
+    expect(options.body.access_host).toBeUndefined();
 
     expect(toastMock).toHaveBeenCalledWith({ title: "Server created" });
     expect(await screen.findByText("Servers list page")).toBeInTheDocument();
@@ -229,9 +252,7 @@ describe("ServerFormPage — Create mode", () => {
 
     renderCreatePage();
 
-    const envTrigger = await screen.findByRole("combobox", { name: /^environment$/i });
-    fireEvent.click(envTrigger);
-    fireEvent.click(await screen.findByRole("option", { name: "Production" }));
+    await pickProjectAndEnvironment();
     fireEvent.change(screen.getByLabelText("Hostname"), { target: { value: "web-01" } });
     const connectionTrigger = screen.getByRole("combobox", { name: /connection type/i });
     fireEvent.click(connectionTrigger);
@@ -298,7 +319,7 @@ describe("ServerFormPage — Edit mode", () => {
     expect(screen.getByLabelText(/notes/i)).toHaveValue("Primary web server");
 
     // Environment is locked and disabled
-    expect(screen.getByDisplayValue("Production")).toBeDisabled();
+    expect(screen.getByDisplayValue("Migration / Production")).toBeDisabled();
     expect(
       screen.getByText("A server's environment can't be changed after creation.")
     ).toBeInTheDocument();

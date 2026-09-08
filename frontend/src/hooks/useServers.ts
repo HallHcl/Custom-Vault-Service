@@ -68,7 +68,8 @@ export function useCreateServer() {
       ip_address?: string;
       service_type: "application" | "database" | "proxy" | "monitoring" | "repository" | "metrics" | "jump_host" | "other";
       access_method: "ssh" | "rdp" | "telnet" | "web" | "other";
-      access_host: string;
+      // Optional: the backend derives `username@host` when omitted.
+      access_host?: string;
       access_port?: number;
       access_path?: string;
       tech_stack?: string[];

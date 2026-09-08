@@ -104,12 +104,28 @@ const DELETED_SERVER = {
   deleted_at: "2026-01-05T00:00:00.000Z",
 };
 
-// ServersPage also fetches environments (to resolve environment_id -> name
-// for display), so the GET mock must route by path.
-function mockGetByPath(handlers: { servers?: unknown; environments?: unknown }) {
+const SAMPLE_PROJECT = {
+  id: "p1",
+  name: "Migration",
+  description: null,
+  owner_status: "active",
+  created_at: "2026-01-01T00:00:00.000Z",
+  updated_at: "2026-01-01T00:00:00.000Z",
+  deleted_at: null,
+};
+
+// ServersPage also fetches environments and projects (to resolve
+// environment_id -> "Project / Env" for display), so the GET mock routes by
+// path.
+function mockGetByPath(handlers: {
+  servers?: unknown;
+  environments?: unknown;
+  projects?: unknown;
+}) {
   getMock.mockImplementation((path: string) => {
     if (path === "/api/servers") return Promise.resolve(handlers.servers ?? okResult([]));
     if (path === "/api/environments") return Promise.resolve(handlers.environments ?? okResult([]));
+    if (path === "/api/projects") return Promise.resolve(handlers.projects ?? okResult([]));
     throw new Error(`Unexpected path in test: ${path}`);
   });
 }
@@ -154,17 +170,18 @@ describe("ServersPage", () => {
     expect(screen.getByText(/loading servers/i)).toBeInTheDocument();
   });
 
-  it("renders server rows once the fetch succeeds, including the resolved environment name", async () => {
+  it("renders server rows once the fetch succeeds, including the resolved project / environment name", async () => {
     mockGetByPath({
       servers: okResult([SAMPLE_SERVER]),
       environments: okResult([SAMPLE_ENVIRONMENT]),
+      projects: okResult([SAMPLE_PROJECT]),
     });
 
     renderPage();
 
     expect(await screen.findByText("Web 01")).toBeInTheDocument();
     expect(screen.getByText("web-01")).toBeInTheDocument();
-    expect(screen.getByText("Production")).toBeInTheDocument();
+    expect(screen.getByText("Migration / Production")).toBeInTheDocument();
     expect(screen.getByText("Application")).toBeInTheDocument();
     expect(screen.getByText("SSH")).toBeInTheDocument();
     expect(screen.getByText("web-01.internal:22")).toBeInTheDocument();
