@@ -8,9 +8,13 @@ import { LoadingState } from "@/components/state/LoadingState";
 import { HOME_SEGMENT, useBreadcrumbs } from "@/components/layout/BreadcrumbsContext";
 import EnvironmentEditCard from "./components/EnvironmentEditCard";
 import { VpnResourceStatus } from "./components/VpnResourceStatus";
-import ServerCard from "@/features/infrastructure/components/ServerCard";
-import { useEnvironment, type EnvironmentDetail } from "@/hooks/useEnvironments";
-import { useProject } from "@/hooks/useProjects";
+import ServerTable from "@/features/infrastructure/components/ServerTable";
+import { Badge } from "@/components/ui/badge";
+import {
+  useEnvironment,
+  environmentStatusLabel,
+  type EnvironmentDetail,
+} from "@/hooks/useEnvironments";
 import { useServers } from "@/hooks/useServers";
 import { useHasRole } from "@/hooks/useHasRole";
 import { usePagination } from "@/hooks/usePagination";
@@ -19,27 +23,11 @@ export default function EnvironmentDetailPage() {
   const { id } = useParams<{ id: string }>();
   const { data: environment, isLoading, isError, error, refetch } = useEnvironment(id);
 
-  // EnvironmentDetail only embeds { project: { id, name } }, so the Client
-  // segment is backfilled by a separate useProject fetch (cache-shared with
-  // ProjectDetailPage). useProject already guards on `Boolean(id)`, so a
-  // possibly-undefined project id is safe. Until it resolves — or if the
-  // project is soft-deleted and the fetch 404s (`data` stays undefined,
-  // never throws) — the trail simply omits the Client segment, same as the
-  // loading fallback below.
-  const { data: project } = useProject(environment?.project.id);
+  // Client breadcrumb segments were dropped along with the hidden Client UI.
   useBreadcrumbs(
     environment
       ? [
           HOME_SEGMENT,
-          ...(project?.client
-            ? [
-                { label: "Clients", href: "/clients" },
-                {
-                  label: project.client.name,
-                  href: `/clients/${project.client.id}`,
-                },
-              ]
-            : []),
           { label: "Projects", href: "/projects" },
           { label: environment.project.name, href: `/projects/${environment.project.id}` },
           { label: "Environments", href: "/environments" },
@@ -116,6 +104,12 @@ export default function EnvironmentDetailPage() {
                 <EnvironmentEditCard environment={environment} onSaved={exitEdit} onCancel={exitEdit} />
               ) : (
                 <>
+                  <div className="flex items-center gap-2">
+                    <span className="text-label text-muted-foreground">Status</span>
+                    <Badge variant="neutral">
+                      {environmentStatusLabel(environment.status)}
+                    </Badge>
+                  </div>
                   <p className="text-sm text-muted-foreground">
                     {environment.description ?? "No description provided."}
                   </p>
@@ -146,11 +140,7 @@ export default function EnvironmentDetailPage() {
               ) : servers.length === 0 ? (
                 <EmptyState title="No servers" message="This environment has no servers yet." />
               ) : (
-                <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                  {servers.map((server) => (
-                    <ServerCard key={server.id} server={server} />
-                  ))}
-                </div>
+                <ServerTable servers={servers} />
               )}
             </CardContent>
           </Card>

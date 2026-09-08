@@ -25,7 +25,7 @@ interface Props {
   serverId: string;
   /**
    * When true, renders Add/Edit/Delete affordances (per-action RBAC-gated).
-   * Defaults to false — the read-only rendering used by ServerCard.tsx on
+   * Defaults to false — the read-only rendering used by ServerTable.tsx on
    * InfrastructurePage/EnvironmentDetailPage, which are browse/overview
    * surfaces, not management surfaces. ServerDetailPage passes true.
    */

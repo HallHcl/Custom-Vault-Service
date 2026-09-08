@@ -2,6 +2,7 @@ import { useNavigate, useParams } from "react-router-dom";
 import { RequireRole } from "@/components/auth/RequireRole";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { CopyButton } from "@/components/CopyButton";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { DetailPageShell } from "@/components/DetailPageShell";
 import { HOME_SEGMENT, useBreadcrumbs } from "@/components/layout/BreadcrumbsContext";
@@ -108,7 +109,10 @@ export default function ServerDetailPage() {
                     <span className="text-label text-muted-foreground">
                       IP address
                     </span>
-                    <p className="text-sm">{server.ip_address}</p>
+                    <p className="flex items-center gap-1 text-sm">
+                      <span className="font-mono">{server.ip_address}</span>
+                      <CopyButton value={server.ip_address} label="IP address" />
+                    </p>
                   </div>
                 )}
 
@@ -148,15 +152,26 @@ export default function ServerDetailPage() {
                     </div>
                     <div className="min-w-0">
                       <dt className="text-xs text-muted-foreground">Username</dt>
-                      <dd className="break-words">{server.username || "—"}</dd>
+                      <dd className="flex items-center gap-1 break-words">
+                        {server.username || "—"}
+                        {server.username && <CopyButton value={server.username} label="username" />}
+                      </dd>
                     </div>
                     <div className="min-w-0">
                       <dt className="text-xs text-muted-foreground">Password</dt>
-                      <dd className="break-words">{server.password || "—"}</dd>
+                      <dd className="flex items-center gap-1 break-words">
+                        {server.password || "—"}
+                        {server.password && <CopyButton value={server.password} label="password" />}
+                      </dd>
                     </div>
                     <div className="min-w-0">
                       <dt className="text-xs text-muted-foreground">Access host</dt>
-                      <dd className="break-words">{server.access_host || "—"}</dd>
+                      <dd className="flex items-center gap-1 break-words">
+                        {server.access_host || "—"}
+                        {server.access_host && (
+                          <CopyButton value={server.access_host} label="access host" />
+                        )}
+                      </dd>
                     </div>
                     <div>
                       <dt className="text-xs text-muted-foreground">Port</dt>

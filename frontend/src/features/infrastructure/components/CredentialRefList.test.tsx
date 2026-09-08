@@ -69,7 +69,7 @@ function renderList(manageable: boolean, initial: unknown[] = [SAMPLE_REFERENCE]
   return { invalidateSpy };
 }
 
-describe("CredentialRefList — read-only mode (default; used by ServerCard on InfrastructurePage/EnvironmentDetailPage)", () => {
+describe("CredentialRefList — read-only mode (default; used by ServerTable on InfrastructurePage/EnvironmentDetailPage)", () => {
   beforeEach(() => {
     getMock.mockReset();
     useAuthMock.mockReset();

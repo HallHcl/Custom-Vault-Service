@@ -45,8 +45,9 @@ function apiError(status: number, code: string, message: string, details?: unkno
 const ENVIRONMENT_DETAIL = {
   id: "e1",
   project_id: "p1",
-  name: "Production",
+  name: "PROD",
   description: "Primary environment",
+  status: "implementation" as string,
   created_at: "2026-01-01T00:00:00.000Z",
   updated_at: "2026-01-02T00:00:00.000Z",
   deleted_at: null,
@@ -149,7 +150,7 @@ describe("EnvironmentDetailPage", () => {
 
     renderPage();
 
-    expect(await screen.findByText("Production")).toBeInTheDocument();
+    expect(await screen.findByText("PROD")).toBeInTheDocument();
     expect(screen.getByText("Primary environment")).toBeInTheDocument();
   });
 
@@ -158,7 +159,7 @@ describe("EnvironmentDetailPage", () => {
 
     renderPage();
 
-    expect(await screen.findByRole("heading", { name: "Production", level: 1 })).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: "PROD", level: 1 })).toBeInTheDocument();
     expect(screen.getAllByRole("heading", { level: 1 })).toHaveLength(1);
   });
 
@@ -180,7 +181,7 @@ describe("EnvironmentDetailPage", () => {
 
     renderPage();
 
-    expect(await screen.findByText("Production")).toBeInTheDocument();
+    expect(await screen.findByText("PROD")).toBeInTheDocument();
     expect(screen.getByText("Servers (0)")).toBeInTheDocument();
     expect(await screen.findByText("No servers")).toBeInTheDocument();
   });
@@ -191,7 +192,7 @@ describe("EnvironmentDetailPage", () => {
 
     renderPage();
 
-    expect(await screen.findByText("Production")).toBeInTheDocument();
+    expect(await screen.findByText("PROD")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /edit/i })).toBeInTheDocument();
   });
 
@@ -201,7 +202,7 @@ describe("EnvironmentDetailPage", () => {
 
     renderPage();
 
-    expect(await screen.findByText("Production")).toBeInTheDocument();
+    expect(await screen.findByText("PROD")).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /edit/i })).not.toBeInTheDocument();
   });
 
@@ -246,10 +247,10 @@ describe("EnvironmentDetailPage", () => {
       mockGetByPath({});
       renderPage();
 
-      await screen.findByText("Production");
+      await screen.findByText("PROD");
       fireEvent.click(screen.getByRole("button", { name: /^edit$/i }));
 
-      expect(await screen.findByLabelText("Name")).toHaveValue("Production");
+      expect(await screen.findByLabelText("Name")).toHaveTextContent("PROD");
       expect(
         screen.getByText("An environment's project can't be changed after creation.")
       ).toBeInTheDocument();
@@ -266,7 +267,7 @@ describe("EnvironmentDetailPage", () => {
 
       await screen.findByLabelText("Name");
 
-      expect(screen.getByRole("heading", { name: "Production", level: 1 })).toBeInTheDocument();
+      expect(screen.getByRole("heading", { name: "PROD", level: 1 })).toBeInTheDocument();
       expect(screen.getAllByRole("heading", { level: 1 })).toHaveLength(1);
     });
 
@@ -274,7 +275,7 @@ describe("EnvironmentDetailPage", () => {
       mockGetByPath({});
       renderPage("/environments/e1?edit=true");
 
-      expect(await screen.findByLabelText("Name")).toHaveValue("Production");
+      expect(await screen.findByLabelText("Name")).toHaveTextContent("PROD");
       expect(screen.getByRole("button", { name: /save/i })).toBeInTheDocument();
     });
 
@@ -283,20 +284,21 @@ describe("EnvironmentDetailPage", () => {
       mockGetByPath({});
       renderPage("/environments/e1?edit=true");
 
-      await screen.findByText("Production");
+      await screen.findByText("PROD");
       expect(screen.queryByLabelText("Name")).not.toBeInTheDocument();
     });
 
     it("Save sends a PATCH with updated_at and the unchanged vpn_resource_id, without project_id, then returns to read mode", async () => {
       mockGetByPath({});
-      patchMock.mockResolvedValue(ok({ ...ENVIRONMENT_DETAIL, name: "Production v2" }));
+      patchMock.mockResolvedValue(ok({ ...ENVIRONMENT_DETAIL, name: "UAT" }));
       renderPage();
 
-      await screen.findByText("Production");
+      await screen.findByText("PROD");
       fireEvent.click(screen.getByRole("button", { name: /^edit$/i }));
 
       await screen.findByLabelText("Name");
-      fireEvent.change(screen.getByLabelText("Name"), { target: { value: "Production v2" } });
+      fireEvent.click(screen.getByLabelText("Name"));
+      fireEvent.click(await screen.findByRole("option", { name: "UAT" }));
       fireEvent.click(screen.getByRole("button", { name: /save/i }));
 
       await waitFor(() => expect(patchMock).toHaveBeenCalledTimes(1));
@@ -304,7 +306,7 @@ describe("EnvironmentDetailPage", () => {
       expect(path).toBe("/api/environments/{id}");
       expect(options.params).toEqual({ path: { id: "e1" } });
       expect(options.body).toMatchObject({
-        name: "Production v2",
+        name: "UAT",
         updated_at: ENVIRONMENT_DETAIL.updated_at,
         vpn_resource_id: null,
       });
@@ -323,7 +325,7 @@ describe("EnvironmentDetailPage", () => {
       patchMock.mockResolvedValue(ok({ ...ENVIRONMENT_DETAIL, vpn_resource_id: "r1" }));
       renderPage();
 
-      await screen.findByText("Production");
+      await screen.findByText("PROD");
       fireEvent.click(screen.getByRole("button", { name: /^edit$/i }));
 
       // Accessible name comes from the associated <label for="vpn-resource">.
@@ -339,19 +341,20 @@ describe("EnvironmentDetailPage", () => {
       mockGetByPath({});
       renderPage();
 
-      await screen.findByText("Production");
+      await screen.findByText("PROD");
       fireEvent.click(screen.getByRole("button", { name: /^edit$/i }));
 
       await screen.findByLabelText("Name");
-      fireEvent.change(screen.getByLabelText("Name"), { target: { value: "My In-Progress Edit" } });
+      fireEvent.click(screen.getByLabelText("Name"));
+      fireEvent.click(await screen.findByRole("option", { name: "UAT" }));
       fireEvent.click(screen.getByRole("button", { name: /cancel/i }));
 
       expect(patchMock).not.toHaveBeenCalled();
       await screen.findByRole("button", { name: /^edit$/i });
-      expect(screen.getByRole("heading", { name: "Production", level: 1 })).toBeInTheDocument();
+      expect(screen.getByRole("heading", { name: "PROD", level: 1 })).toBeInTheDocument();
 
       fireEvent.click(screen.getByRole("button", { name: /^edit$/i }));
-      expect(await screen.findByLabelText("Name")).toHaveValue("Production");
+      expect(await screen.findByLabelText("Name")).toHaveTextContent("PROD");
     });
 
     it("shows the conflict UI (not a generic error) on a stale-write 409, and does not lose the user's edit", async () => {
@@ -361,10 +364,11 @@ describe("EnvironmentDetailPage", () => {
       );
       renderPage();
 
-      await screen.findByText("Production");
+      await screen.findByText("PROD");
       fireEvent.click(screen.getByRole("button", { name: /^edit$/i }));
       await screen.findByLabelText("Name");
-      fireEvent.change(screen.getByLabelText("Name"), { target: { value: "My In-Progress Edit" } });
+      fireEvent.click(screen.getByLabelText("Name"));
+      fireEvent.click(await screen.findByRole("option", { name: "UAT" }));
       fireEvent.click(screen.getByRole("button", { name: /save/i }));
 
       expect(await screen.findByText("This record changed")).toBeInTheDocument();
@@ -375,14 +379,14 @@ describe("EnvironmentDetailPage", () => {
 
       const freshRecord = { ...ENVIRONMENT_DETAIL, updated_at: "2026-01-03T00:00:00.000Z" };
       mockGetByPath({ environment: ok(freshRecord) });
-      patchMock.mockResolvedValueOnce(ok({ ...freshRecord, name: "My In-Progress Edit" }));
+      patchMock.mockResolvedValueOnce(ok({ ...freshRecord, name: "UAT" }));
 
       fireEvent.click(screen.getByRole("button", { name: /keep my changes/i }));
 
       await waitFor(() => expect(patchMock).toHaveBeenCalledTimes(2));
       const [, retryOptions] = patchMock.mock.calls[1];
       expect(retryOptions.body).toMatchObject({
-        name: "My In-Progress Edit",
+        name: "UAT",
         updated_at: freshRecord.updated_at,
       });
     });
@@ -394,10 +398,11 @@ describe("EnvironmentDetailPage", () => {
       );
       renderPage();
 
-      await screen.findByText("Production");
+      await screen.findByText("PROD");
       fireEvent.click(screen.getByRole("button", { name: /^edit$/i }));
       await screen.findByLabelText("Name");
-      fireEvent.change(screen.getByLabelText("Name"), { target: { value: "Duplicate Name" } });
+      fireEvent.click(screen.getByLabelText("Name"));
+      fireEvent.click(await screen.findByRole("option", { name: "UAT" }));
       fireEvent.click(screen.getByRole("button", { name: /save/i }));
 
       expect(
@@ -421,7 +426,7 @@ describe("EnvironmentDetailPage", () => {
       );
       renderPage();
 
-      await screen.findByText("Production");
+      await screen.findByText("PROD");
       fireEvent.click(screen.getByRole("button", { name: /^edit$/i }));
       await screen.findByLabelText("Name");
       fireEvent.click(screen.getByRole("button", { name: /save/i }));
@@ -441,7 +446,7 @@ describe("EnvironmentDetailPage", () => {
       patchMock.mockResolvedValue(apiError(500, "INTERNAL", "boom"));
       renderPage();
 
-      await screen.findByText("Production");
+      await screen.findByText("PROD");
       fireEvent.click(screen.getByRole("button", { name: /^edit$/i }));
       await screen.findByLabelText("Name");
       fireEvent.click(screen.getByRole("button", { name: /save/i }));
@@ -456,43 +461,28 @@ describe("EnvironmentDetailPage", () => {
     });
   });
 
-  describe("breadcrumb Client segment (backfilled via useProject)", () => {
-    it("shows the full Home > Clients > [Client] > Projects > [Project] > Environments > [Environment] trail once the project fetch resolves", async () => {
+  describe("breadcrumb trail (Client segments removed with the hidden Client UI)", () => {
+    it("shows Home > Projects > [Project] > Environments > [Environment], with no Client segment", async () => {
       mockGetByPath({});
 
       renderPage();
 
       const nav = await screen.findByRole("navigation", { name: "Breadcrumb" });
-      expect(await within(nav).findByRole("link", { name: "Clients" })).toHaveAttribute(
+      expect(await within(nav).findByRole("link", { name: "Projects" })).toHaveAttribute(
         "href",
-        "/clients"
-      );
-      expect(within(nav).getByRole("link", { name: "Acme Corp" })).toHaveAttribute(
-        "href",
-        "/clients/c1"
+        "/projects"
       );
       expect(within(nav).getByRole("link", { name: "Migration" })).toHaveAttribute(
         "href",
         "/projects/p1"
       );
-      expect(within(nav).getByText("Production")).toHaveAttribute("aria-current", "page");
-    });
-
-    it("degrades to the shorter trail (no Client segment, no error) when the project is soft-deleted and GET /projects/:id 404s", async () => {
-      mockGetByPath({ project: apiError(404, "NOT_FOUND", "Project not found") });
-
-      renderPage();
-
-      const nav = await screen.findByRole("navigation", { name: "Breadcrumb" });
-      // The environment itself still renders fine and the trail still starts
-      // at Projects — the missing client never surfaces as an error.
-      expect(await within(nav).findByRole("link", { name: "Projects" })).toBeInTheDocument();
-      expect(within(nav).getByRole("link", { name: "Migration" })).toHaveAttribute(
+      expect(within(nav).getByRole("link", { name: "Environments" })).toHaveAttribute(
         "href",
-        "/projects/p1"
+        "/environments"
       );
+      expect(within(nav).getByText("PROD")).toHaveAttribute("aria-current", "page");
       expect(within(nav).queryByRole("link", { name: "Clients" })).not.toBeInTheDocument();
-      expect(screen.getByText("Primary environment")).toBeInTheDocument();
+      expect(within(nav).queryByRole("link", { name: "Acme Corp" })).not.toBeInTheDocument();
     });
   });
 
@@ -501,7 +491,7 @@ describe("EnvironmentDetailPage", () => {
       mockGetByPath({});
       const { container } = renderPage();
 
-      await screen.findByText("Production");
+      await screen.findByText("PROD");
       // The shell only emits its two-column grid when an `aside` is passed;
       // this page passes none, so the 400px rail must never appear at any
       // width. The Servers section's own responsive grid is unaffected.
@@ -522,7 +512,7 @@ describe("EnvironmentDetailPage", () => {
 
       renderPage();
 
-      expect(await screen.findByText("Production")).toBeInTheDocument();
+      expect(await screen.findByText("PROD")).toBeInTheDocument();
       expect(screen.getByText("Loading servers...")).toBeInTheDocument();
       // The shell's page-level loading state has resolved and must be gone.
       expect(screen.queryByText(/loading environment/i)).not.toBeInTheDocument();

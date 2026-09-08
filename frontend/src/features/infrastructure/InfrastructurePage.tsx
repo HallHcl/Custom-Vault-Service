@@ -1,46 +1,28 @@
 import { useEffect, useState } from "react";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { ProjectPicker } from "@/components/ProjectPicker";
 import { EmptyState } from "@/components/state/EmptyState";
 import { ErrorState } from "@/components/state/ErrorState";
 import { LoadingState } from "@/components/state/LoadingState";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { HOME_SEGMENT, useBreadcrumbs } from "@/components/layout/BreadcrumbsContext";
-import { useClients } from "@/hooks/useClients";
 import { useProjects } from "@/hooks/useProjects";
 import { useEnvironments } from "@/hooks/useEnvironments";
 import { useServers } from "@/hooks/useServers";
 import EnvironmentTabs from "./components/EnvironmentTabs";
-import ServerCard from "./components/ServerCard";
+import ServerTable from "./components/ServerTable";
 
 export default function InfrastructurePage() {
   useBreadcrumbs([HOME_SEGMENT, { label: "Infrastructure" }]);
-  const {
-    data: clients = [],
-    isLoading: clientsLoading,
-    isError: clientsIsError,
-    error: clientsError,
-    refetch: refetchClients,
-  } = useClients();
-  const [clientId, setClientId] = useState<string | undefined>(undefined);
 
-  useEffect(() => {
-    if (!clientId && clients.length > 0) setClientId(clients[0].id);
-  }, [clients, clientId]);
-
+  // The Client picker was removed with the hidden Client UI — the project
+  // list is no longer scoped to a client.
   const {
     data: projects = [],
     isLoading: projectsLoading,
     isError: projectsIsError,
     error: projectsError,
     refetch: refetchProjects,
-  } = useProjects(clientId);
+  } = useProjects();
   const [projectId, setProjectId] = useState<string | undefined>(undefined);
 
   useEffect(() => {
@@ -68,12 +50,11 @@ export default function InfrastructurePage() {
     refetch: refetchServers,
   } = useServers(environmentId);
 
-  const isLoading = clientsLoading || projectsLoading || environmentsLoading || serversLoading;
-  const isError = clientsIsError || projectsIsError || environmentsIsError || serversIsError;
-  const error = clientsError ?? projectsError ?? environmentsError ?? serversError;
+  const isLoading = projectsLoading || environmentsLoading || serversLoading;
+  const isError = projectsIsError || environmentsIsError || serversIsError;
+  const error = projectsError ?? environmentsError ?? serversError;
 
   function retry() {
-    refetchClients();
     refetchProjects();
     refetchEnvironments();
     refetchServers();
@@ -81,35 +62,17 @@ export default function InfrastructurePage() {
 
   return (
     <div className="space-y-6">
-      {/* flex-wrap + gap-3 overrides the default header wrapper via the
-          className prop — needed because two wide picker controls
-          (Client + Project) would overflow at narrow laptop widths. */}
       <PageHeader
         title="Infrastructure"
         className="flex flex-wrap items-center justify-between gap-3"
         actions={
-          <>
-            <Select value={clientId} onValueChange={setClientId}>
-              <SelectTrigger className="w-48" aria-label="Client">
-                <SelectValue placeholder="Client" />
-              </SelectTrigger>
-              <SelectContent>
-                {clients.map((c) => (
-                  <SelectItem key={c.id} value={c.id}>
-                    {c.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <ProjectPicker
-              value={projectId}
-              onChange={setProjectId}
-              clientId={clientId}
-              placeholder="Project"
-              className="w-48"
-              aria-label="Project"
-            />
-          </>
+          <ProjectPicker
+            value={projectId}
+            onChange={setProjectId}
+            placeholder="Project"
+            className="w-48"
+            aria-label="Project"
+          />
         }
       />
 
@@ -130,11 +93,7 @@ export default function InfrastructurePage() {
               {servers.length === 0 ? (
                 <EmptyState title="No servers found" message="No servers in this environment." />
               ) : (
-                <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                  {servers.map((server) => (
-                    <ServerCard key={server.id} server={server} />
-                  ))}
-                </div>
+                <ServerTable servers={servers} />
               )}
             </div>
           )}
