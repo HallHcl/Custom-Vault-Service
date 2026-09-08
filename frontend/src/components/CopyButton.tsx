@@ -13,9 +13,58 @@ interface Props {
 }
 
 /**
+ * Copies text to clipboard.
+ * Tries the modern Clipboard API first (works in HTTPS / localhost).
+ * Falls back to document.execCommand('copy') for non-secure HTTP contexts
+ * (e.g. accessing a server directly via LAN IP like http://192.168.1.85:5173).
+ */
+export async function writeTextToClipboard(text: string): Promise<boolean> {
+  // 1. Try modern Async Clipboard API first (secure contexts)
+  if (typeof navigator !== "undefined" && navigator.clipboard?.writeText) {
+    try {
+      await navigator.clipboard.writeText(text);
+      return true;
+    } catch {
+      // Failed (e.g. permission denied or insecure context in some browser versions).
+      // Fall through to execCommand fallback.
+    }
+  }
+
+  // 2. Fallback: document.execCommand('copy') via temporary textarea
+  if (typeof document !== "undefined") {
+    try {
+      const textArea = document.createElement("textarea");
+      textArea.value = text;
+      textArea.setAttribute("readonly", "");
+      textArea.style.position = "fixed";
+      textArea.style.top = "0";
+      textArea.style.left = "0";
+      textArea.style.width = "2em";
+      textArea.style.height = "2em";
+      textArea.style.padding = "0";
+      textArea.style.border = "none";
+      textArea.style.outline = "none";
+      textArea.style.boxShadow = "none";
+      textArea.style.background = "transparent";
+      textArea.style.opacity = "0";
+      document.body.appendChild(textArea);
+      textArea.focus();
+      textArea.select();
+      const successful = document.execCommand("copy");
+      document.body.removeChild(textArea);
+      return successful;
+    } catch {
+      return false;
+    }
+  }
+
+  return false;
+}
+
+/**
  * A small icon button that copies `value` to the clipboard and flips to a
- * check for ~1.5s. Falls back to a toast if the Clipboard API is unavailable
- * (insecure context, denied permission).
+ * check for ~1.5s. Supports both secure (HTTPS/localhost) and HTTP LAN contexts.
+ * Falls back to a toast if clipboard copying is completely unavailable.
  */
 export function CopyButton({ value, label = "value", className }: Props) {
   const [copied, setCopied] = useState(false);
@@ -24,13 +73,12 @@ export function CopyButton({ value, label = "value", className }: Props) {
   useEffect(() => () => clearTimeout(timer.current), []);
 
   async function handleCopy() {
-    try {
-      if (!navigator.clipboard?.writeText) throw new Error("Clipboard unavailable");
-      await navigator.clipboard.writeText(value);
+    const ok = await writeTextToClipboard(value);
+    if (ok) {
       setCopied(true);
       clearTimeout(timer.current);
       timer.current = setTimeout(() => setCopied(false), 1500);
-    } catch {
+    } else {
       toast({
         title: "Couldn't copy",
         description: `Copy the ${label} manually: ${value}`,
@@ -38,6 +86,7 @@ export function CopyButton({ value, label = "value", className }: Props) {
       });
     }
   }
+
 
   return (
     <Button
