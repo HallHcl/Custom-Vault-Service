@@ -57,9 +57,8 @@ describe("searchHitPath", () => {
 });
 
 describe("SEARCH_GROUPS", () => {
-  it("declares the four DELIVERY groups in render order", () => {
+  it("declares the DELIVERY groups in render order (clients hidden)", () => {
     expect(SEARCH_GROUPS.map((group) => group.key)).toEqual([
-      "clients",
       "projects",
       "environments",
       "servers",

@@ -2,8 +2,6 @@ import { Navigate, Route, Routes } from "react-router-dom";
 import AppLayout from "@/components/layout/AppLayout";
 import { RequireAuth } from "@/components/auth/RequireAuth";
 import LoginPage from "@/features/auth/LoginPage";
-import ClientsPage from "@/features/clients/ClientsPage";
-import ClientDetailPage from "@/features/clients/ClientDetailPage";
 import ProjectsPage from "@/features/projects/ProjectsPage";
 import ProjectDetailPage from "@/features/projects/ProjectDetailPage";
 import EnvironmentsPage from "@/features/environments/EnvironmentsPage";
@@ -31,8 +29,9 @@ export default function AppRoutes() {
       <Route path="/" element={<RequireAuth />}>
         <Route element={<AppLayout />}>
           <Route index element={<Navigate to="/overview" replace />} />
-          <Route path="clients" element={<ClientsPage />} />
-          <Route path="clients/:id" element={<ClientDetailPage />} />
+          {/* Client UI is hidden — any old /clients link lands on Overview. */}
+          <Route path="clients" element={<Navigate to="/overview" replace />} />
+          <Route path="clients/:id" element={<Navigate to="/overview" replace />} />
           <Route path="projects" element={<ProjectsPage />} />
           <Route path="projects/:id" element={<ProjectDetailPage />} />
           <Route path="environments" element={<EnvironmentsPage />} />

@@ -15,18 +15,15 @@ export default function ProjectDetailPage() {
   const { data: project, isLoading, isError, error, refetch } = useProject(id);
   const [formOpen, setFormOpen] = useState(false);
 
-  // Falls back to "Home > Clients > Projects" while loading, so the trail
-  // never shows a blank/placeholder segment.
+  // Client segments were dropped along with the hidden Client UI.
   useBreadcrumbs(
     project
       ? [
           HOME_SEGMENT,
-          { label: "Clients", href: "/clients" },
-          { label: project.client.name, href: `/clients/${project.client.id}` },
           { label: "Projects", href: "/projects" },
           { label: project.name },
         ]
-      : [HOME_SEGMENT, { label: "Clients", href: "/clients" }, { label: "Projects", href: "/projects" }]
+      : [HOME_SEGMENT, { label: "Projects", href: "/projects" }]
   );
 
   return (

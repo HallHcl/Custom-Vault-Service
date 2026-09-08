@@ -61,10 +61,10 @@ export default function CommandPalette({ open, onOpenChange }: CommandPalettePro
   return (
     <CommandDialog open={open} onOpenChange={onOpenChange}>
       <CommandInput
-        placeholder="Search clients, projects, environments, servers..."
+        placeholder="Search projects, environments, servers..."
         value={term}
         onValueChange={setTerm}
-        aria-label="Search clients, projects, environments and servers"
+        aria-label="Search projects, environments and servers"
       />
       <CommandList>
         {/* cmdk's own Empty only renders when it has zero items, which never
@@ -73,7 +73,7 @@ export default function CommandPalette({ open, onOpenChange }: CommandPalettePro
             explicitly instead. */}
         {!hasQuery && (
           <p className="py-8 text-center text-sm text-muted-foreground">
-            Start typing to search clients, projects, environments and servers.
+            Start typing to search projects, environments and servers.
           </p>
         )}
         {hasQuery && isLoading && (

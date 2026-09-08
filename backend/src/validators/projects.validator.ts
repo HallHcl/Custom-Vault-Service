@@ -1,7 +1,12 @@
 import { z } from "zod";
 
+// client_id is optional: the Client feature/UI is hidden (see nav-items.ts /
+// AppRoutes.tsx). The frontend no longer sends one, and the service falls
+// back to the default client. Kept in the schema (not removed) so the column
+// and the Clients API stay intact and this can be reversed by simply
+// un-hiding the UI — no migration needed.
 export const createProjectSchema = z.object({
-  client_id: z.string().uuid(),
+  client_id: z.string().uuid().optional(),
   name: z.string().min(1).max(200),
   description: z.string().optional(),
   owner_status: z.string().optional().default("active"),

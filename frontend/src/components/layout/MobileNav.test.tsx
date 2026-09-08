@@ -17,7 +17,7 @@ import {
 
 function renderMobileNav() {
   return render(
-    <MemoryRouter initialEntries={["/clients"]}>
+    <MemoryRouter initialEntries={["/projects"]}>
       <MobileNav />
     </MemoryRouter>
   );
@@ -113,6 +113,6 @@ describe("MobileNav", () => {
       .getAllByRole("link")
       .filter((link) => link.getAttribute("aria-current") === "page");
     expect(active).toHaveLength(1);
-    expect(active[0]).toHaveTextContent("Clients");
+    expect(active[0]).toHaveTextContent("Projects");
   });
 });

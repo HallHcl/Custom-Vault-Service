@@ -1,24 +1,6 @@
-import { useEffect, useState } from "react";
 import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import {
-  AlertTriangle,
   BookText,
-  Building2,
   CalendarClock,
-  CheckCircle2,
   FolderKanban,
   HardDrive,
   Layers,
@@ -29,52 +11,24 @@ import { HOME_SEGMENT, useBreadcrumbs } from "@/components/layout/BreadcrumbsCon
 import { MetricCard } from "@/components/MetricCard";
 import UrgentActionItems from "./UrgentActionItems";
 import CriticalExpirationsCard from "./CriticalExpirationsCard";
-import { useClients } from "@/hooks/useClients";
 import { useProjects } from "@/hooks/useProjects";
 import { useEnvironments } from "@/hooks/useEnvironments";
 import { useServers } from "@/hooks/useServers";
 import { useResources } from "@/hooks/useResources";
 import { useSchedules } from "@/hooks/useSchedules";
 import { useExpirationsSummary } from "@/hooks/useExpirations";
-import { cn } from "@/lib/utils";
-import { panelSurface } from "@/lib/panelSurface";
 
 export default function OverviewPage() {
   useBreadcrumbs([HOME_SEGMENT, { label: "Overview" }]);
-  const { data: clients = [] } = useClients();
-  const [clientId, setClientId] = useState<string | undefined>(undefined);
-
-  useEffect(() => {
-    if (!clientId && clients.length > 0) {
-      setClientId(clients[0].id);
-    }
-  }, [clients, clientId]);
-
-  const client = clients.find((c) => c.id === clientId);
-  const { data: projects = [] } = useProjects(clientId);
-  const clientExpirySummary = useExpirationsSummary(clientId);
-  const clientExpiringSoonCount = clientExpirySummary.data
-    ? (clientExpirySummary.data.critical_count ?? 0) +
-      (clientExpirySummary.data.warning_count ?? 0) +
-      (clientExpirySummary.data.expired_count ?? 0)
-    : 0;
 
   // System-wide KPI counts. Each is its own independent query asking for a
   // single row and reading `pagination.total` off it — the same trick
   // useChildCounts.ts uses per row, except this fires once per page load, not
   // once per visible row. Independent queries are the point: one failing
-  // endpoint greys out its own tile and leaves the other five intact.
+  // endpoint greys out its own tile and leaves the others intact.
   //
-  // These are separate cache entries from the pickers' own zero-arg calls
-  // above (`[KEY, {}]` vs `[KEY, { per_page: 1 }]`), so a tile costs one
-  // extra request rather than reusing the list — cheap, but not free.
-  //
-  // No "active"/"managed" qualifiers: Environments and Servers have no status
-  // concept in the data model (only `deleted_at`), and every hook already
-  // defaults to `deleted: "false"`, so these are non-deleted totals. Clients
-  // is a plain total for a different reason — GET /clients has no server-side
-  // `status` filter, so an active/inactive split isn't queryable at all.
-  const clientCount = useClients({ per_page: 1 });
+  // The per-client scoping card and the "Total Clients" tile were removed
+  // along with the hidden Client UI.
   const projectCount = useProjects(undefined, { per_page: 1 });
   const environmentCount = useEnvironments(undefined, { per_page: 1 });
   const serverCount = useServers(undefined, { per_page: 1 });
@@ -89,10 +43,8 @@ export default function OverviewPage() {
 
   // `to` carries any pre-applied filter as search params — the destination
   // page reads them back through usePagination's getParam, so the filter
-  // survives a refresh or a shared link. Only Pending Schedules and Expiring
-  // need one; the other five are unfiltered list views.
+  // survives a refresh or a shared link.
   const metrics = [
-    { label: "Total Clients", query: clientCount, icon: Building2, to: "/clients" },
     { label: "Total Projects", query: projectCount, icon: FolderKanban, to: "/projects" },
     { label: "Environments", query: environmentCount, icon: Layers, to: "/environments" },
     { label: "Servers", query: serverCount, icon: HardDrive, to: "/servers" },
@@ -123,11 +75,7 @@ export default function OverviewPage() {
 
       <CriticalExpirationsCard />
 
-      {/* 2 cols at 375px keeps each tile wide enough for a label like "Pending
-          Schedules" on two lines; 7 across at lg puts the whole system on one
-          row at laptop width without the tiles going narrower than their
-          longest label. */}
-      <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-7">
+      <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-6">
         {metrics.map(({ label, query, icon, to }) => (
           <MetricCard
             key={label}
@@ -140,81 +88,6 @@ export default function OverviewPage() {
           />
         ))}
       </div>
-
-      {client && (
-        <Card>
-          <CardHeader>
-            {/* The client picker lives here rather than in PageHeader's
-                actions slot: it scopes this card only, and sitting above the
-                KPI tiles it read as though it scoped those too (it doesn't). */}
-            <div className="flex flex-wrap items-center justify-between gap-2">
-              <div className="flex min-w-0 items-center gap-2">
-                <CardTitle className="truncate">{client.name}</CardTitle>
-                <Badge variant={client.status === "active" ? "success" : "neutral"}>
-                  {client.status}
-                </Badge>
-              </div>
-              <Select value={clientId} onValueChange={setClientId}>
-                <SelectTrigger className="w-64" aria-label="Client">
-                  <SelectValue placeholder="Select a client" />
-                </SelectTrigger>
-                <SelectContent>
-                  {clients.map((c) => (
-                    <SelectItem key={c.id} value={c.id}>
-                      {c.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <p className="text-sm text-muted-foreground">
-              {client.description ?? "No description provided."}
-            </p>
-
-            <div className="flex items-center gap-2 text-xs" data-testid="client-expiry-indicator">
-              {clientExpirySummary.isLoading ? (
-                <span className="text-muted-foreground">Checking expirations...</span>
-              ) : clientExpiringSoonCount > 0 ? (
-                <span className="flex items-center gap-1.5 font-medium text-warning-text">
-                  <AlertTriangle className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
-                  {clientExpiringSoonCount} {clientExpiringSoonCount === 1 ? "item" : "items"} expiring soon for this client
-                </span>
-              ) : (
-                <span className="flex items-center gap-1.5 text-muted-foreground">
-                  <CheckCircle2 className="h-3.5 w-3.5 shrink-0 text-success-text" aria-hidden="true" />
-                  No upcoming expirations
-                </span>
-              )}
-            </div>
-
-            <div>
-              <h3 className="mb-2 text-sm font-medium">Projects</h3>
-              {projects.length === 0 ? (
-                <p className="text-sm text-muted-foreground">No projects yet.</p>
-              ) : (
-                <ul className="space-y-2">
-                  {projects.map((project) => (
-                    <li
-                      key={project.id}
-                      className={cn(panelSurface(), "flex items-center justify-between p-3")}
-                    >
-                      <div>
-                        <p className="text-sm font-medium">{project.name}</p>
-                        <p className="text-xs text-muted-foreground">
-                          {project.description ?? "No description"}
-                        </p>
-                      </div>
-                      <Badge variant="outline">{project.owner_status}</Badge>
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </div>
-          </CardContent>
-        </Card>
-      )}
     </div>
   );
 }

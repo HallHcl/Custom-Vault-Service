@@ -102,7 +102,7 @@ describe("CommandPalette", () => {
     renderPalette(<CommandPalette open onOpenChange={() => {}} />);
 
     expect(
-      screen.getByText(/Start typing to search clients, projects/i)
+      screen.getByText(/Start typing to search projects/i)
     ).toBeInTheDocument();
     expect(getMock).not.toHaveBeenCalled();
   });
@@ -139,12 +139,14 @@ describe("CommandPalette", () => {
     renderPalette(<CommandPalette open onOpenChange={() => {}} />);
     await typeAndSettle("acme");
 
-    for (const heading of ["Clients", "Projects", "Environments", "Servers"]) {
+    for (const heading of ["Projects", "Environments", "Servers"]) {
       expect(await screen.findByText(heading)).toBeInTheDocument();
     }
+    // Clients are hidden from the palette even though the API returns them.
+    expect(screen.queryByText("Clients")).not.toBeInTheDocument();
 
-    const option = await findOptionFor("Acme Corp");
-    expect(within(option).getByText("active")).toBeInTheDocument();
+    const option = await findOptionFor("Atlas Migration");
+    expect(within(option).getByText("Acme Corp")).toBeInTheDocument();
     expect(optionFor("Web Node")).toHaveTextContent("10.77.0.42");
   });
 
@@ -173,26 +175,26 @@ describe("CommandPalette", () => {
   it("moves the selection with arrow keys, across group boundaries", async () => {
     renderPalette(<CommandPalette open onOpenChange={() => {}} />);
     const input = await typeAndSettle("a");
-    await findOptionFor("Acme Corp");
+    await findOptionFor("Atlas Migration");
 
     // cmdk selects the first item automatically.
-    expect(selectedOption()).toHaveTextContent("Acme Corp");
+    expect(selectedOption()).toHaveTextContent("Atlas Migration");
 
-    // Down from the last Clients item lands on the first Projects item —
+    // Down from the last Projects item lands on the first Environments item —
     // the group boundary must not stop traversal.
-    fireEvent.keyDown(input, { key: "ArrowDown" });
-    await waitFor(() => {
-      expect(selectedOption()).toHaveTextContent("Atlas Migration");
-    });
-
     fireEvent.keyDown(input, { key: "ArrowDown" });
     await waitFor(() => {
       expect(selectedOption()).toHaveTextContent("PROD");
     });
 
+    fireEvent.keyDown(input, { key: "ArrowDown" });
+    await waitFor(() => {
+      expect(selectedOption()).toHaveTextContent("Web Node");
+    });
+
     fireEvent.keyDown(input, { key: "ArrowUp" });
     await waitFor(() => {
-      expect(selectedOption()).toHaveTextContent("Atlas Migration");
+      expect(selectedOption()).toHaveTextContent("PROD");
     });
   });
 
@@ -200,13 +202,10 @@ describe("CommandPalette", () => {
     const onOpenChange = vi.fn();
     renderPalette(<CommandPalette open onOpenChange={onOpenChange} />);
     const input = await typeAndSettle("atlas");
-    await findOptionFor("Acme Corp");
+    await findOptionFor("Atlas Migration");
 
-    // Move to the project hit, then activate it.
-    fireEvent.keyDown(input, { key: "ArrowDown" });
-    await waitFor(() => {
-      expect(selectedOption()).toHaveTextContent("Atlas Migration");
-    });
+    // The first (project) hit is auto-selected; activate it.
+    expect(selectedOption()).toHaveTextContent("Atlas Migration");
     fireEvent.keyDown(input, { key: "Enter" });
 
     expect(await screen.findByText("Project detail page")).toBeInTheDocument();
@@ -216,11 +215,11 @@ describe("CommandPalette", () => {
   it("navigates on click as well as Enter", async () => {
     const onOpenChange = vi.fn();
     renderPalette(<CommandPalette open onOpenChange={onOpenChange} />);
-    await typeAndSettle("acme");
+    await typeAndSettle("atlas");
 
-    fireEvent.click(await findOptionFor("Acme Corp"));
+    fireEvent.click(await findOptionFor("Atlas Migration"));
 
-    expect(await screen.findByText("Clients list page")).toBeInTheDocument();
+    expect(await screen.findByText("Project detail page")).toBeInTheDocument();
     expect(onOpenChange).toHaveBeenCalledWith(false);
   });
 });

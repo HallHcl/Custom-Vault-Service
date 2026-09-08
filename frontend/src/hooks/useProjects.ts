@@ -61,7 +61,9 @@ export function useCreateProject() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: async (input: {
-      client_id: string;
+      // Optional: the Client UI is hidden and the backend attaches new
+      // projects to the default client when this is omitted.
+      client_id?: string;
       name: string;
       description?: string;
       owner_status?: string;

@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { MemoryRouter, Route, Routes, useLocation } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import OverviewPage from "./OverviewPage";
@@ -106,12 +106,11 @@ describe("OverviewPage metric tiles", () => {
     getMock.mockReset();
   });
 
-  it("renders all seven system-wide counts from pagination.total", async () => {
+  it("renders all system-wide counts from pagination.total", async () => {
     routeGet(ALL_OK);
     renderPage();
 
-    await waitFor(() => expect(tileValue("Total Clients")).toBe("2"));
-    expect(tileValue("Total Projects")).toBe("3");
+    await waitFor(() => expect(tileValue("Total Projects")).toBe("3"));
     expect(tileValue("Environments")).toBe("4");
     expect(tileValue("Servers")).toBe("5");
     expect(tileValue("Resources")).toBe("6");
@@ -136,10 +135,10 @@ describe("OverviewPage metric tiles", () => {
       )
     ).toBe(true);
 
-    // `some`, not the first matching call: /api/projects and /api/clients are
-    // each hit twice — once unpaginated by a picker, once with per_page 1 by
-    // its tile — and only the tile's call is being asserted here.
-    for (const path of ["/api/clients", "/api/projects", "/api/environments", "/api/servers", "/api/resources"]) {
+    // `some`, not the first matching call: /api/projects is hit twice — once
+    // unpaginated by a picker, once with per_page 1 by its tile — and only the
+    // tile's call is being asserted here.
+    for (const path of ["/api/projects", "/api/environments", "/api/servers", "/api/resources"]) {
       const calls = getMock.mock.calls.filter(([p]) => p === path);
       expect(calls.some(([, opts]) => opts.params.query.per_page === 1)).toBe(true);
     }
@@ -153,7 +152,6 @@ describe("OverviewPage metric tiles", () => {
     // a real count of zero servers.
     await waitFor(() => expect(tileValue("Servers")).toBe("—"));
 
-    expect(tileValue("Total Clients")).toBe("2");
     expect(tileValue("Total Projects")).toBe("3");
     expect(tileValue("Environments")).toBe("4");
     expect(tileValue("Resources")).toBe("6");
@@ -165,33 +163,6 @@ describe("OverviewPage metric tiles", () => {
     renderPage();
 
     await waitFor(() => expect(tileValue("Resources")).toBe("0"));
-  });
-});
-
-describe("OverviewPage client picker", () => {
-  beforeEach(() => {
-    getMock.mockReset();
-  });
-
-  it("lives in the client card's header, not the page header", async () => {
-    routeGet(ALL_OK);
-    renderPage();
-
-    const picker = await screen.findByLabelText("Client");
-
-    // PageHeader is now a bare title with no actions slot.
-    const heading = screen.getByRole("heading", { name: "Overview", level: 1 });
-    expect(heading.parentElement).not.toContainElement(picker);
-
-    // The picker sits alongside the client name and status badge. "Acme Corp"
-    // appears twice now (the CardTitle and the picker's own selected value);
-    // the CardTitle is the one carrying `truncate`.
-    const clientName = screen
-      .getAllByText("Acme Corp")
-      .find((el) => el.className.includes("truncate")) as HTMLElement;
-    const cardHeader = clientName.closest("div.p-6") as HTMLElement;
-    expect(cardHeader).toContainElement(picker);
-    expect(within(cardHeader).getByText("active")).toBeInTheDocument();
   });
 });
 
@@ -223,7 +194,6 @@ describe("OverviewPage metric tile navigation", () => {
   });
 
   it.each([
-    ["Total Clients", "/clients"],
     ["Total Projects", "/projects"],
     ["Environments", "/environments"],
     ["Servers", "/servers"],
@@ -259,7 +229,7 @@ describe("OverviewPage expirations integration", () => {
     getMock.mockReset();
   });
 
-  it("renders CriticalExpirationsCard and Client Inspector expiry indicator", async () => {
+  it("feeds the Expiring (30d) tile from the summary endpoint", async () => {
     routeGet(ALL_OK, {
       expired_count: 0,
       critical_count: 2,
@@ -268,26 +238,6 @@ describe("OverviewPage expirations integration", () => {
     });
     renderPage();
 
-    await waitFor(() =>
-      expect(screen.getByTestId("client-expiry-indicator")).toHaveTextContent(
-        /2 items expiring soon for this client/
-      )
-    );
-  });
-
-  it("shows all-clear in Client Inspector when no expirations are expiring", async () => {
-    routeGet(ALL_OK, {
-      expired_count: 0,
-      critical_count: 0,
-      warning_count: 0,
-      upcoming_count: 0,
-    });
-    renderPage();
-
-    await waitFor(() =>
-      expect(screen.getByTestId("client-expiry-indicator")).toHaveTextContent(
-        /no upcoming expirations/i
-      )
-    );
+    await waitFor(() => expect(tileValue("Expiring (30d)")).toBe("2"));
   });
 });

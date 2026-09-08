@@ -112,17 +112,41 @@ export async function createProject(
   actingPeopleId: string
 ): Promise<Project> {
   return withTransaction(async (tx) => {
-    const clientCheck = await tx.query(
-      `SELECT id FROM clients WHERE id = $1 AND deleted_at IS NULL`,
-      [input.client_id]
-    );
-    if (clientCheck.rows.length === 0) {
-      throw new ApiError(
-        400,
-        "client_id does not reference an existing client",
-        "VALIDATION_ERROR",
-        { field: "client_id" }
+    // The Client UI is hidden (nav-items.ts / AppRoutes.tsx). When the caller
+    // supplies a client_id it's still validated; when it doesn't, the project
+    // attaches to the default client — the oldest active one, or a freshly
+    // created "Default" if the table is empty. projects.client_id is NOT NULL
+    // in the schema, so a project always has *a* client even though the user
+    // never picks one.
+    let clientId = input.client_id;
+
+    if (clientId) {
+      const clientCheck = await tx.query(
+        `SELECT id FROM clients WHERE id = $1 AND deleted_at IS NULL`,
+        [clientId]
       );
+      if (clientCheck.rows.length === 0) {
+        throw new ApiError(
+          400,
+          "client_id does not reference an existing client",
+          "VALIDATION_ERROR",
+          { field: "client_id" }
+        );
+      }
+    } else {
+      const existing = await tx.query<{ id: string }>(
+        `SELECT id FROM clients WHERE deleted_at IS NULL ORDER BY created_at ASC LIMIT 1`
+      );
+      if (existing.rows.length > 0) {
+        clientId = existing.rows[0].id;
+      } else {
+        const created = await tx.query<{ id: string }>(
+          `INSERT INTO clients (name, status, description)
+           VALUES ('Default', 'active', 'Auto-created; the Client UI is hidden')
+           RETURNING id`
+        );
+        clientId = created.rows[0].id;
+      }
     }
 
     try {
@@ -130,7 +154,7 @@ export async function createProject(
         `INSERT INTO projects (client_id, name, description, owner_status)
          VALUES ($1, $2, $3, $4)
          RETURNING *`,
-        [input.client_id, input.name, input.description ?? null, input.owner_status]
+        [clientId, input.name, input.description ?? null, input.owner_status]
       );
       const created = result.rows[0];
       await logActivity("project", created.id, "create", actingPeopleId, null, created, tx);

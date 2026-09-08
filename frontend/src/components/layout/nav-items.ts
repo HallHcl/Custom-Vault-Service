@@ -1,7 +1,6 @@
 import {
   Activity,
   BookText,
-  Building2,
   CalendarClock,
   FolderKanban,
   HardDrive,
@@ -37,7 +36,8 @@ export const NAV_GROUPS: NavGroup[] = [
   {
     label: "Delivery",
     items: [
-      { to: "/clients", label: "Clients", icon: Building2 },
+      // Clients is intentionally hidden — projects auto-attach to a default
+      // client on the backend. Re-add this item to bring the feature back.
       { to: "/projects", label: "Projects", icon: FolderKanban },
       { to: "/environments", label: "Environments", icon: Layers },
       { to: "/servers", label: "Servers", icon: HardDrive },

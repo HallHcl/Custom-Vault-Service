@@ -37,7 +37,6 @@ import { InitialsAvatar } from "@/components/ui/initials-avatar";
 import { cn } from "@/lib/utils";
 import { toast } from "@/hooks/use-toast";
 import ProjectFormDialog from "./components/ProjectFormDialog";
-import { useClients } from "@/hooks/useClients";
 import {
   useDeleteProject,
   useProjects,
@@ -66,24 +65,6 @@ export default function ProjectsPage() {
     error,
     refetch,
   } = useProjects(undefined, pagination.params);
-
-  // The list endpoint returns bare client_id per row (no nested client name,
-  // unlike the single-record ProjectDetail response) — cross-reference the
-  // client picker's own list to resolve a display name, same as
-  // InfrastructurePage/OverviewPage already do for their own client pickers.
-  // Projects deliberately do NOT cascade-hide when their parent Client is
-  // soft-deleted (decisions.md #6) — the project row stays fully visible and
-  // functional here, so its Client column must still resolve a real name,
-  // not silently fall back to "—" just because that client is no longer
-  // active. Clients' `deleted` filter is boolean-only server-side, with no
-  // "all" mode (decisions.md #11) — a single deleted:"all" call isn't an
-  // option here — so active and deleted clients are fetched separately and
-  // merged into one lookup, both already-supported query shapes.
-  const { data: activeClients = [] } = useClients();
-  const { data: deletedClients = [] } = useClients({ deleted: "true" });
-  const clientNameById = new Map(
-    [...activeClients, ...deletedClients].map((c) => [c.id, c.name])
-  );
 
   const totalPages = pageInfo?.total_pages ?? 1;
 
@@ -215,7 +196,6 @@ export default function ProjectsPage() {
             <TableHeader>
               <TableRow>
                 <TableHead>Name</TableHead>
-                <TableHead>Client</TableHead>
                 <TableHead>Status</TableHead>
                 <TableHead>Description</TableHead>
                 <TableHead>Updated</TableHead>
@@ -257,9 +237,6 @@ export default function ProjectsPage() {
                           />
                         </div>
                       </div>
-                    </TableCell>
-                    <TableCell className="text-muted-foreground">
-                      {clientNameById.get(project.client_id) ?? "—"}
                     </TableCell>
                     <TableCell>
                       <Badge variant="outline">{project.owner_status}</Badge>

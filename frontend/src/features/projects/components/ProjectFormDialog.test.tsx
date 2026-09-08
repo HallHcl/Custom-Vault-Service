@@ -80,35 +80,24 @@ describe("ProjectFormDialog — create", () => {
     postMock.mockReset();
     patchMock.mockReset();
     toastMock.mockClear();
-    // The client picker (`useClients()`) hits GET /api/clients.
-    getMock.mockResolvedValue(ok({ data: [SAMPLE_CLIENT], pagination: { page: 1, per_page: 20, total: 1, total_pages: 1 } }));
   });
 
-  it("associates the Client label with its select trigger for screen readers", async () => {
-    renderDialog();
-    expect(await screen.findByLabelText("Client")).toHaveAttribute("role", "combobox");
-  });
-
-  it("blocks submit with client-side errors when name and client are empty", async () => {
+  it("blocks submit with a client-side error when name is empty", async () => {
     const { onOpenChange } = renderDialog();
 
     fireEvent.click(screen.getByRole("button", { name: /save/i }));
 
     expect(await screen.findByText("Name is required.")).toBeInTheDocument();
-    expect(screen.getByText("Client is required.")).toBeInTheDocument();
     expect(postMock).not.toHaveBeenCalled();
     expect(onOpenChange).not.toHaveBeenCalled();
   });
 
-  it("submits the mutation with the entered values (including client_id) and invalidates the projects query", async () => {
+  it("submits the mutation with the entered values (no client_id — Client UI is hidden) and invalidates the projects query", async () => {
     postMock.mockResolvedValue(created(SAMPLE_PROJECT));
     const { onOpenChange, invalidateSpy } = renderDialog();
 
     await screen.findByLabelText("Name");
     fireEvent.change(screen.getByLabelText("Name"), { target: { value: "New Project" } });
-
-    fireEvent.click(screen.getByRole("combobox"));
-    fireEvent.click(await screen.findByRole("option", { name: "Acme Corp" }));
 
     fireEvent.click(screen.getByRole("button", { name: /save/i }));
 
@@ -117,7 +106,8 @@ describe("ProjectFormDialog — create", () => {
     expect(postMock).toHaveBeenCalledTimes(1);
     const [path, options] = postMock.mock.calls[0];
     expect(path).toBe("/api/projects");
-    expect(options.body).toMatchObject({ name: "New Project", client_id: "c1" });
+    expect(options.body).toMatchObject({ name: "New Project" });
+    expect(options.body.client_id).toBeUndefined();
     expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ["projects"] });
     expect(toastMock).toHaveBeenCalledWith({ title: "Project created" });
   });
@@ -132,9 +122,6 @@ describe("ProjectFormDialog — create", () => {
     renderDialog();
 
     fireEvent.change(screen.getByLabelText("Name"), { target: { value: "x" } });
-
-    fireEvent.click(screen.getByRole("combobox"));
-    fireEvent.click(await screen.findByRole("option", { name: "Acme Corp" }));
 
     fireEvent.click(screen.getByRole("button", { name: /save/i }));
 
@@ -156,11 +143,6 @@ describe("ProjectFormDialog — edit", () => {
     patchMock.mockReset();
     toastMock.mockClear();
     getMock.mockImplementation((path: string) => {
-      if (path === "/api/clients") {
-        return Promise.resolve(
-          ok({ data: [SAMPLE_CLIENT], pagination: { page: 1, per_page: 20, total: 1, total_pages: 1 } })
-        );
-      }
       if (path === "/api/projects/{id}") {
         return Promise.resolve(ok(SAMPLE_PROJECT));
       }
@@ -168,28 +150,9 @@ describe("ProjectFormDialog — edit", () => {
     });
   });
 
-  it("pre-fills the form from the loaded record, with the client locked", () => {
+  it("pre-fills the form from the loaded record", () => {
     renderDialog(SAMPLE_PROJECT);
     expect(screen.getByLabelText("Name")).toHaveValue("Migration");
-    expect(screen.getByText("A project's client can't be changed after creation.")).toBeInTheDocument();
-  });
-
-  it("resolves the client's real name in the locked field even when that client has since been soft-deleted (projects don't cascade-hide — decisions.md #6)", async () => {
-    const DELETED_CLIENT: Client = { ...SAMPLE_CLIENT, id: "c-orphan", name: "Orphan Test Client", deleted_at: "2026-01-10T00:00:00.000Z" };
-    getMock.mockImplementation((path: string) => {
-      if (path === "/api/clients") {
-        return Promise.resolve(
-          ok({ data: [DELETED_CLIENT], pagination: { page: 1, per_page: 20, total: 1, total_pages: 1 } })
-        );
-      }
-      if (path === "/api/projects/{id}") {
-        return Promise.resolve(ok({ ...SAMPLE_PROJECT, client_id: "c-orphan" }));
-      }
-      throw new Error(`Unexpected path: ${path}`);
-    });
-
-    renderDialog({ ...SAMPLE_PROJECT, client_id: "c-orphan" });
-    await waitFor(() => expect(screen.getByLabelText("Client")).toHaveValue("Orphan Test Client"));
   });
 
   it("sends updated_at from the loaded record in the PATCH body, without client_id", async () => {

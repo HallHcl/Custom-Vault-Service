@@ -18,7 +18,8 @@ export const SEARCH_GROUPS: {
   key: keyof Omit<SearchResults, "total">;
   label: string;
 }[] = [
-  { key: "clients", label: "Clients" },
+  // "clients" is intentionally omitted — the Client UI is hidden, so client
+  // hits are not surfaced in the palette even though the API still returns them.
   { key: "projects", label: "Projects" },
   { key: "environments", label: "Environments" },
   { key: "servers", label: "Servers" },

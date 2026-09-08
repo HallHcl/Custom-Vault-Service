@@ -13,17 +13,9 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { OptionalLabel } from "@/components/ui/optional-label";
 import { Textarea } from "@/components/ui/textarea";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { ConflictState } from "@/components/state/ConflictState";
 import { ApiError, apiErrorMessage } from "@/api/errors";
 import { toast } from "@/hooks/use-toast";
-import { useClients } from "@/hooks/useClients";
 import { useProject, useCreateProject, useUpdateProject } from "@/hooks/useProjects";
 import { useConflictResolution } from "@/hooks/useConflictResolution";
 import type { Project } from "@/types";
@@ -36,7 +28,6 @@ interface ProjectInput {
 
 interface FieldErrors {
   name?: string;
-  client_id?: string;
   description?: string;
   owner_status?: string;
 }
@@ -46,7 +37,7 @@ interface ValidationDetails {
   fieldErrors?: Record<string, string[]>;
 }
 
-const EDITABLE_FIELDS = ["name", "client_id", "description", "owner_status"] as const;
+const EDITABLE_FIELDS = ["name", "description", "owner_status"] as const;
 
 // Projects have a duplicate-name 409, like Clients, but scoped to
 // (client_id, name) rather than global (confirmed against
@@ -66,16 +57,8 @@ interface Props {
 
 export default function ProjectFormDialog({ open, onOpenChange, project }: Props) {
   const isEdit = Boolean(project);
-  // Create mode's picker only ever offers active clients (the backend
-  // requires an active client_id on create — projects.service.ts's
-  // createProject rejects a deleted one with a 400), but edit mode's
-  // read-only display must still resolve a name for a project whose client
-  // has since been soft-deleted (projects don't cascade-hide when their
-  // client does — decisions.md #6) — a separate deleted:"true" fetch covers
-  // that, since Clients' `deleted` filter has no "all" mode (decisions.md #11).
-  const { data: activeClients = [] } = useClients();
-  const { data: deletedClients = [] } = useClients({ deleted: "true" });
-  const clients = isEdit ? [...activeClients, ...deletedClients] : activeClients;
+  // Client selection was removed with the hidden Client UI — the backend
+  // attaches new projects to the default client automatically.
   const createProject = useCreateProject();
   const updateProject = useUpdateProject();
   // Gated on `open` so this unsubscribes once the dialog closes — otherwise
@@ -87,7 +70,6 @@ export default function ProjectFormDialog({ open, onOpenChange, project }: Props
   const { conflict: conflictInfo, isConflict, captureConflict, clearConflict } = useConflictResolution();
 
   const [name, setName] = useState("");
-  const [clientId, setClientId] = useState<string | undefined>(undefined);
   const [description, setDescription] = useState("");
   const [ownerStatus, setOwnerStatus] = useState("active");
   const [updatedAt, setUpdatedAt] = useState<string | undefined>(undefined);
@@ -100,13 +82,11 @@ export default function ProjectFormDialog({ open, onOpenChange, project }: Props
     if (!open) return;
     if (project) {
       setName(project.name);
-      setClientId(project.client_id);
       setDescription(project.description ?? "");
       setOwnerStatus(project.owner_status);
       setUpdatedAt(project.updated_at);
     } else {
       setName("");
-      setClientId(undefined);
       setDescription("");
       setOwnerStatus("active");
       setUpdatedAt(undefined);
@@ -133,8 +113,8 @@ export default function ProjectFormDialog({ open, onOpenChange, project }: Props
         data: { ...input, updated_at: updatedAt ?? project.updated_at },
       });
     } else {
-      if (!clientId) return;
-      await createProject.mutateAsync({ ...input, client_id: clientId });
+      // No client_id — the backend attaches the default client.
+      await createProject.mutateAsync(input);
     }
   }
 
@@ -196,9 +176,6 @@ export default function ProjectFormDialog({ open, onOpenChange, project }: Props
     if (!input.name) {
       nextErrors.name = "Name is required.";
     }
-    if (!isEdit && !clientId) {
-      nextErrors.client_id = "Client is required.";
-    }
     if (Object.keys(nextErrors).length > 0) {
       setFieldErrors(nextErrors);
       return;
@@ -256,7 +233,7 @@ export default function ProjectFormDialog({ open, onOpenChange, project }: Props
         <DialogHeader>
           <DialogTitle>{isEdit ? "Edit project" : "New project"}</DialogTitle>
           <DialogDescription>
-            {isEdit ? "Update this project's details." : "Add a new project for a client."}
+            {isEdit ? "Update this project's details." : "Add a new project."}
           </DialogDescription>
         </DialogHeader>
 
@@ -276,39 +253,6 @@ export default function ProjectFormDialog({ open, onOpenChange, project }: Props
               <Label htmlFor="name">Name</Label>
               <Input id="name" value={name} onChange={(e) => setName(e.target.value)} required />
               {fieldErrors.name && <p className="text-xs text-danger">{fieldErrors.name}</p>}
-            </div>
-
-            <div className="space-y-1">
-              <Label htmlFor="client">Client</Label>
-              {isEdit ? (
-                <Input
-                  id="client"
-                  value={clients.find((c) => c.id === clientId)?.name ?? "—"}
-                  disabled
-                  readOnly
-                />
-              ) : (
-                <Select value={clientId} onValueChange={setClientId}>
-                  <SelectTrigger id="client">
-                    <SelectValue placeholder="Select a client" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {clients.map((c) => (
-                      <SelectItem key={c.id} value={c.id}>
-                        {c.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              )}
-              {fieldErrors.client_id && (
-                <p className="text-xs text-danger">{fieldErrors.client_id}</p>
-              )}
-              {isEdit && (
-                <p className="text-xs text-muted-foreground">
-                  A project's client can't be changed after creation.
-                </p>
-              )}
             </div>
 
             <div className="space-y-1">
