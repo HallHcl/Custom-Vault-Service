@@ -9,6 +9,7 @@ export type ServerColumnType =
   | "username"
   | "password"
   | "service_type"
+  | "access_method"
   | "notes"
   | "ignore";
 
@@ -25,11 +26,13 @@ export interface ParsedServerRow {
   username?: string;
   password?: string;
   service_type?: string;
+  access_method?: "ssh" | "rdp" | "telnet" | "web" | "other";
   notes?: string;
   rawColumns: string[];
   isValid: boolean;
   errors: string[];
 }
+
 
 const IPV4_REGEX = /^(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$/;
 
@@ -177,6 +180,8 @@ export function detectColumnMappings(rows: string[][], hasHeader: boolean): Colu
         detectedType = "password";
       } else if (/^(service[-_\s]?type|service|type|ประเภท)$/i.test(hLower)) {
         detectedType = "service_type";
+      } else if (/^(access[-_\s]?method|connection|conn|protocol|method|การเชื่อมต่อ)$/i.test(hLower)) {
+        detectedType = "access_method";
       } else {
         // Any other column (e.g. Spec, OS, CPU, RAM, Remarks) defaults to notes
         detectedType = "notes";
@@ -203,7 +208,6 @@ export function detectColumnMappings(rows: string[][], hasHeader: boolean): Colu
       assignedTypes.add(detectedType);
     }
 
-
     mappings.push({
       index: c,
       headerName: header || `Column ${c + 1}`,
@@ -215,7 +219,7 @@ export function detectColumnMappings(rows: string[][], hasHeader: boolean): Colu
   if (!mappings.some((m) => m.type === "hostname") && mappings.length > 0) {
     // Pick the first column that isn't IP, Username, or Password
     const candidate = mappings.find(
-      (m) => m.type !== "ip_address" && m.type !== "username" && m.type !== "password"
+      (m) => m.type !== "ip_address" && m.type !== "username" && m.type !== "password" && m.type !== "access_method"
     );
     if (candidate) {
       candidate.type = "hostname";
@@ -235,7 +239,8 @@ export function buildParsedServers(
   rows: string[][],
   mappings: ColumnMapping[],
   hasHeader: boolean,
-  defaultServiceType?: string
+  defaultServiceType?: string,
+  defaultAccessMethod?: "ssh" | "rdp" | "telnet" | "web" | "other"
 ): ParsedServerRow[] {
   const dataRows = hasHeader ? rows.slice(1) : rows;
 
@@ -245,6 +250,7 @@ export function buildParsedServers(
     let username: string | undefined;
     let password: string | undefined;
     let service_type: string | undefined = defaultServiceType?.trim() || undefined;
+    let access_method: "ssh" | "rdp" | "telnet" | "web" | "other" | undefined = defaultAccessMethod;
     const noteEntries: string[] = [];
 
     mappings.forEach((m) => {
@@ -267,6 +273,15 @@ export function buildParsedServers(
         case "service_type":
           service_type = val;
           break;
+        case "access_method": {
+          const lower = val.toLowerCase();
+          if (lower.includes("ssh")) access_method = "ssh";
+          else if (lower.includes("rdp") || lower.includes("remote")) access_method = "rdp";
+          else if (lower.includes("telnet")) access_method = "telnet";
+          else if (lower.includes("web") || lower.includes("http")) access_method = "web";
+          else access_method = "other";
+          break;
+        }
         case "notes": {
           const prefix = m.headerName && !m.headerName.startsWith("Column ") ? `${m.headerName}: ` : "";
           noteEntries.push(`${prefix}${val}`);
@@ -292,6 +307,7 @@ export function buildParsedServers(
       username,
       password,
       service_type,
+      access_method,
       notes: noteEntries.length > 0 ? noteEntries.join("\n") : undefined,
       rawColumns: row,
       isValid: errors.length === 0,

@@ -23,14 +23,15 @@ import { Label } from "@/components/ui/label";
 import { toast } from "@/hooks/use-toast";
 import { useProjects } from "@/hooks/useProjects";
 import { useEnvironments } from "@/hooks/useEnvironments";
-import { useCreateServer } from "@/hooks/useServers";
-import { ServiceTypeCombobox } from "@/components/ServiceTypeCombobox";
+import { useCreateServer, useServiceTypes } from "@/hooks/useServers";
+import { ServiceTypeCombobox, COMMON_SERVICE_TYPES } from "@/components/ServiceTypeCombobox";
 import {
   parseTsv,
   isHeaderRow,
   detectColumnMappings,
   buildParsedServers,
   type ColumnMapping,
+  type ParsedServerRow,
   type ServerColumnType,
 } from "../utils/excelParser";
 
@@ -48,6 +49,7 @@ const COLUMN_OPTIONS: { value: ServerColumnType; label: string }[] = [
   { value: "username", label: "Username" },
   { value: "password", label: "Password" },
   { value: "service_type", label: "Service Type" },
+  { value: "access_method", label: "Connection (SSH/RDP...)" },
   { value: "notes", label: "Include in Notes" },
   { value: "ignore", label: "Ignore" },
 ];
@@ -71,6 +73,15 @@ export function ServerImportDialog({
 
   const [isImporting, setIsImporting] = useState(false);
   const [progress, setProgress] = useState<{ current: number; total: number } | null>(null);
+
+  const { data: serviceTypesList = [] } = useServiceTypes();
+
+  interface RowOverride {
+    service_type?: string;
+    access_method?: "ssh" | "rdp" | "telnet" | "web" | "other" | "none";
+  }
+
+  const [rowOverrides, setRowOverrides] = useState<Record<number, RowOverride>>({});
 
   const createServer = useCreateServer();
 
@@ -100,6 +111,7 @@ export function ServerImportDialog({
   useEffect(() => {
     if (parsedRows.length === 0) {
       setMappings([]);
+      setRowOverrides({});
       return;
     }
     const detectedHeader = isHeaderRow(parsedRows[0]);
@@ -125,8 +137,49 @@ export function ServerImportDialog({
   // Build the live preview of server records
   const serverPreviews = useMemo(() => {
     if (parsedRows.length === 0 || mappings.length === 0) return [];
-    return buildParsedServers(parsedRows, mappings, hasHeader, defaultServiceType);
-  }, [parsedRows, mappings, hasHeader, defaultServiceType]);
+    return buildParsedServers(parsedRows, mappings, hasHeader, defaultServiceType, defaultAccessMethod);
+  }, [parsedRows, mappings, hasHeader, defaultServiceType, defaultAccessMethod]);
+
+  function getEffectiveServiceType(row: ParsedServerRow): string {
+    const override = rowOverrides[row.index];
+    if (override?.service_type !== undefined) {
+      return override.service_type;
+    }
+    return row.service_type || defaultServiceType || "";
+  }
+
+  function getEffectiveAccessMethod(
+    row: ParsedServerRow
+  ): "ssh" | "rdp" | "telnet" | "web" | "other" | undefined {
+    const override = rowOverrides[row.index];
+    if (override?.access_method !== undefined) {
+      return override.access_method === "none" ? undefined : override.access_method;
+    }
+    return row.access_method ?? defaultAccessMethod;
+  }
+
+  // Dynamic service types list combining database records, presets, and any custom values entered in the table
+  const dynamicServiceTypes = useMemo(() => {
+    const set = new Set<string>();
+    if (Array.isArray(serviceTypesList)) {
+      serviceTypesList.forEach((t) => set.add(t));
+    }
+    COMMON_SERVICE_TYPES.forEach((t) => set.add(t));
+    if (defaultServiceType?.trim()) {
+      set.add(defaultServiceType.trim());
+    }
+    Object.values(rowOverrides).forEach((o) => {
+      if (o.service_type?.trim()) {
+        set.add(o.service_type.trim());
+      }
+    });
+    serverPreviews.forEach((s) => {
+      if (s.service_type?.trim()) {
+        set.add(s.service_type.trim());
+      }
+    });
+    return Array.from(set);
+  }, [serviceTypesList, defaultServiceType, rowOverrides, serverPreviews]);
 
   const validServers = useMemo(
     () => serverPreviews.filter((s) => s.isValid),
@@ -137,6 +190,7 @@ export function ServerImportDialog({
   function handleReset() {
     setRawText("");
     setMappings([]);
+    setRowOverrides({});
     setProgress(null);
     setIsImporting(false);
   }
@@ -166,6 +220,8 @@ export function ServerImportDialog({
 
     for (let i = 0; i < validServers.length; i++) {
       const row = validServers[i];
+      const effServiceType = getEffectiveServiceType(row).trim() || undefined;
+      const effAccessMethod = getEffectiveAccessMethod(row);
       setProgress({ current: i + 1, total: validServers.length });
 
       try {
@@ -176,8 +232,8 @@ export function ServerImportDialog({
           ip_address: row.ip_address,
           username: row.username,
           password: row.password,
-          service_type: row.service_type || defaultServiceType,
-          access_method: defaultAccessMethod,
+          service_type: effServiceType,
+          access_method: effAccessMethod,
           notes: row.notes,
         });
         successCount++;
@@ -212,7 +268,7 @@ export function ServerImportDialog({
 
   return (
     <Dialog open={open} onOpenChange={(v) => !isImporting && onOpenChange(v)}>
-      <DialogContent className="max-w-4xl max-h-[90vh] flex flex-col p-6 overflow-hidden">
+      <DialogContent className="max-w-5xl max-h-[90vh] flex flex-col p-6 overflow-hidden">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2 text-lg">
             <FileSpreadsheet className="h-5 w-5 text-primary" />
@@ -386,7 +442,7 @@ export function ServerImportDialog({
           {/* Preview Table */}
           {serverPreviews.length > 0 && (
             <div className="space-y-2">
-              <div className="flex items-center justify-between">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1">
                 <div className="text-sm font-medium flex items-center gap-2">
                   <span>Preview ({serverPreviews.length} servers detected)</span>
                   {invalidCount > 0 ? (
@@ -400,53 +456,100 @@ export function ServerImportDialog({
                     </Badge>
                   )}
                 </div>
+                <span className="text-[11px] text-muted-foreground">
+                  💡 พิมพ์ชื่อ Service Type (เช่น Zabbix) ได้ทันที หรือคลิกลูกศรเพื่อเลือก | ระบบจะบันทึกให้อัตโนมัติเมื่อกด Import
+                </span>
               </div>
 
-              <div className="border rounded-md max-h-56 overflow-y-auto">
+              <div className="border rounded-md max-h-60 overflow-y-auto overflow-x-auto">
                 <Table>
                   <TableHeader>
                     <TableRow>
-                      <TableHead className="w-10">#</TableHead>
-                      <TableHead>Hostname</TableHead>
-                      <TableHead>IP Address</TableHead>
-                      <TableHead>Username</TableHead>
-                      <TableHead>Password</TableHead>
-                      <TableHead>Service Type</TableHead>
-                      <TableHead>Notes (Aggregated)</TableHead>
+                      <TableHead className="w-8 text-center">#</TableHead>
+                      <TableHead className="min-w-[120px]">Hostname</TableHead>
+                      <TableHead className="min-w-[105px]">IP Address</TableHead>
+                      <TableHead className="min-w-[90px]">Username</TableHead>
+                      <TableHead className="min-w-[75px]">Password</TableHead>
+                      <TableHead className="min-w-[145px]">Service Type</TableHead>
+                      <TableHead className="min-w-[110px]">Connection</TableHead>
+                      <TableHead className="min-w-[150px]">Notes (Aggregated)</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {serverPreviews.map((row) => (
-                      <TableRow key={row.index} className={!row.isValid ? "bg-destructive/10" : undefined}>
-                        <TableCell className="text-xs text-muted-foreground font-mono">{row.index}</TableCell>
-                        <TableCell className="text-xs font-medium">
-                          {row.hostname ? (
-                            row.hostname
-                          ) : (
-                            <span className="text-destructive flex items-center gap-1">
-                              <AlertCircle className="h-3 w-3" /> Missing
-                            </span>
-                          )}
-                        </TableCell>
-                        <TableCell className="text-xs font-mono">{row.ip_address || "—"}</TableCell>
-                        <TableCell className="text-xs font-mono">{row.username || "—"}</TableCell>
-                        <TableCell className="text-xs font-mono">
-                          {row.password ? "••••••" : "—"}
-                        </TableCell>
-                        <TableCell className="text-xs">
-                          {row.service_type || defaultServiceType ? (
-                            <Badge variant="secondary" className="text-[10px]">
-                              {row.service_type || defaultServiceType}
-                            </Badge>
-                          ) : (
-                            "—"
-                          )}
-                        </TableCell>
-                        <TableCell className="text-xs max-w-[200px] truncate text-muted-foreground font-mono" title={row.notes}>
-                          {row.notes || "—"}
-                        </TableCell>
-                      </TableRow>
-                    ))}
+                    {serverPreviews.map((row) => {
+                      const effService = getEffectiveServiceType(row);
+                      const effConn = getEffectiveAccessMethod(row);
+                      return (
+                        <TableRow key={row.index} className={!row.isValid ? "bg-destructive/10" : undefined}>
+                          <TableCell className="text-xs text-muted-foreground font-mono text-center">
+                            {row.index}
+                          </TableCell>
+                          <TableCell className="text-xs font-medium">
+                            {row.hostname ? (
+                              row.hostname
+                            ) : (
+                              <span className="text-destructive flex items-center gap-1">
+                                <AlertCircle className="h-3 w-3" /> Missing
+                              </span>
+                            )}
+                          </TableCell>
+                          <TableCell className="text-xs font-mono">{row.ip_address || "—"}</TableCell>
+                          <TableCell className="text-xs font-mono">{row.username || "—"}</TableCell>
+                          <TableCell className="text-xs font-mono">
+                            {row.password ? "••••••" : "—"}
+                          </TableCell>
+                          <TableCell className="p-1 min-w-[150px]">
+                            <ServiceTypeCombobox
+                              value={effService || undefined}
+                              onChange={(val) => {
+                                setRowOverrides((prev) => ({
+                                  ...prev,
+                                  [row.index]: { ...prev[row.index], service_type: val ?? "" },
+                                }));
+                              }}
+                              placeholder="Select or type..."
+                              disabled={isImporting}
+                              aria-label={`Service type for ${row.hostname || `server ${row.index}`}`}
+                              className="h-8 text-xs px-2 py-1"
+                              extraOptions={dynamicServiceTypes}
+                            />
+                          </TableCell>
+                          <TableCell className="p-1">
+                            <Select
+                              value={effConn ?? "none"}
+                              onValueChange={(v) => {
+                                setRowOverrides((prev) => ({
+                                  ...prev,
+                                  [row.index]: {
+                                    ...prev[row.index],
+                                    access_method: v as "ssh" | "rdp" | "telnet" | "web" | "other" | "none",
+                                  },
+                                }));
+                              }}
+                              disabled={isImporting}
+                            >
+                              <SelectTrigger
+                                className="h-7 text-xs px-2 py-1"
+                                aria-label={`Connection for ${row.hostname || `server ${row.index}`}`}
+                              >
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="ssh" className="text-xs">SSH</SelectItem>
+                                <SelectItem value="rdp" className="text-xs">RDP</SelectItem>
+                                <SelectItem value="web" className="text-xs">Web</SelectItem>
+                                <SelectItem value="telnet" className="text-xs">Telnet</SelectItem>
+                                <SelectItem value="other" className="text-xs">Other</SelectItem>
+                                <SelectItem value="none" className="text-xs text-muted-foreground">None</SelectItem>
+                              </SelectContent>
+                            </Select>
+                          </TableCell>
+                          <TableCell className="text-xs max-w-[200px] truncate text-muted-foreground font-mono" title={row.notes}>
+                            {row.notes || "—"}
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })}
                   </TableBody>
                 </Table>
               </div>

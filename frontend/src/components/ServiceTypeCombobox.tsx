@@ -25,10 +25,26 @@ export interface ServiceTypeComboboxProps {
   placeholder?: string;
   disabled?: boolean;
   className?: string;
+  popoverClassName?: string;
+  extraOptions?: string[];
   "aria-label"?: string;
   "aria-invalid"?: boolean;
   "aria-describedby"?: string;
 }
+
+export const COMMON_SERVICE_TYPES = [
+  "Application",
+  "Database",
+  "Web",
+  "Monitoring",
+  "Cache",
+  "Storage",
+  "Queue",
+  "Load Balancer",
+  "CI/CD",
+  "Security",
+  "Network",
+];
 
 export function ServiceTypeCombobox({
   id,
@@ -37,6 +53,8 @@ export function ServiceTypeCombobox({
   placeholder = "Select or type...",
   disabled = false,
   className,
+  popoverClassName,
+  extraOptions,
   "aria-label": ariaLabel,
   "aria-invalid": ariaInvalid,
   "aria-describedby": ariaDescribedby,
@@ -46,14 +64,25 @@ export function ServiceTypeCombobox({
 
   const { data: fetchedTypes = [] } = useServiceTypes();
 
-  // Combine fetched types with current value if not already in the list
+  // Combine fetched types with current value, extraOptions, and common presets
   const allTypes = React.useMemo(() => {
-    const list = [...fetchedTypes];
-    if (value && !list.some((t) => t.toLowerCase() === value.toLowerCase())) {
-      list.push(value);
+    const set = new Set<string>();
+    if (Array.isArray(fetchedTypes)) {
+      fetchedTypes.forEach((t) => set.add(t));
     }
-    return list;
-  }, [fetchedTypes, value]);
+    if (Array.isArray(extraOptions)) {
+      extraOptions.forEach((t) => {
+        if (t?.trim()) set.add(t.trim());
+      });
+    }
+    if (value?.trim()) set.add(value.trim());
+    COMMON_SERVICE_TYPES.forEach((t) => {
+      if (!Array.from(set).some((item) => item.toLowerCase() === t.toLowerCase())) {
+        set.add(t);
+      }
+    });
+    return Array.from(set);
+  }, [fetchedTypes, extraOptions, value]);
 
   const trimmedSearch = search.trim();
   const hasExactMatch = React.useMemo(() => {
@@ -99,7 +128,10 @@ export function ServiceTypeCombobox({
       </PopoverTrigger>
       <PopoverContent
         align="start"
-        className="w-[--radix-popover-trigger-width] p-0 shadow-elev-2"
+        className={cn(
+          "w-[--radix-popover-trigger-width] min-w-[200px] p-0 shadow-elev-2",
+          popoverClassName
+        )}
       >
         <Command shouldFilter={false} className="w-full">
           <CommandInput

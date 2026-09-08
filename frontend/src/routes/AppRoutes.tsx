@@ -9,6 +9,7 @@ import EnvironmentDetailPage from "@/features/environments/EnvironmentDetailPage
 import ServersPage from "@/features/servers/ServersPage";
 import ServerDetailPage from "@/features/servers/ServerDetailPage";
 import ServerFormPage from "@/features/servers/ServerFormPage";
+import ServerImportPage from "@/features/servers/ServerImportPage";
 import OverviewPage from "@/features/overview/OverviewPage";
 import InfrastructurePage from "@/features/infrastructure/InfrastructurePage";
 import ResourcesPage from "@/features/resources/ResourcesPage";
@@ -38,12 +39,14 @@ export default function AppRoutes() {
           <Route path="environments/:id" element={<EnvironmentDetailPage />} />
           <Route path="servers" element={<ServersPage />} />
           <Route path="servers/new" element={<ServerFormPage mode="create" />} />
+          <Route path="servers/import" element={<ServerImportPage />} />
           <Route path="servers/:id" element={<ServerDetailPage />} />
           <Route path="servers/:id/edit" element={<ServerFormPage mode="edit" />} />
           <Route path="overview" element={<OverviewPage />} />
           <Route path="infrastructure" element={<InfrastructurePage />} />
           <Route path="resources" element={<ResourcesPage />} />
           <Route path="resources/new" element={<ResourceFormPage mode="create" />} />
+          <Route path="resources/:id" element={<ResourcesPage />} />
           <Route path="resources/:id/new-version" element={<ResourceFormPage mode="new-version" />} />
           <Route path="people" element={<PeoplePage />} />
           <Route path="schedule" element={<SchedulePage />} />

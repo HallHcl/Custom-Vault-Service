@@ -98,4 +98,21 @@ describe("excelParser", () => {
     expect(parsed[0].isValid).toBe(false);
     expect(parsed[0].errors).toContain("Missing hostname");
   });
+
+  it("detects and maps access_method / connection column properly", () => {
+    const rows = [
+      ["Hostname", "IP Address", "Connection", "Service"],
+      ["srv-ssh-01", "10.0.0.1", "SSH", "Database"],
+      ["srv-rdp-01", "10.0.0.2", "Remote Desktop", "Windows"],
+    ];
+    const mappings = detectColumnMappings(rows, true);
+    expect(mappings.find((m) => m.type === "access_method")?.index).toBe(2);
+    expect(mappings.find((m) => m.type === "service_type")?.index).toBe(3);
+
+    const parsed = buildParsedServers(rows, mappings, true);
+    expect(parsed[0].access_method).toBe("ssh");
+    expect(parsed[0].service_type).toBe("Database");
+    expect(parsed[1].access_method).toBe("rdp");
+    expect(parsed[1].service_type).toBe("Windows");
+  });
 });

@@ -264,7 +264,7 @@ describe("ServersPage", () => {
       expect(navigateMock).toHaveBeenCalledWith("/servers/new");
     });
 
-    it("shows Import from Excel button and opens import dialog on click", async () => {
+    it("shows Import from Excel button and navigates to /servers/import on click", async () => {
       useAuthMock.mockReturnValue({ roles: ["member"], isLoading: false });
       mockGetByPath({ servers: okResult([SAMPLE_SERVER]), environments: okResult([SAMPLE_ENVIRONMENT]) });
       renderPage();
@@ -274,7 +274,7 @@ describe("ServersPage", () => {
       expect(importBtn).toBeInTheDocument();
       fireEvent.click(importBtn);
 
-      expect(await screen.findByText(/Import servers from Excel \/ Spreadsheet/i)).toBeInTheDocument();
+      expect(navigateMock).toHaveBeenCalledWith("/servers/import");
     });
 
 
