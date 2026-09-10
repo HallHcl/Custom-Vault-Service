@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import type { FormEvent } from "react";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
+import { useQueryClient } from "@tanstack/react-query";
 import { ArrowLeft, FileUp } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
@@ -59,6 +60,7 @@ export default function ResourceFormPage({ mode: modeProp }: ResourceFormPagePro
   const navigate = useNavigate();
   const params = useParams<{ id: string }>();
   const [searchParams] = useSearchParams();
+  const queryClient = useQueryClient();
 
   const mode = modeProp ?? (params.id ? "new-version" : "create");
   const isNewVersion = mode === "new-version";
@@ -195,6 +197,39 @@ export default function ResourceFormPage({ mode: modeProp }: ResourceFormPagePro
         external_url: externalUrl || undefined,
         commit_message: commitMessage || undefined,
       });
+
+      if (stagedFiles.length > 0 && resourceId && result.version?.id) {
+        let failCount = 0;
+        let lastErrorMessage = "";
+        for (const file of stagedFiles) {
+          try {
+            const formData = new FormData();
+            formData.append("file", file);
+            formData.append("created_in_version_id", result.version.id);
+            const uploadRes = await apiClient.POST("/api/resources/{id}/attachments", {
+              params: { path: { id: resourceId } },
+              body: formData as unknown as { file: string },
+            });
+            await unwrapApiResult(uploadRes);
+          } catch (err) {
+            failCount++;
+            lastErrorMessage = apiErrorMessage(err);
+          }
+        }
+        if (failCount > 0) {
+          toast({
+            title: "Version created with upload issues",
+            description: `Version saved, but ${failCount} of ${stagedFiles.length} file(s) failed to upload${
+              lastErrorMessage ? ` (${lastErrorMessage})` : ""
+            }`,
+            variant: "destructive",
+          });
+        }
+        if (resourceId) {
+          queryClient.invalidateQueries({ queryKey: ["resourceAttachments", resourceId] });
+        }
+      }
+
       toast({ title: isReverting ? "Reverted to a previous version" : "New version added" });
       if (result.warning) {
         toast({ title: "Heads up", description: result.warning });
@@ -237,29 +272,37 @@ export default function ResourceFormPage({ mode: modeProp }: ResourceFormPagePro
 
         if (stagedFiles.length > 0 && created?.id) {
           let failCount = 0;
+          let lastErrorMessage = "";
           for (const file of stagedFiles) {
             try {
               const formData = new FormData();
               formData.append("file", file);
+              if (created.current_version?.id) {
+                formData.append("created_in_version_id", created.current_version.id);
+              }
               const uploadRes = await apiClient.POST("/api/resources/{id}/attachments", {
                 params: { path: { id: created.id } },
                 body: formData as unknown as { file: string },
               });
               await unwrapApiResult(uploadRes);
-            } catch {
+            } catch (err) {
               failCount++;
+              lastErrorMessage = apiErrorMessage(err);
             }
           }
 
           if (failCount > 0) {
             toast({
               title: "Resource created with upload issues",
-              description: `Resource saved, but ${failCount} of ${stagedFiles.length} images failed to upload — you can retry from the resource page.`,
+              description: `Resource saved, but ${failCount} of ${stagedFiles.length} file(s) failed to upload${
+                lastErrorMessage ? ` (${lastErrorMessage})` : ""
+              } — you can retry from the resource page.`,
               variant: "destructive",
             });
           } else {
             toast({ title: "Resource created" });
           }
+          queryClient.invalidateQueries({ queryKey: ["resourceAttachments", created.id] });
         } else {
           toast({ title: "Resource created" });
         }
@@ -504,7 +547,7 @@ export default function ResourceFormPage({ mode: modeProp }: ResourceFormPagePro
                 <div className="space-y-0.5">
                   <Label>Attachments & Diagrams</Label>
                   <p className="text-xs text-muted-foreground">
-                    Upload architecture diagrams or screenshots to reference in this resource.
+                    Upload diagrams, screenshots, or reference documents (.md, .pdf, .txt) to attach to this resource.
                   </p>
                 </div>
 
@@ -553,13 +596,58 @@ export default function ResourceFormPage({ mode: modeProp }: ResourceFormPagePro
                   </div>
                 ) : (
                   <div className="space-y-4">
-                    {resourceId && <AttachmentGallery resourceId={resourceId} />}
                     {resourceId && (
-                      <ImageDropzone
-                        resourceId={resourceId}
-                        createdInVersionId={resource?.current_version?.id}
-                      />
+                      <div className="space-y-2">
+                        <p className="text-xs font-medium text-muted-foreground">
+                          Existing attachments from prior versions:
+                        </p>
+                        <AttachmentGallery resourceId={resourceId} />
+                      </div>
                     )}
+
+                    <div className="space-y-3 pt-2 border-t border-border">
+                      <Label>Attach new diagrams or documents to this version</Label>
+                      <ImageDropzone
+                        onFilesSelected={(newFiles) => {
+                          setStagedFiles((prev) => [...prev, ...newFiles]);
+                        }}
+                      />
+
+                      {stagedFiles.length > 0 && (
+                        <div className="space-y-2">
+                          <p className="text-xs font-medium text-foreground">
+                            New files to attach ({stagedFiles.length}) — will be linked to this new version:
+                          </p>
+                          <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                            {stagedFiles.map((file, idx) => (
+                              <div
+                                key={`${file.name}-${idx}`}
+                                className="flex items-center justify-between gap-2 rounded-md border border-border bg-card p-2 text-xs"
+                              >
+                                <div className="min-w-0 flex-1 truncate font-medium">
+                                  <span className="truncate">{file.name}</span>
+                                  <span className="ml-1 text-[11px] text-muted-foreground">
+                                    ({formatBytes(file.size)})
+                                  </span>
+                                </div>
+                                <Button
+                                  type="button"
+                                  variant="ghost"
+                                  size="sm"
+                                  className="h-6 w-6 p-0 text-muted-foreground hover:text-destructive"
+                                  onClick={() => {
+                                    setStagedFiles((prev) => prev.filter((_, i) => i !== idx));
+                                  }}
+                                  aria-label={`Remove ${file.name}`}
+                                >
+                                  &times;
+                                </Button>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </div>
                   </div>
                 )}
               </div>

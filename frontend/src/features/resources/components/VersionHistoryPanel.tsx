@@ -7,6 +7,7 @@ import { LoadingState } from "@/components/state/LoadingState";
 import { cn } from "@/lib/utils";
 import { useResourceVersion, useResourceVersions } from "@/hooks/useResourceVersions";
 import { panelSurface } from "@/lib/panelSurface";
+import { AttachmentGallery } from "./AttachmentGallery";
 
 interface Props {
   resourceId: string;
@@ -129,6 +130,20 @@ export default function VersionHistoryPanel({ resourceId, onRevert }: Props) {
               !selectedVersion.file_path && (
                 <p className="text-sm text-muted-foreground">No content recorded.</p>
               )}
+
+            <div className="space-y-2 pt-3 border-t border-border">
+              <h5 className="text-xs font-semibold text-foreground">
+                Diagrams &amp; Attachments
+              </h5>
+              <AttachmentGallery
+                resourceId={resourceId}
+                versionId={selectedVersion.id}
+                targetVersionNumber={selectedVersion.version_number}
+                versions={versions}
+                hideActions
+                readOnly
+              />
+            </div>
           </div>
         ) : (
           <p className="text-sm text-muted-foreground">Select a version to view it.</p>

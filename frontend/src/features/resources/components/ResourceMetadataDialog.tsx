@@ -16,6 +16,7 @@ import { ApiError, apiErrorMessage } from "@/api/errors";
 import { toast } from "@/hooks/use-toast";
 import { useResource, useUpdateResource, type ResourceListItem } from "@/hooks/useResources";
 import { useConflictResolution } from "@/hooks/useConflictResolution";
+import { ImageDropzone } from "./ImageDropzone";
 
 interface FieldErrors {
   title?: string;
@@ -176,12 +177,11 @@ export default function ResourceMetadataDialog({ open, onOpenChange, resource }:
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-lg">
+      <DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Edit resource details</DialogTitle>
           <DialogDescription>
-            Title, category, and tags only. Type can&apos;t be changed after creation, and content
-            changes go through &quot;Add version&quot; instead.
+            Edit resource information or attach diagrams, images, and documents.
           </DialogDescription>
         </DialogHeader>
 
@@ -221,6 +221,19 @@ export default function ResourceMetadataDialog({ open, onOpenChange, resource }:
                 placeholder="comma, separated, tags"
               />
             </div>
+
+            {resource && (
+              <div className="space-y-2 pt-2 border-t border-border">
+                <Label>Attachments &amp; Diagrams</Label>
+                <p className="text-xs text-muted-foreground">
+                  Upload diagrams, screenshots, or documents (.md, .pdf, .txt) to attach to this resource.
+                </p>
+                <ImageDropzone
+                  resourceId={resource.id}
+                  createdInVersionId={resource.current_version?.id}
+                />
+              </div>
+            )}
 
             <DialogFooter>
               <Button type="submit" disabled={isSubmitting}>

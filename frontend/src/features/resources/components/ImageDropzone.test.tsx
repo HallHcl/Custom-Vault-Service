@@ -45,7 +45,7 @@ describe("ImageDropzone", () => {
       screen.getByText(/drag and drop diagrams or images/i)
     ).toBeInTheDocument();
     expect(
-      screen.getByText(/PNG, JPEG, WebP, SVG up to 10 MB each/i)
+      screen.getByText(/PNG, JPEG, WebP, SVG, Markdown \(\.md\), Text \(\.txt\), PDF up to 10 MB each/i)
     ).toBeInTheDocument();
   });
 
@@ -53,11 +53,11 @@ describe("ImageDropzone", () => {
     renderDropzone();
     const input = screen.getByTestId("image-dropzone-input");
 
-    const textFile = new File(["dummy text"], "notes.txt", { type: "text/plain" });
-    fireEvent.change(input, { target: { files: [textFile] } });
+    const zipFile = new File(["dummy zip"], "archive.zip", { type: "application/zip" });
+    fireEvent.change(input, { target: { files: [zipFile] } });
 
     expect(
-      await screen.findByText(/"notes.txt" has an unsupported format/i)
+      await screen.findByText(/"archive.zip" has an unsupported format/i)
     ).toBeInTheDocument();
   });
 
@@ -79,14 +79,14 @@ describe("ImageDropzone", () => {
     renderDropzone();
     const input = screen.getByTestId("image-dropzone-input");
 
-    const textFile = new File(["dummy text"], "notes.txt", { type: "text/plain" });
-    fireEvent.change(input, { target: { files: [textFile] } });
+    const zipFile = new File(["dummy zip"], "archive.zip", { type: "application/zip" });
+    fireEvent.change(input, { target: { files: [zipFile] } });
 
-    expect(await screen.findByText(/"notes.txt" has an unsupported format/i)).toBeInTheDocument();
+    expect(await screen.findByText(/"archive.zip" has an unsupported format/i)).toBeInTheDocument();
     const dismissButton = screen.getByRole("button", { name: /dismiss/i });
     fireEvent.click(dismissButton);
 
-    expect(screen.queryByText(/"notes.txt" has an unsupported format/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/"archive.zip" has an unsupported format/i)).not.toBeInTheDocument();
   });
 
   it("calls onFilesSelected when valid files are provided in staging mode", async () => {

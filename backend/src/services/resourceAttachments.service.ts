@@ -12,10 +12,12 @@ export async function createAttachment(
   input: UploadAttachmentBodyInput,
   actingPeopleId: string
 ): Promise<ResourceAttachmentWithUploader> {
-  if (input.created_in_version_id) {
+  let targetVersionId = input.created_in_version_id || null;
+
+  if (targetVersionId) {
     const vCheck = await pool.query(
       `SELECT id FROM resource_versions WHERE id = $1 AND resource_id = $2`,
-      [input.created_in_version_id, resourceId]
+      [targetVersionId, resourceId]
     );
     if (vCheck.rows.length === 0) {
       throw new ApiError(
@@ -25,6 +27,12 @@ export async function createAttachment(
         { fieldErrors: { created_in_version_id: ["Version not found for this resource"] } }
       );
     }
+  } else {
+    const rCheck = await pool.query<{ current_version_id: string | null }>(
+      `SELECT current_version_id FROM resources WHERE id = $1`,
+      [resourceId]
+    );
+    targetVersionId = rCheck.rows[0]?.current_version_id || null;
   }
 
   const relativeFilePath = path.join("resources", resourceId, file.filename).replace(/\\/g, "/");
@@ -39,7 +47,7 @@ export async function createAttachment(
        RETURNING *`,
       [
         resourceId,
-        input.created_in_version_id || null,
+        targetVersionId,
         file.originalname,
         relativeFilePath,
         file.mimetype,

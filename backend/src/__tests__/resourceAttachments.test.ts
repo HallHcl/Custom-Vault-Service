@@ -241,7 +241,7 @@ describe("Resource Attachments", () => {
       expect(res.status).toBe(201);
       expect(res.body.mime_type).toBe("image/jpeg");
       expect(res.body.caption).toBeNull();
-      expect(res.body.created_in_version_id).toBeNull();
+      expect(res.body.created_in_version_id).toBe(initialVersionId);
 
       jpegAttachmentId = res.body.id;
       createdAttachmentIds.push(res.body.id);
@@ -296,13 +296,66 @@ describe("Resource Attachments", () => {
       expect(res.body.error.details.fieldErrors).toHaveProperty("created_in_version_id");
     });
 
-    it("rejects unsupported MIME types (e.g. text/plain or pdf) with 400", async () => {
-      const textBuffer = Buffer.from("hello world");
+    it("uploads a Markdown document (.md) (201)", async () => {
+      const mdBuffer = Buffer.from("# Runbook\n\nInstructions here");
 
       const res = await request(app)
         .post(`/api/resources/${resourceId}/attachments`)
         .set("Authorization", `Bearer ${member1Token}`)
-        .attach("file", textBuffer, { filename: "notes.txt", contentType: "text/plain" });
+        .attach("file", mdBuffer, { filename: "runbook.md", contentType: "text/markdown" });
+
+      expect(res.status).toBe(201);
+      expect(res.body.mime_type).toBe("text/markdown");
+      expect(res.body.file_name).toBe("runbook.md");
+
+      createdAttachmentIds.push(res.body.id);
+      createdAttachmentPaths.push(res.body.file_path);
+    });
+
+    it("uploads a PDF document (.pdf) (201)", async () => {
+      const pdfBuffer = Buffer.from("%PDF-1.4 sample pdf content");
+
+      const res = await request(app)
+        .post(`/api/resources/${resourceId}/attachments`)
+        .set("Authorization", `Bearer ${member1Token}`)
+        .attach("file", pdfBuffer, { filename: "spec.pdf", contentType: "application/pdf" });
+
+      expect(res.status).toBe(201);
+      expect(res.body.mime_type).toBe("application/pdf");
+      expect(res.body.file_name).toBe("spec.pdf");
+
+      createdAttachmentIds.push(res.body.id);
+      createdAttachmentPaths.push(res.body.file_path);
+    });
+
+    it("handles Thai characters and long filenames safely without exceeding Windows path limits (201)", async () => {
+      const longThaiName = "เอกสารคู่มือการติดตั้งระบบงานและขั้นตอนการดูแลเซิร์ฟเวอร์แบบละเอียดมากที่สุดในโลกประจำปี2026.pdf";
+      const sampleBuffer = Buffer.from("%PDF-1.4 thai test content");
+
+      const res = await request(app)
+        .post(`/api/resources/${resourceId}/attachments`)
+        .set("Authorization", `Bearer ${member1Token}`)
+        .attach("file", sampleBuffer, { filename: longThaiName, contentType: "application/pdf" });
+
+      expect(res.status).toBe(201);
+      expect(res.body.mime_type).toBe("application/pdf");
+      expect(res.body.file_name).toBe(longThaiName);
+
+      createdAttachmentIds.push(res.body.id);
+      createdAttachmentPaths.push(res.body.file_path);
+
+      const diskPath = getAttachmentDiskPath(res.body.file_path);
+      expect(fs.existsSync(diskPath)).toBe(true);
+      expect(diskPath.length).toBeLessThan(260);
+    });
+
+    it("rejects unsupported file types (e.g. .exe or application/x-msdownload) with 400", async () => {
+      const exeBuffer = Buffer.from("MZ fake executable");
+
+      const res = await request(app)
+        .post(`/api/resources/${resourceId}/attachments`)
+        .set("Authorization", `Bearer ${member1Token}`)
+        .attach("file", exeBuffer, { filename: "program.exe", contentType: "application/x-msdownload" });
 
       expect(res.status).toBe(400);
       expect(res.body.error.code).toBe("VALIDATION_ERROR");

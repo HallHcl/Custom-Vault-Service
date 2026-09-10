@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
-import { ArrowLeft, FileText, History } from "lucide-react";
+import { ArrowLeft, Download, FileText, History } from "lucide-react";
 import { RequireRole } from "@/components/auth/RequireRole";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { PaginationControls } from "@/components/PaginationControls";
@@ -27,7 +27,6 @@ import { useProjects } from "@/hooks/useProjects";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import ResourceFilterBar from "./components/ResourceFilterBar";
 import ResourceFileTable from "./components/ResourceFileTable";
-import ResourceMetadataDialog from "./components/ResourceMetadataDialog";
 import VersionHistoryPanel from "./components/VersionHistoryPanel";
 import { AttachmentGallery } from "./components/AttachmentGallery";
 import { useResourceAttachments } from "@/hooks/useResourceAttachments";
@@ -58,7 +57,6 @@ export default function ResourcesPage() {
 
   const [selected, setSelected] = useState<ResourceListItem | undefined>(undefined);
   const [activeTab, setActiveTab] = useState<"content" | "history">("content");
-  const [editMetadataOpen, setEditMetadataOpen] = useState(false);
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
 
   const {
@@ -322,19 +320,6 @@ export default function ResourcesPage() {
                       </Button>
                     </RequireRole>
 
-                    <RequireRole
-                      roles={["admin"]}
-                      fallback={
-                        <p className="max-w-[220px] text-right text-xs text-muted-foreground">
-                          Editing this resource&apos;s title/category/tags requires admin access.
-                          You can still add new versions.
-                        </p>
-                      }
-                    >
-                      <Button variant="ghost" size="sm" onClick={() => setEditMetadataOpen(true)}>
-                        Edit
-                      </Button>
-                    </RequireRole>
                     <RequireRole roles={["admin"]}>
                       <Button variant="ghost" size="sm" onClick={() => setDeleteConfirmOpen(true)}>
                         Delete
@@ -369,7 +354,39 @@ export default function ResourcesPage() {
                     <>
                       {resourceDetail?.current_version?.content && (
                         <div className="space-y-2">
-                          <h3 className="text-sm font-semibold text-foreground">Content</h3>
+                          <div className="flex items-center justify-between">
+                            <h3 className="text-sm font-semibold text-foreground">Content</h3>
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="sm"
+                              className="h-7 text-xs gap-1.5"
+                              onClick={() => {
+                                const blob = new Blob(
+                                  [resourceDetail.current_version!.content!],
+                                  { type: "text/markdown;charset=utf-8" }
+                                );
+                                const url = URL.createObjectURL(blob);
+                                const a = document.createElement("a");
+                                a.href = url;
+                                const safeTitle = (selected.title || "resource")
+                                  .toLowerCase()
+                                  .replace(/[^a-z0-9_-]/g, "_");
+                                a.download = `${safeTitle}.md`;
+                                document.body.appendChild(a);
+                                a.click();
+                                document.body.removeChild(a);
+                                URL.revokeObjectURL(url);
+                                toast({
+                                  title: "Downloaded .md",
+                                  description: `Saved as "${safeTitle}.md"`,
+                                });
+                              }}
+                            >
+                              <Download className="h-3.5 w-3.5" />
+                              Download .md
+                            </Button>
+                          </div>
                           <pre className="max-h-[500px] overflow-auto whitespace-pre-wrap rounded-md border border-border bg-muted/20 p-4 font-mono text-xs text-foreground">
                             {resourceDetail.current_version.content}
                           </pre>
@@ -401,12 +418,10 @@ export default function ResourcesPage() {
 
                   {attachments.length > 0 && (
                     <div className="space-y-3 pt-2">
-                      <div className="flex items-center justify-between">
-                        <h3 className="text-sm font-semibold text-foreground">
-                          Diagrams &amp; Attachments
-                        </h3>
-                      </div>
-                      <AttachmentGallery resourceId={selected.id} />
+                      <h3 className="text-sm font-semibold text-foreground">
+                        Diagrams &amp; Attachments
+                      </h3>
+                      <AttachmentGallery resourceId={selected.id} readOnly />
                     </div>
                   )}
                 </TabsContent>
@@ -419,12 +434,6 @@ export default function ResourcesPage() {
           </Card>
         </div>
       )}
-
-      <ResourceMetadataDialog
-        open={editMetadataOpen}
-        onOpenChange={setEditMetadataOpen}
-        resource={selected}
-      />
 
       <ConfirmDialog
         open={deleteConfirmOpen}

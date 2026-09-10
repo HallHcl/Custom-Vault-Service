@@ -26,6 +26,8 @@ services:
         condition: service_healthy
     ports:
       - "4000:4000"
+    volumes:
+      - ./backend/uploads:/app/uploads
     env_file:
       - .env
 

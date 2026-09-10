@@ -14,6 +14,22 @@ export const ALLOWED_IMAGE_TYPES = [
   "image/jpeg",
   "image/webp",
   "image/svg+xml",
+  "text/markdown",
+  "text/plain",
+  "text/x-markdown",
+  "application/pdf",
+];
+
+export const ALLOWED_EXTENSIONS = [
+  ".png",
+  ".jpg",
+  ".jpeg",
+  ".webp",
+  ".svg",
+  ".md",
+  ".markdown",
+  ".txt",
+  ".pdf",
 ];
 
 export const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10 MB
@@ -52,16 +68,24 @@ export function ImageDropzone({
 
   const uploadMutation = useUploadResourceAttachment(resourceId);
 
+  function isFileTypeAllowed(file: File): boolean {
+    const ext = "." + (file.name.split(".").pop() || "").toLowerCase();
+    return (
+      ALLOWED_IMAGE_TYPES.includes(file.type) ||
+      ALLOWED_EXTENSIONS.includes(ext)
+    );
+  }
+
   async function handleFiles(fileList: FileList | File[]) {
     if (disabled || isUploading) return;
     const files = Array.from(fileList);
     if (files.length === 0) return;
 
-    // Client-side validation: MIME type & 10MB size
+    // Client-side validation: MIME type or extension & 10MB size
     for (const file of files) {
-      if (!ALLOWED_IMAGE_TYPES.includes(file.type)) {
+      if (!isFileTypeAllowed(file)) {
         setError(
-          `"${file.name}" has an unsupported format. Allowed formats: PNG, JPEG, WebP, SVG.`
+          `"${file.name}" has an unsupported format. Allowed formats: PNG, JPEG, WebP, SVG, Markdown (.md), Text (.txt), PDF.`
         );
         return;
       }
@@ -112,55 +136,54 @@ export function ImageDropzone({
         }
       }
 
+      setIsUploading(false);
+      setProgressMessage(null);
+
       if (successCount > 0) {
         toast({
           title: "Upload complete",
-          description:
-            successCount === 1
-              ? "Attachment uploaded successfully."
-              : `${successCount} attachments uploaded successfully.${failCount > 0 ? ` (${failCount} failed)` : ""}`,
+          description: `Successfully uploaded ${successCount} file${successCount > 1 ? "s" : ""}.${
+            failCount > 0 ? ` (${failCount} failed)` : ""
+          }`,
         });
       }
-
-      setIsUploading(false);
-      setProgressMessage(null);
     }
   }
 
-  function handleDragOver(e: React.DragEvent) {
+  function handleDragOver(e: React.DragEvent<HTMLDivElement>) {
     e.preventDefault();
     e.stopPropagation();
-    if (!disabled && !isUploading) {
-      setIsDragging(true);
-    }
+    if (disabled || isUploading) return;
+    setIsDragging(true);
   }
 
-  function handleDragLeave(e: React.DragEvent) {
+  function handleDragLeave(e: React.DragEvent<HTMLDivElement>) {
     e.preventDefault();
     e.stopPropagation();
     setIsDragging(false);
   }
 
-  function handleDrop(e: React.DragEvent) {
+  function handleDrop(e: React.DragEvent<HTMLDivElement>) {
     e.preventDefault();
     e.stopPropagation();
     setIsDragging(false);
+    if (disabled || isUploading) return;
     if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
       handleFiles(e.dataTransfer.files);
     }
   }
 
   function handleClick() {
-    if (!disabled && !isUploading) {
-      fileInputRef.current?.click();
-    }
+    if (disabled || isUploading) return;
+    fileInputRef.current?.click();
   }
 
   return (
     <div className={cn("space-y-2", className)}>
       <div
-        role="button"
-        tabIndex={disabled ? -1 : 0}
+        role="region"
+        aria-label="File upload dropzone"
+        tabIndex={disabled || isUploading ? -1 : 0}
         onClick={handleClick}
         onKeyDown={(e) => {
           if (e.key === "Enter" || e.key === " ") {
@@ -182,7 +205,7 @@ export function ImageDropzone({
         <input
           ref={fileInputRef}
           type="file"
-          accept="image/png,image/jpeg,image/webp,image/svg+xml"
+          accept="image/png,image/jpeg,image/webp,image/svg+xml,.md,.txt,.markdown,.pdf,application/pdf"
           multiple
           className="hidden"
           data-testid="image-dropzone-input"
@@ -213,7 +236,7 @@ export function ImageDropzone({
                 <span className="text-brand underline underline-offset-2">browse</span>
               </p>
               <p className="text-xs text-muted-foreground mt-0.5">
-                PNG, JPEG, WebP, SVG up to 10 MB each
+                PNG, JPEG, WebP, SVG, Markdown (.md), Text (.txt), PDF up to 10 MB each
               </p>
             </div>
             <Button

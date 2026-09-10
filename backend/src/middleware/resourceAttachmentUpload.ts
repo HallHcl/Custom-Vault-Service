@@ -13,6 +13,22 @@ export const ALLOWED_MIME_TYPES = [
   "image/jpeg",
   "image/webp",
   "image/svg+xml",
+  "text/markdown",
+  "text/plain",
+  "text/x-markdown",
+  "application/pdf",
+] as const;
+
+export const ALLOWED_EXTENSIONS = [
+  ".png",
+  ".jpg",
+  ".jpeg",
+  ".webp",
+  ".svg",
+  ".md",
+  ".markdown",
+  ".txt",
+  ".pdf",
 ] as const;
 
 export const MAX_FILE_SIZE_BYTES = 10 * 1024 * 1024; // 10MB
@@ -50,6 +66,27 @@ export async function validateResourceExists(req: Request, _res: Response, next:
   }
 }
 
+export function sanitizeAttachmentFilename(rawName: string): { originalName: string; diskName: string } {
+  let name = rawName;
+  try {
+    const candidate = Buffer.from(rawName, "latin1").toString("utf8");
+    if (!candidate.includes("\ufffd") && /[\u0E00-\u0E7F]/.test(candidate)) {
+      name = candidate;
+    }
+  } catch {
+    // fallback to rawName
+  }
+
+  const ext = path.extname(name);
+  const baseName = path.basename(name, ext);
+  // Remove Windows-illegal characters: < > : " / \ | ? * and control chars
+  const cleanBase = baseName.replace(/[<>:"/\\|?*\x00-\x1F]/g, "_").trim() || "attachment";
+  // Clamp base name to 60 characters so Windows 260-char MAX_PATH limit is never breached
+  const clampedBase = cleanBase.slice(0, 60);
+
+  return { originalName: name, diskName: `${clampedBase}${ext}` };
+}
+
 const storage = multer.diskStorage({
   destination: (req, _file, cb) => {
     const resourceId = typeof req.params.id === "string" ? req.params.id : "";
@@ -63,8 +100,9 @@ const storage = multer.diskStorage({
   },
   filename: (_req, file, cb) => {
     const fileId = crypto.randomUUID();
-    const safeName = path.basename(file.originalname).replace(/[^a-zA-Z0-9._-]/g, "_");
-    cb(null, `${fileId}-${safeName}`);
+    const { originalName, diskName } = sanitizeAttachmentFilename(file.originalname);
+    file.originalname = originalName;
+    cb(null, `${fileId}-${diskName}`);
   },
 });
 
@@ -74,13 +112,28 @@ const upload = multer({
     fileSize: MAX_FILE_SIZE_BYTES,
   },
   fileFilter: (_req, file, cb) => {
-    if (ALLOWED_MIME_TYPES.includes(file.mimetype as any)) {
+    const { originalName } = sanitizeAttachmentFilename(file.originalname);
+    file.originalname = originalName;
+
+    const ext = path.extname(file.originalname).toLowerCase();
+    const isMimeAllowed = (ALLOWED_MIME_TYPES as readonly string[]).includes(file.mimetype);
+    const isExtAllowed = (ALLOWED_EXTENSIONS as readonly string[]).includes(ext);
+
+    if (isMimeAllowed || isExtAllowed) {
+      if (
+        (ext === ".md" || ext === ".markdown") &&
+        (!file.mimetype ||
+          file.mimetype === "application/octet-stream" ||
+          file.mimetype === "text/plain")
+      ) {
+        file.mimetype = "text/markdown";
+      }
       cb(null, true);
     } else {
       cb(
         new ApiError(
           400,
-          `Invalid file type: ${file.mimetype}. Allowed types: image/png, image/jpeg, image/webp, image/svg+xml`,
+          `Invalid file type: ${file.mimetype}. Allowed types: images (PNG, JPEG, WebP, SVG) and documents (Markdown, Text, PDF)`,
           "VALIDATION_ERROR",
           { fieldErrors: { file: [`Unsupported file type: ${file.mimetype}`] } }
         )

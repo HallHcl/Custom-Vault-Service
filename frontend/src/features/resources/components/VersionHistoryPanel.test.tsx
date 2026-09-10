@@ -63,6 +63,26 @@ function mockGetByPath() {
       if (path === "/api/resources/{id}/versions/{versionId}") {
         return Promise.resolve(ok(versionDetail(options.params.path.versionId as string)));
       }
+      if (path === "/api/resources/{id}/attachments") {
+        return Promise.resolve(
+          ok([
+            {
+              id: "att-v1",
+              resource_id: "r1",
+              created_in_version_id: "v1",
+              file_name: "manual.pdf",
+              file_path: "resources/r1/manual.pdf",
+              mime_type: "application/pdf",
+              size_bytes: 2048,
+              caption: null,
+              uploaded_by: "p1",
+              uploader: { id: "p1", name: "Alex" },
+              created_at: "2026-01-01T00:00:00.000Z",
+              deleted_at: null,
+            },
+          ])
+        );
+      }
       throw new Error(`Unexpected path: ${path}`);
     }
   );
@@ -128,5 +148,21 @@ describe("VersionHistoryPanel — revert affordance", () => {
 
     await waitFor(() => expect(screen.getByText("Second pass")).toBeInTheDocument());
     expect(screen.queryByRole("button", { name: /revert to this version/i })).not.toBeInTheDocument();
+  });
+
+  it("renders attachments associated with the selected version in the history panel without download buttons", async () => {
+    renderPanel();
+
+    await screen.findByText("Second pass");
+    // HEAD version (v2) inherits manual.pdf from v1
+    expect(await screen.findByText("manual.pdf")).toBeInTheDocument();
+    expect(screen.queryByText("Download File")).not.toBeInTheDocument();
+
+    // Switch to v1
+    const v1Button = screen.getByRole("button", { name: /v1/i });
+    fireEvent.click(v1Button);
+
+    expect(await screen.findByText("manual.pdf")).toBeInTheDocument();
+    expect(screen.queryByText("Download File")).not.toBeInTheDocument();
   });
 });

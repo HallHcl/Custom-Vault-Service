@@ -96,7 +96,7 @@ describe("AttachmentGallery", () => {
 
     expect(await screen.findByText("No diagrams or attachments yet")).toBeInTheDocument();
     expect(
-      screen.getByText(/upload diagrams and images above to attach them to this resource/i)
+      screen.getByText(/upload diagrams, images, or documents/i)
     ).toBeInTheDocument();
   });
 
@@ -262,5 +262,118 @@ describe("AttachmentGallery", () => {
       expect(toastMock).toHaveBeenCalledWith({ title: "Attachment deleted" });
       expect(onDeleteSuccess).toHaveBeenCalledWith("att-1");
     });
+  });
+
+  it("downloads attachment file when Download button is clicked", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({
+        ok: true,
+        blob: () => Promise.resolve(new Blob(["file-content"], { type: "image/png" })),
+      })
+    );
+    window.URL.createObjectURL = vi.fn().mockReturnValue("blob:http://localhost/test-blob");
+    window.URL.revokeObjectURL = vi.fn();
+
+    getMock.mockResolvedValue(ok(SAMPLE_ATTACHMENTS));
+    renderGallery({ resourceId: "res-1" });
+
+    await screen.findByText("architecture-diagram.png");
+    const downloadBtns = screen.getAllByRole("button", { name: /download/i });
+    expect(downloadBtns.length).toBeGreaterThan(0);
+    fireEvent.click(downloadBtns[0]);
+
+    await waitFor(() => {
+      expect(toastMock).toHaveBeenCalledWith(
+        expect.objectContaining({
+          title: "Download started",
+        })
+      );
+    });
+  });
+
+  it("renders document attachment (.md) with file badge and Download File button", async () => {
+    const docAttachments: ResourceAttachmentWithUploader[] = [
+      {
+        id: "att-doc",
+        resource_id: "res-1",
+        created_in_version_id: null,
+        file_name: "deploy-instructions.md",
+        mime_type: "text/markdown",
+        size_bytes: 1024,
+        caption: "Markdown deploy guide",
+        uploaded_by: "user-1",
+        created_at: "2026-03-01T10:00:00.000Z",
+        file_path: "/api/resources/res-1/attachments/att-doc/content",
+        deleted_at: null,
+        uploader: { id: "user-1", name: "Alice Smith" },
+      },
+    ];
+
+    getMock.mockResolvedValue(ok(docAttachments));
+    renderGallery({ resourceId: "res-1" });
+
+    expect(await screen.findByText("deploy-instructions.md")).toBeInTheDocument();
+    expect(screen.getByText("MD")).toBeInTheDocument();
+    expect(screen.getAllByRole("button", { name: "Download deploy-instructions.md" }).length).toBeGreaterThanOrEqual(1);
+  });
+
+  it("hides download and action buttons when hideActions is true", async () => {
+    getMock.mockResolvedValue(ok(SAMPLE_ATTACHMENTS));
+    renderGallery({ resourceId: "res-1", hideActions: true });
+
+    expect(await screen.findByText("architecture-diagram.png")).toBeInTheDocument();
+    expect(screen.getByText("workflow.svg")).toBeInTheDocument();
+
+    // No Download or Copy Image buttons
+    expect(screen.queryByRole("button", { name: /download/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /copy image/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /delete/i })).not.toBeInTheDocument();
+  });
+
+  it("filters inherited attachments correctly using targetVersionNumber and versions", async () => {
+    const multiVersionAttachments: ResourceAttachmentWithUploader[] = [
+      {
+        ...SAMPLE_ATTACHMENTS[0],
+        id: "att-v1",
+        file_name: "v1-diagram.png",
+        created_in_version_id: "ver-1",
+      },
+      {
+        ...SAMPLE_ATTACHMENTS[1],
+        id: "att-v3",
+        file_name: "v3-diagram.png",
+        created_in_version_id: "ver-3",
+      },
+    ];
+    const versions = [
+      { id: "ver-3", version_number: 3 },
+      { id: "ver-2", version_number: 2 },
+      { id: "ver-1", version_number: 1 },
+    ];
+
+    getMock.mockResolvedValue(ok(multiVersionAttachments));
+
+    // When viewing version 2: should see v1-diagram.png (inherited), but NOT v3-diagram.png
+    const { unmount } = renderGallery({
+      resourceId: "res-1",
+      targetVersionNumber: 2,
+      versions,
+    });
+
+    expect(await screen.findByText("v1-diagram.png")).toBeInTheDocument();
+    expect(screen.queryByText("v3-diagram.png")).not.toBeInTheDocument();
+
+    unmount();
+
+    // When viewing version 3: should see both v1-diagram.png and v3-diagram.png
+    renderGallery({
+      resourceId: "res-1",
+      targetVersionNumber: 3,
+      versions,
+    });
+
+    expect(await screen.findByText("v1-diagram.png")).toBeInTheDocument();
+    expect(screen.getByText("v3-diagram.png")).toBeInTheDocument();
   });
 });
