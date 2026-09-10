@@ -17,6 +17,7 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import { useServiceTypes } from "@/hooks/useServers";
+import { formatTypeInput } from "@/lib/keyboardUtils";
 
 export interface ServiceTypeComboboxProps {
   id?: string;
@@ -98,7 +99,7 @@ export function ServiceTypeCombobox({
   }, [allTypes, trimmedSearch]);
 
   function handleSelect(selected: string | undefined) {
-    onChange(selected);
+    onChange(selected ? formatTypeInput(selected) : undefined);
     setOpen(false);
     setSearch("");
   }
@@ -137,7 +138,7 @@ export function ServiceTypeCombobox({
           <CommandInput
             placeholder="Search or type new..."
             value={search}
-            onValueChange={setSearch}
+            onValueChange={(val) => setSearch(formatTypeInput(val))}
           />
           <CommandList className="max-h-60 overflow-y-auto">
             {value && (
