@@ -1,8 +1,12 @@
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import ServerTable from "./ServerTable";
 import type { Server } from "@/types";
+
+vi.mock("./CredentialRefList", () => ({
+  default: () => <div data-testid="mock-cred-list">No credential references.</div>,
+}));
 
 const BASE_SERVER: Server = {
   id: "s1",
@@ -91,4 +95,40 @@ describe("ServerTable", () => {
     const dashes = screen.getAllByText("—");
     expect(dashes.length).toBeGreaterThan(0);
   });
+
+  it("renders encrypted password when expanded, and toggles plaintext", () => {
+    const serverWithCreds: Server = {
+      ...BASE_SERVER,
+      username: "root",
+      password: "secretPassword123",
+      encrypted_password: "enc_9f8a7b6c5d4e3f21",
+    };
+
+    render(
+      <MemoryRouter>
+        <ServerTable servers={[serverWithCreds]} />
+      </MemoryRouter>
+    );
+
+    // Initially collapsed
+    expect(screen.queryByText("Password:")).not.toBeInTheDocument();
+
+    // Click Show button
+    fireEvent.click(screen.getByRole("button", { name: "Show" }));
+
+    // Now hash password should be visible (username should not be displayed in credentials drawer)
+    expect(screen.queryByText("Username:")).not.toBeInTheDocument();
+    expect(screen.getByText("Password:")).toBeInTheDocument();
+    expect(screen.getByText("enc_9f8a7b6c5d4e3f21")).toBeInTheDocument();
+    expect(screen.queryByText("secretPassword123")).not.toBeInTheDocument();
+
+    // CopyButton should be present
+    expect(screen.getByRole("button", { name: /copy password/i })).toBeInTheDocument();
+
+    // Toggle Eye to show plaintext
+    fireEvent.click(screen.getByRole("button", { name: /show password/i }));
+    expect(screen.getByText("secretPassword123")).toBeInTheDocument();
+    expect(screen.queryByText("enc_9f8a7b6c5d4e3f21")).not.toBeInTheDocument();
+  });
 });
+

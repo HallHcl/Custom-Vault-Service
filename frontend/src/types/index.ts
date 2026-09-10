@@ -136,6 +136,7 @@ export interface Server {
   access_path: string | null;
   username?: string | null;
   password?: string | null;
+  encrypted_password?: string | null;
 }
 
 export interface CredentialReference {

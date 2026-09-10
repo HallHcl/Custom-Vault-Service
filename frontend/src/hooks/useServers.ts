@@ -8,8 +8,8 @@ const KEY = "servers";
 /** Matches the `sort` values GET /servers actually accepts. */
 export type ServerSort = "display_name" | "created_at" | "updated_at";
 
-export type Server = components["schemas"]["Server"];
-export type ServerDetail = components["schemas"]["ServerDetail"];
+export type Server = components["schemas"]["Server"] & { encrypted_password?: string | null };
+export type ServerDetail = components["schemas"]["ServerDetail"] & { encrypted_password?: string | null };
 
 // environmentId stays a separate positional arg (not folded into params),
 // mirroring useEnvironments(projectId, params) — InfrastructurePage and

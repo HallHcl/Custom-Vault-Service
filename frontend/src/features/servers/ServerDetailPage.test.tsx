@@ -329,5 +329,38 @@ describe("ServerDetailPage", () => {
       // The shell's page-level loading state must be gone by now.
       expect(screen.queryByText(/loading server/i)).not.toBeInTheDocument();
     });
+
+    it("renders encrypted hash badge for password and toggles plaintext on eye button click", async () => {
+      mockGetByPath({
+        server: ok({
+          ...SERVER_DETAIL,
+          password: "realSecretPassword123",
+          encrypted_password: "enc_8f4a1c02b9e67d4f",
+        }),
+      });
+
+      renderPage();
+
+      // Verify hash/ciphertext badge is displayed initially
+      expect(await screen.findByText("enc_8f4a1c02b9e67d4f")).toBeInTheDocument();
+      expect(screen.queryByText("realSecretPassword123")).not.toBeInTheDocument();
+
+      // CopyButton should be present
+      const copyButton = screen.getByRole("button", { name: /copy password/i });
+      expect(copyButton).toBeInTheDocument();
+
+      // Click Eye button to toggle plaintext
+      const toggleButton = screen.getByRole("button", { name: /show password/i });
+      fireEvent.click(toggleButton);
+
+      // Now plaintext is shown
+      expect(screen.getByText("realSecretPassword123")).toBeInTheDocument();
+      expect(screen.queryByText("enc_8f4a1c02b9e67d4f")).not.toBeInTheDocument();
+
+      // Click again to hide
+      fireEvent.click(screen.getByRole("button", { name: /hide password/i }));
+      expect(screen.getByText("enc_8f4a1c02b9e67d4f")).toBeInTheDocument();
+    });
   });
 });
+

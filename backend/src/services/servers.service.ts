@@ -4,6 +4,7 @@ import { ApiError } from "../middleware/errorHandler";
 import { logActivity } from "../middleware/activityLogger";
 import { Server } from "../types";
 import { CreateServerInput, UpdateServerInput } from "../validators/servers.validator";
+import { encryptCredential, decryptCredential, getDisplayHash } from "../utils/crypto";
 
 const SORTABLE_COLUMNS = new Set(["display_name", "created_at", "updated_at"]);
 const UNIQUE_VIOLATION = "23505";
@@ -31,6 +32,24 @@ export interface ListServersResult {
     per_page: number;
     total: number;
     total_pages: number;
+  };
+}
+
+export function formatServer(server: Server): Server {
+  if (!server) return server;
+  const rawPassword = server.password;
+  if (rawPassword) {
+    const decrypted = decryptCredential(rawPassword);
+    const displayHash = getDisplayHash(rawPassword, decrypted);
+    return {
+      ...server,
+      password: decrypted,
+      encrypted_password: displayHash,
+    };
+  }
+  return {
+    ...server,
+    encrypted_password: null,
   };
 }
 
@@ -88,7 +107,7 @@ export async function listServers(
   );
 
   return {
-    data: dataResult.rows,
+    data: dataResult.rows.map(formatServer),
     pagination: {
       page: params.page,
       per_page: params.perPage,
@@ -124,8 +143,9 @@ export async function getServerById(
   if (!row) throw new ApiError(404, "Server not found");
 
   const { env_ref_id, env_name, project_ref_id, project_name, ...server } = row;
+  const formattedServer = formatServer(server as Server);
   return {
-    ...server,
+    ...formattedServer,
     environment: {
       id: env_ref_id,
       name: env_name,
@@ -161,6 +181,10 @@ export async function createServer(
       input.access_host?.trim() ||
       (derivedUser ? `${derivedUser}@${derivedHost}` : derivedHost);
 
+    const encryptedPassword = input.password !== undefined && input.password !== null
+      ? encryptCredential(input.password)
+      : null;
+
     try {
       const result = await tx.query<Server>(
         `INSERT INTO servers (
@@ -183,13 +207,13 @@ export async function createServer(
           input.access_path ?? null,
           input.monitoring_url ?? null,
           input.username ?? null,
-          input.password ?? null,
+          encryptedPassword,
           input.notes ?? null,
         ]
       );
       const created = result.rows[0];
       await logActivity("server", created.id, "create", actingPeopleId, null, created, tx);
-      return created;
+      return formatServer(created);
     } catch (err) {
       if ((err as { code?: string }).code === UNIQUE_VIOLATION) {
         throw new ApiError(409, "A conflicting server already exists", "CONFLICT");
@@ -229,6 +253,10 @@ export async function updateServer(
     const isAutoDerived = !existing.access_host || existing.access_host === existingExpectedAuto;
     const accessHost = input.access_host?.trim() || (isAutoDerived ? newAutoAccessHost : existing.access_host);
 
+    const encryptedPassword = input.password !== undefined
+      ? (input.password ? encryptCredential(input.password) : null)
+      : null;
+
     try {
       const result = await tx.query<Server>(
         `UPDATE servers
@@ -265,7 +293,7 @@ export async function updateServer(
           input.monitoring_url ?? null,
           input.notes ?? null,
           input.username ?? null,
-          input.password ?? null,
+          encryptedPassword,
         ]
       );
       const updated = result.rows[0];
@@ -277,7 +305,7 @@ export async function updateServer(
         );
       }
       await logActivity("server", updated.id, "update", actingPeopleId, existing, updated, tx);
-      return updated;
+      return formatServer(updated);
     } catch (err) {
       if (err instanceof ApiError) throw err;
       if ((err as { code?: string }).code === UNIQUE_VIOLATION) {

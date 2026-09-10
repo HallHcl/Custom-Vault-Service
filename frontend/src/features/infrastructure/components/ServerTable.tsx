@@ -1,5 +1,6 @@
 import { Fragment, useState } from "react";
 import { Link } from "react-router-dom";
+import { Eye, EyeOff } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -45,6 +46,40 @@ function accessTargetOf(server: Server): string | null {
   return `${host}${server.access_port ? `:${server.access_port}` : ""}${
     server.access_path ?? ""
   }`;
+}
+
+function ServerCredentialsRow({ server }: { server: Server }) {
+  const [showPlain, setShowPlain] = useState(false);
+
+  if (!server.password) return null;
+
+  return (
+    <div className="flex flex-wrap items-center gap-5 rounded-md border border-border/60 bg-background/60 px-3 py-2 text-xs">
+      <div className="flex items-center gap-1.5">
+        <span className="text-muted-foreground">Password:</span>
+        <span
+          className="font-mono bg-muted/70 px-1.5 py-0.5 rounded border border-border/40 text-muted-foreground select-all"
+          title={showPlain ? "Plaintext password" : "Encrypted secret token"}
+        >
+          {showPlain
+            ? server.password
+            : (server.encrypted_password || "••••••••")}
+        </span>
+        <CopyButton value={server.password} label="password" />
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon"
+          className="h-6 w-6 shrink-0 text-muted-foreground hover:text-foreground"
+          onClick={() => setShowPlain((prev) => !prev)}
+          title={showPlain ? "Hide password" : "Show password"}
+          aria-label={showPlain ? "Hide password" : "Show password"}
+        >
+          {showPlain ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
+        </Button>
+      </div>
+    </div>
+  );
 }
 
 interface Props {
@@ -136,6 +171,7 @@ export default function ServerTable({ servers }: Props) {
                 {open && (
                   <TableRow className="bg-muted/30 hover:bg-muted/30">
                     <TableCell colSpan={6} className="space-y-3">
+                      <ServerCredentialsRow server={server} />
                       {techStack.length > 0 && (
                         <div className="flex flex-wrap gap-1">
                           {techStack.map((tech, index) => (

@@ -1,4 +1,6 @@
+import { useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
+import { Eye, EyeOff } from "lucide-react";
 import { RequireRole } from "@/components/auth/RequireRole";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -35,6 +37,7 @@ export default function ServerDetailPage() {
   const navigate = useNavigate();
   const { id } = useParams<{ id: string }>();
   const { data: server, isLoading, isError, error, refetch } = useServer(id);
+  const [showPlainPassword, setShowPlainPassword] = useState(false);
 
   // ServerDetail only embeds environment.project as { id, name }, so the
   // Client segment is backfilled by a separate useProject fetch (cache-shared
@@ -159,9 +162,33 @@ export default function ServerDetailPage() {
                     </div>
                     <div className="min-w-0">
                       <dt className="text-xs text-muted-foreground">Password</dt>
-                      <dd className="flex items-center gap-1 break-words">
-                        {server.password || "—"}
-                        {server.password && <CopyButton value={server.password} label="password" />}
+                      <dd className="flex items-center gap-1.5 break-words">
+                        {server.password ? (
+                          <>
+                            <span
+                              className="font-mono text-xs bg-muted/70 px-1.5 py-0.5 rounded border border-border/40 text-muted-foreground select-all"
+                              title={showPlainPassword ? "Plaintext password" : "Encrypted secret token"}
+                            >
+                              {showPlainPassword
+                                ? server.password
+                                : (server.encrypted_password || "••••••••")}
+                            </span>
+                            <CopyButton value={server.password} label="password" />
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="icon"
+                              className="h-6 w-6 shrink-0 text-muted-foreground hover:text-foreground"
+                              onClick={() => setShowPlainPassword((prev) => !prev)}
+                              title={showPlainPassword ? "Hide password" : "Show password"}
+                              aria-label={showPlainPassword ? "Hide password" : "Show password"}
+                            >
+                              {showPlainPassword ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
+                            </Button>
+                          </>
+                        ) : (
+                          "—"
+                        )}
                       </dd>
                     </div>
                     <div className="min-w-0">

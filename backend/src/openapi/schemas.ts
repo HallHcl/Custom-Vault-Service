@@ -240,6 +240,7 @@ export const ServerSchema = z
     access_path: z.string().nullable(),
     username: z.string().nullable(),
     password: z.string().nullable(),
+    encrypted_password: z.string().nullable().optional(),
   })
   .openapi("Server");
 
