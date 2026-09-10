@@ -8,7 +8,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { ProjectPicker } from "@/components/ProjectPicker";
-import { RESOURCE_TYPE_LABELS, RESOURCE_TYPES } from "@/lib/resourceTypes";
+import { ResourceTypeCombobox } from "./ResourceTypeCombobox";
 import type { DeletedFilter, SortOrder } from "@/hooks/usePagination";
 
 interface Props {
@@ -23,8 +23,8 @@ interface Props {
   sortOptions: { value: string; label: string }[];
   order: SortOrder | undefined;
   onOrderChange: (order: SortOrder | undefined) => void;
-  deleted: DeletedFilter;
-  onDeletedChange: (deleted: DeletedFilter) => void;
+  deleted?: DeletedFilter;
+  onDeletedChange?: (deleted: DeletedFilter) => void;
 }
 
 export default function ResourceFilterBar({
@@ -39,8 +39,6 @@ export default function ResourceFilterBar({
   sortOptions,
   order,
   onOrderChange,
-  deleted,
-  onDeletedChange,
 }: Props) {
   return (
     <FilterBar>
@@ -51,22 +49,11 @@ export default function ResourceFilterBar({
         className="w-56"
       />
 
-      <Select
-        value={type ?? "all"}
-        onValueChange={(value) => onTypeChange(value === "all" ? undefined : value)}
-      >
-        <SelectTrigger className="w-40" aria-label="Resource type">
-          <SelectValue placeholder="Type" />
-        </SelectTrigger>
-        <SelectContent>
-          <SelectItem value="all">All types</SelectItem>
-          {RESOURCE_TYPES.map((t) => (
-            <SelectItem key={t} value={t}>
-              {RESOURCE_TYPE_LABELS[t]}
-            </SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
+      <ResourceTypeCombobox
+        value={type}
+        onChange={onTypeChange}
+        className="w-40"
+      />
 
       <ProjectPicker
         value={projectId}
@@ -98,17 +85,6 @@ export default function ResourceFilterBar({
         <SelectContent>
           <SelectItem value="asc">Ascending</SelectItem>
           <SelectItem value="desc">Descending</SelectItem>
-        </SelectContent>
-      </Select>
-
-      <Select value={deleted} onValueChange={(v) => onDeletedChange(v as DeletedFilter)}>
-        <SelectTrigger className="w-40" aria-label="Record status filter">
-          <SelectValue placeholder="Record status" />
-        </SelectTrigger>
-        <SelectContent>
-          <SelectItem value="false">Active</SelectItem>
-          <SelectItem value="true">Deleted</SelectItem>
-          <SelectItem value="all">All</SelectItem>
         </SelectContent>
       </Select>
     </FilterBar>

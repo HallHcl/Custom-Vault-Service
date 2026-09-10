@@ -62,12 +62,11 @@ export function ResourceFileTable({ resources, selectedId, onSelect }: Props) {
       <Table>
         <TableHeader className="bg-muted/40">
           <TableRow>
-            <TableHead className="w-[35%]">Name</TableHead>
+            <TableHead className="w-[40%]">Name</TableHead>
             <TableHead className="w-[15%]">Type</TableHead>
-            <TableHead className="w-[15%]">Category</TableHead>
-            <TableHead className="w-[15%]">Project</TableHead>
+            <TableHead className="w-[20%]">Project</TableHead>
             <TableHead className="w-[10%]">Version</TableHead>
-            <TableHead className="w-[10%] text-right">Updated</TableHead>
+            <TableHead className="w-[15%] text-right">Updated</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
@@ -120,16 +119,6 @@ export function ResourceFileTable({ resources, selectedId, onSelect }: Props) {
                   <Badge variant="outline" className="font-normal text-xs">
                     {resource.type}
                   </Badge>
-                </TableCell>
-
-                <TableCell className="text-xs text-muted-foreground">
-                  {resource.category ? (
-                    <span className="inline-flex items-center px-2 py-0.5 rounded bg-muted/40 border border-border/50 text-[11px]">
-                      {resource.category}
-                    </span>
-                  ) : (
-                    "—"
-                  )}
                 </TableCell>
 
                 <TableCell className="text-xs text-muted-foreground truncate">

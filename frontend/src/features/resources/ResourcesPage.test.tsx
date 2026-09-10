@@ -142,13 +142,12 @@ describe("ResourcesPage", () => {
     expect(screen.getByText(/loading resources/i)).toBeInTheDocument();
   });
 
-  it("renders resources once loaded, including type/category", async () => {
+  it("renders resources once loaded, including type", async () => {
     mockGetByPath({ resources: ok(paginated([ACTIVE_RESOURCE])) });
     renderPage();
 
     expect(await screen.findByText("Deploy guide")).toBeInTheDocument();
     expect(screen.getByText("runbook")).toBeInTheDocument();
-    expect(screen.getByText("ops")).toBeInTheDocument();
   });
 
   it("renders an empty state when the list is empty", async () => {
@@ -289,12 +288,12 @@ describe("ResourcesPage", () => {
       expect(screen.queryByRole("button", { name: /add version/i })).not.toBeInTheDocument();
     });
 
-    it("shows Edit and Delete to admin, but Edit is hidden with an explanatory note for member (metadata PATCH is admin-only, unlike create/version which are admin+member)", async () => {
+    it("shows Delete to admin, but hides Delete for member", async () => {
       useAuthMock.mockReturnValue({ roles: ["admin"], isLoading: false });
       mockGetByPath({ resources: ok(paginated([ACTIVE_RESOURCE])) });
       const { unmount } = renderPage();
       fireEvent.click(await screen.findByText("Deploy guide"));
-      expect(await screen.findByRole("button", { name: /^edit$/i })).toBeInTheDocument();
+      expect(await screen.findByRole("button", { name: /^add version$/i })).toBeInTheDocument();
       expect(screen.getByRole("button", { name: /^delete$/i })).toBeInTheDocument();
       unmount();
 
@@ -303,13 +302,7 @@ describe("ResourcesPage", () => {
       renderPage();
       fireEvent.click(await screen.findByText("Deploy guide"));
       await screen.findByRole("button", { name: /add version/i });
-      expect(screen.queryByRole("button", { name: /^edit$/i })).not.toBeInTheDocument();
       expect(screen.queryByRole("button", { name: /^delete$/i })).not.toBeInTheDocument();
-      // A genuinely informative note replaces the button, not just a
-      // disabled button with a native tooltip.
-      expect(
-        screen.getByText(/editing this resource's title\/category\/tags requires admin access/i)
-      ).toBeInTheDocument();
     });
 
     it("shows Restore to admin on a deleted resource, with an explanatory note for non-admins", async () => {
