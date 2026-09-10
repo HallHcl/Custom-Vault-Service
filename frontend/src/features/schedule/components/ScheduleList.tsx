@@ -15,7 +15,7 @@ import { useHasRole } from "@/hooks/useHasRole";
 import { InitialsAvatar } from "@/components/ui/initials-avatar";
 import { cn } from "@/lib/utils";
 import { parseScheduledDate } from "@/hooks/useSchedules";
-import type { Person, Project, Schedule } from "@/types";
+import type { Person, Project, Schedule, ScheduleStatus } from "@/types";
 import ScheduleStatusActions from "./ScheduleStatusActions";
 
 // Edit/Delete are hidden once a schedule reaches a terminal status — mirrors
