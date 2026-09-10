@@ -49,7 +49,6 @@ export default function ActivityTimeline({ logs }: Props) {
               {format(new Date(log.created_at), "PPp")}
             </span>
           </div>
-          <p className="mt-1 font-mono text-xs text-muted-foreground">Entity ID: {log.entity_id}</p>
         </li>
       ))}
     </ol>

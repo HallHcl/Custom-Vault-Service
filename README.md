@@ -164,7 +164,18 @@ docker compose down -v
 
 ---
 
-### วิธีที่ 2: Local Development (ไม่ใช้ Docker)
+### วิธีที่ 2: รันทุก Service พร้อมกันผ่าน npm (แนะนำสำหรับ Dev)
+
+คำสั่งเดียวจะเริ่ม Docker Database (Postgres), รัน Migration อัตโนมัติ, และสตาร์ททั้ง Backend (พอร์ต 4000) และ Frontend (พอร์ต 5173) พร้อม Hot-reload:
+
+```bash
+npm start
+# หรือ npm run dev
+```
+
+---
+
+### วิธีที่ 3: Local Development (แยก Terminal)
 
 ต้องมี PostgreSQL รันอยู่แล้ว และตั้งค่า `DATABASE_URL` ใน `backend/.env` ให้ชี้ไปที่ `localhost`
 

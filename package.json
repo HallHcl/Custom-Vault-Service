@@ -1,0 +1,24 @@
+{
+  "name": "qqm",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Custom Vault Service - Client & Project Management Platform",
+  "scripts": {
+    "start": "node scripts/start-services.js",
+    "dev": "node scripts/start-services.js",
+    "build": "npm run build:backend && npm run build:frontend",
+    "build:backend": "npm --prefix backend run build",
+    "build:frontend": "npm --prefix frontend run build",
+    "backend:dev": "npm --prefix backend run dev",
+    "backend:start": "npm --prefix backend start",
+    "frontend:dev": "npm --prefix frontend run dev",
+    "backend:migrate": "npm --prefix backend run migrate",
+    "backend:seed": "npm --prefix backend run seed",
+    "db:up": "docker compose up -d db",
+    "db:down": "docker compose stop db",
+    "docker:up": "docker compose up -d",
+    "docker:down": "docker compose down",
+    "docker:logs": "docker compose logs -f"
+  }
+}

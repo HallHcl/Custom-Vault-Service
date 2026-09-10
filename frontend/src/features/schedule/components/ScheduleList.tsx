@@ -15,7 +15,7 @@ import { useHasRole } from "@/hooks/useHasRole";
 import { InitialsAvatar } from "@/components/ui/initials-avatar";
 import { cn } from "@/lib/utils";
 import { parseScheduledDate } from "@/hooks/useSchedules";
-import type { Schedule } from "@/types";
+import type { Person, Project, Schedule } from "@/types";
 import ScheduleStatusActions from "./ScheduleStatusActions";
 
 // Edit/Delete are hidden once a schedule reaches a terminal status — mirrors
@@ -25,7 +25,7 @@ import ScheduleStatusActions from "./ScheduleStatusActions";
 const TERMINAL_STATUSES: Schedule["status"][] = ["done", "cancelled"];
 
 const STATUS_VARIANT: Record<
-  Schedule["status"],
+  ScheduleStatus,
   "success" | "info" | "warning" | "neutral"
 > = {
   done: "success",
@@ -36,12 +36,23 @@ const STATUS_VARIANT: Record<
 
 interface Props {
   schedules: Schedule[];
+  projects?: Project[];
+  people?: Person[];
+  onSelect?: (schedule: Schedule) => void;
   onEdit: (schedule: Schedule) => void;
   onDelete: (schedule: Schedule) => void;
   onRestore: (schedule: Schedule) => void;
 }
 
-export default function ScheduleList({ schedules, onEdit, onDelete, onRestore }: Props) {
+export default function ScheduleList({
+  schedules,
+  projects,
+  people,
+  onSelect,
+  onEdit,
+  onDelete,
+  onRestore,
+}: Props) {
   const canEdit = useHasRole(["admin", "member"]);
   const canDelete = useHasRole(["admin"]);
 
@@ -55,6 +66,8 @@ export default function ScheduleList({ schedules, onEdit, onDelete, onRestore }:
         <TableRow>
           <TableHead>Title</TableHead>
           <TableHead>Type</TableHead>
+          <TableHead>Project</TableHead>
+          <TableHead>Assigned To</TableHead>
           <TableHead>Date</TableHead>
           <TableHead>Status</TableHead>
           <TableHead className="text-right">Actions</TableHead>
@@ -64,19 +77,64 @@ export default function ScheduleList({ schedules, onEdit, onDelete, onRestore }:
         {schedules.map((schedule) => {
           const isDeleted = Boolean(schedule.deleted_at);
           const isTerminal = TERMINAL_STATUSES.includes(schedule.status);
+          const project = projects?.find((p) => p.id === schedule.project_id);
+          const assignee = people?.find((p) => p.id === schedule.assigned_to);
+
           return (
-            <TableRow key={schedule.id} className={cn("group", isDeleted && "[&_td]:text-muted-foreground")}>
+            <TableRow
+              key={schedule.id}
+              className={cn(
+                "group cursor-pointer hover:bg-muted/50 transition-colors",
+                isDeleted && "[&_td]:text-muted-foreground"
+              )}
+              role="button"
+              tabIndex={0}
+              aria-label={`View ${schedule.title}`}
+              onClick={() => onSelect?.(schedule)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" || e.key === " ") {
+                  e.preventDefault();
+                  onSelect?.(schedule);
+                }
+              }}
+            >
               <TableCell className="font-medium">
                 <div className="flex items-center gap-2">
                   <InitialsAvatar name={schedule.title} />
-                  {schedule.title}
+                  <span className="font-medium group-hover:text-brand transition-colors">
+                    {schedule.title}
+                  </span>
                   {isDeleted && <Badge variant="neutral">Deleted</Badge>}
                 </div>
               </TableCell>
-              <TableCell>{schedule.type}</TableCell>
-              <TableCell className="font-mono text-xs text-muted-foreground tabular-nums">{format(parseScheduledDate(schedule.scheduled_date), "PP")}</TableCell>
               <TableCell>
-                <div className="flex items-center gap-2">
+                <Badge variant="outline">{schedule.type}</Badge>
+              </TableCell>
+              <TableCell className="text-sm">
+                {project ? (
+                  <span className="font-medium text-foreground">{project.name}</span>
+                ) : (
+                  <span className="text-muted-foreground">—</span>
+                )}
+              </TableCell>
+              <TableCell className="text-sm">
+                {assignee ? (
+                  <div className="flex items-center gap-1.5">
+                    <InitialsAvatar name={assignee.name} className="h-5 w-5 text-[10px]" />
+                    <span>{assignee.name}</span>
+                  </div>
+                ) : (
+                  <span className="text-muted-foreground">—</span>
+                )}
+              </TableCell>
+              <TableCell className="font-mono text-xs text-muted-foreground tabular-nums">
+                {format(parseScheduledDate(schedule.scheduled_date), "PP")}
+              </TableCell>
+              <TableCell>
+                <div
+                  className="flex items-center gap-2"
+                  onClick={(e) => e.stopPropagation()}
+                >
                   <Badge variant={STATUS_VARIANT[schedule.status]}>
                     {schedule.status.replace("_", " ")}
                   </Badge>
@@ -84,15 +142,6 @@ export default function ScheduleList({ schedules, onEdit, onDelete, onRestore }:
                 </div>
               </TableCell>
               <TableCell className="space-x-2 text-right">
-                {/* Row actions idle at opacity-60 — dimmed but legible and fully
-                    operable everywhere, including touch, where there is no hover to
-                    reveal them with. Hover or keyboard focus anywhere in the row brings
-                    them to full opacity. Kept as opacity (not display/visibility) so
-                    the buttons stay in the tab order throughout. Still skipped on
-                    deleted rows, though decision #53's original reason is gone: the row
-                    no longer carries its own opacity-50 to compound with (deleted rows
-                    are marked with muted text plus a badge now), but Restore is a
-                    deleted row's only action and is deliberately left at full contrast. */}
                 <div
                   className={cn(
                     "inline-flex transition-opacity",
@@ -100,15 +149,9 @@ export default function ScheduleList({ schedules, onEdit, onDelete, onRestore }:
                     "group-hover:opacity-100",
                     "group-focus-within:opacity-100"
                   )}
+                  onClick={(e) => e.stopPropagation()}
                 >
                   {isDeleted ? (
-                    // Restore's 409 ("Schedule is not deleted") is a business-rule
-                    // conflict, not a stale-write conflict. Schedule is a leaf
-                    // entity — nothing references schedules.id as a foreign key
-                    // (verified: no migration adds a schedule_id column anywhere)
-                    // — so restoring one has no cascade and no data-loss risk,
-                    // matching Clients'/People's/Resources' restore convention:
-                    // a direct action, not a ConfirmDialog.
                     <RequireRole roles={["admin"]}>
                       <Button variant="ghost" size="sm" onClick={() => onRestore(schedule)}>
                         Restore

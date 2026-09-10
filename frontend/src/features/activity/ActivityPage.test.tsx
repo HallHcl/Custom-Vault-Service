@@ -76,7 +76,7 @@ describe("ActivityPage", () => {
 
     expect(await screen.findByText("create")).toBeInTheDocument();
     expect(screen.getByText("by Ada Admin")).toBeInTheDocument();
-    expect(screen.getByText(/Entity ID: c1/)).toBeInTheDocument();
+    expect(screen.queryByText(/Entity ID:/)).not.toBeInTheDocument();
   });
 
   it("shows a loading state before the first response resolves", () => {

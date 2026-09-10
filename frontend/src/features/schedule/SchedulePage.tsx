@@ -29,8 +29,11 @@ import {
   useSchedules,
   type ScheduleSort,
 } from "@/hooks/useSchedules";
+import { usePeople } from "@/hooks/usePeople";
+import { useProjects } from "@/hooks/useProjects";
 import type { Schedule } from "@/types";
 import ScheduleCalendar from "./components/ScheduleCalendar";
+import ScheduleDetailDialog from "./components/ScheduleDetailDialog";
 import ScheduleList from "./components/ScheduleList";
 
 const SORT_OPTIONS: { value: ScheduleSort; label: string }[] = [
@@ -63,6 +66,16 @@ export default function SchedulePage() {
 
   const [deleteTarget, setDeleteTarget] = useState<Schedule | undefined>(undefined);
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
+  const [selectedSchedule, setSelectedSchedule] = useState<Schedule | undefined>(undefined);
+  const [detailOpen, setDetailOpen] = useState(false);
+
+  const { data: projects = [] } = useProjects();
+  const { data: people = [] } = usePeople();
+
+  function handleSelect(schedule: Schedule) {
+    setSelectedSchedule(schedule);
+    setDetailOpen(true);
+  }
 
   const {
     data: schedules = [],
@@ -254,6 +267,9 @@ export default function SchedulePage() {
             <>
               <ScheduleList
                 schedules={visibleSchedules}
+                projects={projects}
+                people={people}
+                onSelect={handleSelect}
                 onEdit={openEditForm}
                 onDelete={openDeleteConfirm}
                 onRestore={handleRestore}
@@ -285,6 +301,13 @@ export default function SchedulePage() {
         confirmLabel="Delete"
         variant="destructive"
         onConfirm={handleDelete}
+      />
+
+      <ScheduleDetailDialog
+        schedule={selectedSchedule}
+        open={detailOpen}
+        onOpenChange={setDetailOpen}
+        onEdit={openEditForm}
       />
     </div>
   );
