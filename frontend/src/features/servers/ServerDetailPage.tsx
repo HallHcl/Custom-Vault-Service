@@ -157,45 +157,6 @@ export default function ServerDetailPage() {
                   </div>
                 )}
 
-                {/* One-Click Remote Connection widget */}
-                {(sshCommand || rdpTarget) && (
-                  <div className={cn(panelSurface(), "p-3 space-y-2 border-brand/20 bg-brand/5")}>
-                    <div className="flex items-center justify-between">
-                      <span className="flex items-center gap-1.5 text-xs font-semibold text-foreground">
-                        {isRdp ? <Monitor className="h-3.5 w-3.5 text-brand" /> : <Terminal className="h-3.5 w-3.5 text-brand" />}
-                        <span>{isRdp ? "Remote Desktop Connection (RDP)" : "One-Click Remote Connection (SSH)"}</span>
-                      </span>
-                      <Badge variant="outline" className="text-[10px] uppercase font-mono tracking-wider">
-                        {isRdp ? "RDP Session" : "SSH Terminal"}
-                      </Badge>
-                    </div>
-
-                    <div className="flex items-center justify-between gap-2 bg-background/90 rounded border border-border/80 px-2.5 py-1.5 font-mono text-xs text-foreground select-all">
-                      <span className="truncate">{isRdp ? rdpMstscCommand : sshCommand}</span>
-                      <CopyButton
-                        value={isRdp ? rdpMstscCommand : sshCommand}
-                        label={isRdp ? "RDP command" : "SSH command"}
-                        onCopy={() => {
-                          recordAccess(isRdp ? "copy_rdp_command" : "copy_ssh_command");
-                          toast({
-                            title: isRdp ? "RDP command copied" : "SSH command copied",
-                            description: "Command copied to clipboard (logged in audit trail).",
-                          });
-                        }}
-                      />
-                    </div>
-
-                    {isRdp && (
-                      <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-muted-foreground pt-0.5">
-                        <span>Target Host: <span className="font-mono text-foreground select-all">{rdpTarget}</span></span>
-                        {server.username && (
-                          <span>User: <span className="font-mono text-foreground select-all">{server.username}</span></span>
-                        )}
-                      </div>
-                    )}
-                  </div>
-                )}
-
                 <div className={cn(panelSurface(), "p-3")}>
                   <p className="mb-2 text-label text-muted-foreground">
                     Access documentation
@@ -281,27 +242,6 @@ export default function ServerDetailPage() {
                         )}
                       </dd>
                     </div>
-                    <div className="min-w-0">
-                      <dt className="text-xs text-muted-foreground">Access host</dt>
-                      <dd className="flex items-center gap-1 break-words">
-                        {server.access_host ||
-                          (server.username && (server.ip_address || server.hostname)
-                            ? `${server.username}@${server.ip_address || server.hostname}`
-                            : server.ip_address || server.hostname || "—")}
-                        {(server.access_host || (server.username && (server.ip_address || server.hostname))) && (
-                          <CopyButton
-                            value={
-                              server.access_host ||
-                              (server.username && (server.ip_address || server.hostname)
-                                ? `${server.username}@${server.ip_address || server.hostname}`
-                                : server.ip_address || server.hostname || "")
-                            }
-                            label="access host"
-                            onCopy={() => recordAccess("copy_access_host")}
-                          />
-                        )}
-                      </dd>
-                    </div>
                     <div>
                       <dt className="text-xs text-muted-foreground">Port</dt>
                       <dd>{server.access_port ?? "—"}</dd>
@@ -311,6 +251,45 @@ export default function ServerDetailPage() {
                       <dd className="break-words">{server.access_path ?? "—"}</dd>
                     </div>
                   </dl>
+
+                  {/* One-Click Remote Connection widget */}
+                  {(sshCommand || rdpTarget) && (
+                    <div className={cn("mt-3 rounded border border-brand/20 bg-brand/5 p-3 space-y-2")}>
+                      <div className="flex items-center justify-between">
+                        <span className="flex items-center gap-1.5 text-xs font-semibold text-foreground">
+                          {isRdp ? <Monitor className="h-3.5 w-3.5 text-brand" /> : <Terminal className="h-3.5 w-3.5 text-brand" />}
+                          <span>{isRdp ? "Remote Desktop Connection (RDP)" : "One-Click Remote Connection (SSH)"}</span>
+                        </span>
+                        <Badge variant="outline" className="text-[10px] uppercase font-mono tracking-wider">
+                          {isRdp ? "RDP Session" : "SSH Terminal"}
+                        </Badge>
+                      </div>
+
+                      <div className="flex items-center justify-between gap-2 bg-background/90 rounded border border-border/80 px-2.5 py-1.5 font-mono text-xs text-foreground select-all">
+                        <span className="truncate">{isRdp ? rdpMstscCommand : sshCommand}</span>
+                        <CopyButton
+                          value={isRdp ? rdpMstscCommand : sshCommand}
+                          label={isRdp ? "RDP command" : "SSH command"}
+                          onCopy={() => {
+                            recordAccess(isRdp ? "copy_rdp_command" : "copy_ssh_command");
+                            toast({
+                              title: isRdp ? "RDP command copied" : "SSH command copied",
+                              description: "Command copied to clipboard (logged in audit trail).",
+                            });
+                          }}
+                        />
+                      </div>
+
+                      {isRdp && (
+                        <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-muted-foreground pt-0.5">
+                          <span>Target Host: <span className="font-mono text-foreground select-all">{rdpTarget}</span></span>
+                          {server.username && (
+                            <span>User: <span className="font-mono text-foreground select-all">{server.username}</span></span>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  )}
 
                   {/* Audit disclaimer notice with link to audit trail */}
                   <div className="mt-3 pt-2.5 border-t border-border/50 flex flex-wrap items-center justify-between gap-2 text-xs text-muted-foreground">
