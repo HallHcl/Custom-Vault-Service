@@ -12,7 +12,7 @@ export type EntityType =
   | "expiration"
   | "user";
 
-export type ActivityAction = "create" | "update" | "delete" | "restore";
+export type ActivityAction = "create" | "update" | "delete" | "restore" | "access";
 
 export type ScheduleStatus = "pending" | "in_progress" | "done" | "cancelled";
 

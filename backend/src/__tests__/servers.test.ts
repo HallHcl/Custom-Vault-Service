@@ -380,3 +380,52 @@ describe("display_name backfill (migration 004)", () => {
     }
   });
 });
+
+describe("server credential access audit logging", () => {
+  it("records access action in activity_logs when POST /api/servers/:id/access-log is called", async () => {
+    const createRes = await createServerAs(
+      adminToken,
+      validServerBody({ display_name: `${PREFIX}AccessAuditServer`, password: "auditSecretPassword" })
+    );
+    const server = createRes.body;
+
+    const accessRes = await request(app)
+      .post(`/api/servers/${server.id}/access-log`)
+      .set("Authorization", `Bearer ${memberToken}`)
+      .send({ action_type: "copy_password" });
+
+    expect(accessRes.status).toBe(200);
+    expect(accessRes.body).toEqual({ success: true });
+
+    const logs = await pool.query<{
+      action: string;
+      new_value: { action_type: string; server_name: string; username: string };
+    }>(
+      `SELECT action, new_value FROM activity_logs WHERE entity_type = 'server' AND entity_id = $1 AND action = 'access'`,
+      [server.id]
+    );
+
+    expect(logs.rows).toHaveLength(1);
+    expect(logs.rows[0].action).toBe("access");
+    expect(logs.rows[0].new_value.action_type).toBe("copy_password");
+    expect(logs.rows[0].new_value.server_name).toBe(`${PREFIX}AccessAuditServer`);
+  });
+
+  it("rejects access log with 404 for non-existent server", async () => {
+    const res = await request(app)
+      .post(`/api/servers/00000000-0000-0000-0000-000000000000/access-log`)
+      .set("Authorization", `Bearer ${memberToken}`)
+      .send({ action_type: "copy_password" });
+
+    expect(res.status).toBe(404);
+  });
+
+  it("rejects unauthenticated access log requests with 401", async () => {
+    const res = await request(app)
+      .post(`/api/servers/00000000-0000-0000-0000-000000000000/access-log`)
+      .send({ action_type: "copy_password" });
+
+    expect(res.status).toBe(401);
+  });
+});
+

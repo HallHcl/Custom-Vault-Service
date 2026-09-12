@@ -426,6 +426,9 @@ components:
         password:
           type: string
           nullable: true
+        encrypted_password:
+          type: string
+          nullable: true
       required:
         - id
         - environment_id
@@ -1182,6 +1185,7 @@ components:
         - update
         - delete
         - restore
+        - access
     SearchResults:
       type: object
       properties:
@@ -3125,6 +3129,70 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Server"
+        "401":
+          description: Not authenticated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Insufficient permissions
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /api/servers/{id}/access-log:
+    post:
+      tags:
+        - Servers
+      operationId: logServerAccess
+      summary: Log a credential access action (copy/reveal password or host/command)
+        for audit trail
+      security:
+        - bearerAuth: []
+      parameters:
+        - schema:
+            type: string
+            format: uuid
+          required: true
+          name: id
+          in: path
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                action_type:
+                  type: string
+                  minLength: 1
+              required:
+                - action_type
+      responses:
+        "200":
+          description: Access logged
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                required:
+                  - success
+        "400":
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
         "401":
           description: Not authenticated
           content:

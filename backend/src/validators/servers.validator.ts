@@ -82,3 +82,9 @@ export const listServersQuerySchema = z.object({
 export type CreateServerInput = z.infer<typeof createServerSchema>;
 export type UpdateServerInput = z.infer<typeof updateServerSchema>;
 export type ListServersQuery = z.infer<typeof listServersQuerySchema>;
+
+export const logServerAccessSchema = z.object({
+  action_type: z.string().min(1),
+});
+
+export type LogServerAccessInput = z.infer<typeof logServerAccessSchema>;

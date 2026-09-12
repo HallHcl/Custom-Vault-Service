@@ -396,3 +396,37 @@ export async function getDistinctServiceTypes(): Promise<string[]> {
   return result.rows.map((r) => r.service_type);
 }
 
+export async function logServerCredentialAccess(
+  id: string,
+  actingPeopleId: string,
+  actionType: string
+): Promise<void> {
+  const result = await pool.query<Server>(
+    `SELECT * FROM servers WHERE id = $1 AND deleted_at IS NULL`,
+    [id]
+  );
+  const server = result.rows[0];
+  if (!server) {
+    throw new ApiError(404, "Server not found");
+  }
+
+  const accessPayload = {
+    server_name: server.display_name,
+    hostname: server.hostname,
+    ip_address: server.ip_address,
+    access_method: server.access_method,
+    username: server.username,
+    action_type: actionType,
+  };
+
+  await logActivity(
+    "server",
+    server.id,
+    "access",
+    actingPeopleId,
+    null,
+    accessPayload
+  );
+}
+
+

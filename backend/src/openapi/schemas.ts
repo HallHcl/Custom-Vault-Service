@@ -127,8 +127,14 @@ export const ExpirationStatusSchema = z
   .openapi("ExpirationStatus");
 
 export const ActivityActionSchema = z
-  .enum(["create", "update", "delete", "restore"])
+  .enum(["create", "update", "delete", "restore", "access"])
   .openapi("ActivityAction");
+
+export const ServerAccessLogInputSchema = z
+  .object({
+    action_type: z.string().min(1),
+  })
+  .openapi("ServerAccessLogInput");
 
 // ---------------------------------------------------------------------------
 // Core entity schemas (Step 2) — mirror actual DB columns / response shapes

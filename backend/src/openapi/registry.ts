@@ -37,6 +37,7 @@ import {
   ExpirationListResponseSchema,
   ExpirationSchema,
   ExpirationSummarySchema,
+  ServerAccessLogInputSchema,
   UserSchema,
 } from "./schemas";
 import { loginSchema, changePasswordSchema } from "../validators/auth.validator";
@@ -44,7 +45,7 @@ import { createClientSchema, updateClientSchema } from "../validators/clients.va
 import { createProjectSchema, updateProjectSchema } from "../validators/projects.validator";
 import { addProjectPersonSchema } from "../validators/projectPeople.validator";
 import { createEnvironmentSchema, updateEnvironmentSchema } from "../validators/environments.validator";
-import { createServerSchema, updateServerSchema } from "../validators/servers.validator";
+import { createServerSchema, logServerAccessSchema, updateServerSchema } from "../validators/servers.validator";
 import {
   createCredentialReferenceSchema,
   updateCredentialReferenceSchema,
@@ -534,6 +535,23 @@ registry.registerPath({
   security: bearerAuth,
   request: { params: IdParam },
   responses: { 200: ok("Server", ServerDetailSchema), ...errors(401, 404) },
+});
+
+registry.registerPath({
+  method: "post",
+  path: "/api/servers/{id}/access-log",
+  tags: ["Servers"],
+  operationId: "logServerAccess",
+  summary: "Log a credential access action (copy/reveal password or host/command) for audit trail",
+  security: bearerAuth,
+  request: {
+    params: IdParam,
+    body: { required: true, ...json(logServerAccessSchema) },
+  },
+  responses: {
+    200: ok("Access logged", z.object({ success: z.boolean() })),
+    ...errors(400, 401, 403, 404),
+  },
 });
 
 registry.registerPath({

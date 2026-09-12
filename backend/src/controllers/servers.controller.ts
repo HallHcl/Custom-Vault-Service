@@ -3,6 +3,7 @@ import { ApiError } from "../middleware/errorHandler";
 import { paramId, requireChangedBy } from "../utils/requestContext";
 import {
   createServerSchema,
+  logServerAccessSchema,
   updateServerSchema,
 } from "../validators/servers.validator";
 import {
@@ -11,6 +12,7 @@ import {
   getServerById,
   listServers,
   ListServersParams,
+  logServerCredentialAccess,
   restoreServer,
   softDeleteServer,
   updateServer,
@@ -106,3 +108,14 @@ export async function listServiceTypes(_req: Request, res: Response) {
   const types = await getDistinctServiceTypes();
   res.json(types);
 }
+
+export async function logAccess(req: Request, res: Response) {
+  const parseResult = logServerAccessSchema.safeParse(req.body);
+  if (!parseResult.success) {
+    throw new ApiError(400, "Validation failed", "VALIDATION_ERROR", parseResult.error.flatten());
+  }
+  const changedBy = requireChangedBy(req);
+  await logServerCredentialAccess(paramId(req, "id"), changedBy, parseResult.data.action_type);
+  res.json({ success: true });
+}
+
