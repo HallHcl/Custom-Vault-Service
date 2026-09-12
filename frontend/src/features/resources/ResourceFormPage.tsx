@@ -7,7 +7,6 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
 import {
   Select,
   SelectContent,
@@ -28,6 +27,7 @@ import { useCreateResource, useResource } from "@/hooks/useResources";
 import { useCreateResourceVersion, useResourceVersion } from "@/hooks/useResourceVersions";
 import { ImageDropzone, formatBytes } from "./components/ImageDropzone";
 import { AttachmentGallery } from "./components/AttachmentGallery";
+import { WordRichEditor } from "./components/WordRichEditor";
 import type { ResourceType } from "@/types";
 import {
   RESOURCE_TYPE_LABELS,
@@ -507,14 +507,14 @@ export default function ResourceFormPage({ mode: modeProp }: ResourceFormPagePro
                     </Button>
                   </div>
                 </div>
-                <Textarea
+                <WordRichEditor
                   id="content"
-                  rows={6}
+                  rows={8}
                   value={content}
-                  onChange={(e) => setContent(e.target.value)}
+                  onChange={setContent}
                   aria-invalid={!!fieldErrors.content}
                   aria-describedby={fieldErrors.content ? errorId("content") : undefined}
-                  className={cn(fieldErrors.content && INVALID_CONTROL, "font-mono text-xs")}
+                  error={!!fieldErrors.content}
                   placeholder="Enter markdown or text content, or click 'Choose File' to load from a file..."
                 />
                 {fieldErrors.content && (

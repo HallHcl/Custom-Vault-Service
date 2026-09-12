@@ -30,6 +30,7 @@ import ResourceFileTable from "./components/ResourceFileTable";
 import VersionHistoryPanel from "./components/VersionHistoryPanel";
 import { AttachmentGallery } from "./components/AttachmentGallery";
 import { useResourceAttachments } from "@/hooks/useResourceAttachments";
+import { markdownToHtml } from "./utils/markdownUtils";
 
 const SORT_OPTIONS: { value: ResourceSort; label: string }[] = [
   { value: "title", label: "Title" },
@@ -57,6 +58,7 @@ export default function ResourcesPage() {
 
   const [selected, setSelected] = useState<ResourceListItem | undefined>(undefined);
   const [activeTab, setActiveTab] = useState<"content" | "history">("content");
+  const [contentViewMode, setContentViewMode] = useState<"raw" | "formatted">("raw");
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
 
   const {
@@ -356,40 +358,71 @@ export default function ResourcesPage() {
                         <div className="space-y-2">
                           <div className="flex items-center justify-between">
                             <h3 className="text-sm font-semibold text-foreground">Content</h3>
-                            <Button
-                              type="button"
-                              variant="outline"
-                              size="sm"
-                              className="h-7 text-xs gap-1.5"
-                              onClick={() => {
-                                const blob = new Blob(
-                                  [resourceDetail.current_version!.content!],
-                                  { type: "text/markdown;charset=utf-8" }
-                                );
-                                const url = URL.createObjectURL(blob);
-                                const a = document.createElement("a");
-                                a.href = url;
-                                const safeTitle = (selected.title || "resource")
-                                  .toLowerCase()
-                                  .replace(/[^a-z0-9_-]/g, "_");
-                                a.download = `${safeTitle}.md`;
-                                document.body.appendChild(a);
-                                a.click();
-                                document.body.removeChild(a);
-                                URL.revokeObjectURL(url);
-                                toast({
-                                  title: "Downloaded .md",
-                                  description: `Saved as "${safeTitle}.md"`,
-                                });
-                              }}
-                            >
-                              <Download className="h-3.5 w-3.5" />
-                              Download .md
-                            </Button>
+                            <div className="flex items-center gap-2">
+                              <div className="flex items-center rounded-md border border-border/80 bg-muted/40 p-0.5">
+                                <Button
+                                  type="button"
+                                  variant={contentViewMode === "formatted" ? "secondary" : "ghost"}
+                                  size="sm"
+                                  className="h-6 px-2 text-[11px]"
+                                  onClick={() => setContentViewMode("formatted")}
+                                >
+                                  Formatted
+                                </Button>
+                                <Button
+                                  type="button"
+                                  variant={contentViewMode === "raw" ? "secondary" : "ghost"}
+                                  size="sm"
+                                  className="h-6 px-2 text-[11px]"
+                                  onClick={() => setContentViewMode("raw")}
+                                >
+                                  Raw .md
+                                </Button>
+                              </div>
+                              <Button
+                                type="button"
+                                variant="outline"
+                                size="sm"
+                                className="h-7 text-xs gap-1.5"
+                                onClick={() => {
+                                  const blob = new Blob(
+                                    [resourceDetail.current_version!.content!],
+                                    { type: "text/markdown;charset=utf-8" }
+                                  );
+                                  const url = URL.createObjectURL(blob);
+                                  const a = document.createElement("a");
+                                  a.href = url;
+                                  const safeTitle = (selected.title || "resource")
+                                    .toLowerCase()
+                                    .replace(/[^a-z0-9_-]/g, "_");
+                                  a.download = `${safeTitle}.md`;
+                                  document.body.appendChild(a);
+                                  a.click();
+                                  document.body.removeChild(a);
+                                  URL.revokeObjectURL(url);
+                                  toast({
+                                    title: "Downloaded .md",
+                                    description: `Saved as "${safeTitle}.md"`,
+                                  });
+                                }}
+                              >
+                                <Download className="h-3.5 w-3.5" />
+                                Download .md
+                              </Button>
+                            </div>
                           </div>
-                          <pre className="max-h-[500px] overflow-auto whitespace-pre-wrap rounded-md border border-border bg-muted/20 p-4 font-mono text-xs text-foreground">
-                            {resourceDetail.current_version.content}
-                          </pre>
+                          {contentViewMode === "formatted" ? (
+                            <div
+                              className="max-h-[500px] overflow-auto rounded-md border border-border bg-card p-4 text-sm text-foreground leading-relaxed prose prose-neutral dark:prose-invert max-w-none"
+                              dangerouslySetInnerHTML={{
+                                __html: markdownToHtml(resourceDetail.current_version.content),
+                              }}
+                            />
+                          ) : (
+                            <pre className="max-h-[500px] overflow-auto whitespace-pre-wrap rounded-md border border-border bg-muted/20 p-4 font-mono text-xs text-foreground">
+                              {resourceDetail.current_version.content}
+                            </pre>
+                          )}
                         </div>
                       )}
 
