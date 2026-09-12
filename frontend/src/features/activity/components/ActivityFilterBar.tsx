@@ -25,7 +25,7 @@ const ENTITY_TYPES: EntityType[] = [
   "user",
 ];
 
-const ACTIONS: ActivityAction[] = ["create", "update", "delete", "restore"];
+const ACTIONS: ActivityAction[] = ["create", "update", "delete", "restore", "access"];
 
 interface Props {
   entityType: EntityType | undefined;

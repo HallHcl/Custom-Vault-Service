@@ -25,7 +25,7 @@ const ENTITY_TYPES: EntityType[] = [
   "user",
 ];
 
-const ACTIONS: ActivityAction[] = ["create", "update", "delete", "restore"];
+const ACTIONS: ActivityAction[] = ["create", "update", "delete", "restore", "access"];
 
 export default function ActivityPage() {
   useBreadcrumbs([HOME_SEGMENT, { label: "Activity" }]);

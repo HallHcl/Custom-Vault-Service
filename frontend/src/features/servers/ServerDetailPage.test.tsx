@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { fireEvent, render, screen, within } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import ServerDetailPage from "./ServerDetailPage";
@@ -10,6 +10,16 @@ const getMock = vi.fn();
 const patchMock = vi.fn();
 const toastMock = vi.fn();
 const useAuthMock = vi.fn();
+const apiPostMock = vi.fn();
+
+vi.mock("@/lib/api", () => ({
+  api: {
+    post: (...args: unknown[]) => apiPostMock(...args),
+  },
+  default: {
+    post: (...args: unknown[]) => apiPostMock(...args),
+  },
+}));
 
 vi.mock("@/api/client", async () => {
   const actual = await vi.importActual<typeof import("@/api/client")>("@/api/client");
@@ -115,6 +125,13 @@ describe("ServerDetailPage", () => {
     toastMock.mockClear();
     useAuthMock.mockReset();
     useAuthMock.mockReturnValue({ roles: ["member"], isLoading: false });
+    apiPostMock.mockReset();
+    apiPostMock.mockResolvedValue({ data: { success: true } });
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    Object.defineProperty(navigator, "clipboard", {
+      value: { writeText },
+      configurable: true,
+    });
   });
 
   it("shows a loading state while the fetch is in flight", () => {
@@ -360,6 +377,106 @@ describe("ServerDetailPage", () => {
       // Click again to hide
       fireEvent.click(screen.getByRole("button", { name: /hide password/i }));
       expect(screen.getByText("enc_8f4a1c02b9e67d4f")).toBeInTheDocument();
+    });
+  });
+
+  describe("One-Click Remote Connection & credential access logging", () => {
+    it("renders SSH command and logs copy_ssh_command when copied", async () => {
+      mockGetByPath({
+        server: ok({
+          ...SERVER_DETAIL,
+          access_method: "ssh",
+          username: "ubuntu",
+          ip_address: "192.168.1.50",
+          access_port: 22,
+        }),
+      });
+
+      renderPage();
+
+      expect(await screen.findByText("One-Click Remote Connection (SSH)")).toBeInTheDocument();
+      expect(screen.getByText("ssh ubuntu@192.168.1.50")).toBeInTheDocument();
+
+      const copyBtn = screen.getByRole("button", { name: /copy ssh command/i });
+      fireEvent.click(copyBtn);
+
+      await waitFor(() => {
+        expect(apiPostMock).toHaveBeenCalledWith("/servers/s1/access-log", {
+          action_type: "copy_ssh_command",
+        });
+      });
+      expect(toastMock).toHaveBeenCalledWith(
+        expect.objectContaining({
+          title: "SSH command copied",
+        })
+      );
+    });
+
+    it("renders RDP connection command when access_method is rdp and logs copy_rdp_command", async () => {
+      mockGetByPath({
+        server: ok({
+          ...SERVER_DETAIL,
+          access_method: "rdp",
+          username: "Administrator",
+          ip_address: "10.0.0.99",
+          access_port: 3389,
+        }),
+      });
+
+      renderPage();
+
+      expect(await screen.findByText("Remote Desktop Connection (RDP)")).toBeInTheDocument();
+      expect(screen.getByText("mstsc /v:10.0.0.99")).toBeInTheDocument();
+
+      const copyBtn = screen.getByRole("button", { name: /copy rdp command/i });
+      fireEvent.click(copyBtn);
+
+      await waitFor(() => {
+        expect(apiPostMock).toHaveBeenCalledWith("/servers/s1/access-log", {
+          action_type: "copy_rdp_command",
+        });
+      });
+    });
+
+    it("logs reveal_password and copy_password when viewing/copying password", async () => {
+      mockGetByPath({
+        server: ok({
+          ...SERVER_DETAIL,
+          password: "myVerySecretPassword",
+        }),
+      });
+
+      renderPage();
+
+      // Click copy password
+      const copyBtn = await screen.findByRole("button", { name: /copy password/i });
+      fireEvent.click(copyBtn);
+
+      await waitFor(() => {
+        expect(apiPostMock).toHaveBeenCalledWith("/servers/s1/access-log", {
+          action_type: "copy_password",
+        });
+      });
+
+      // Click eye button to reveal password
+      const eyeBtn = screen.getByRole("button", { name: /show password/i });
+      fireEvent.click(eyeBtn);
+
+      await waitFor(() => {
+        expect(apiPostMock).toHaveBeenCalledWith("/servers/s1/access-log", {
+          action_type: "reveal_password",
+        });
+      });
+    });
+
+    it("renders audit disclaimer note with link to audit trail", async () => {
+      mockGetByPath({});
+
+      renderPage();
+
+      expect(await screen.findByText(/all credential reveals and copies are recorded in the audit log/i)).toBeInTheDocument();
+      const link = screen.getByRole("link", { name: /view audit trail/i });
+      expect(link).toHaveAttribute("href", "/activity?entity_type=server&entity_id=s1");
     });
   });
 });

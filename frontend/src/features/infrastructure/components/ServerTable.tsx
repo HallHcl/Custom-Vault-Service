@@ -1,6 +1,6 @@
 import { Fragment, useState } from "react";
 import { Link } from "react-router-dom";
-import { Eye, EyeOff } from "lucide-react";
+import { Eye, EyeOff, Monitor, ShieldCheck, Terminal } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -14,6 +14,16 @@ import {
 import { CopyButton } from "@/components/CopyButton";
 import type { Server } from "@/types";
 import CredentialRefList from "./CredentialRefList";
+import { api } from "@/lib/api";
+import { toast } from "@/hooks/use-toast";
+
+async function recordAccess(serverId: string, actionType: string) {
+  try {
+    await api.post(`/servers/${serverId}/access-log`, { action_type: actionType });
+  } catch {
+    // Non-blocking
+  }
+}
 
 const SERVICE_TYPE_LABELS: Record<string, string> = {
   application: "Application",
@@ -51,33 +61,105 @@ function accessTargetOf(server: Server): string | null {
 function ServerCredentialsRow({ server }: { server: Server }) {
   const [showPlain, setShowPlain] = useState(false);
 
-  if (!server.password) return null;
+  const resolvedHost = server.ip_address || server.hostname || "";
+  const isRdp = server.access_method === "rdp";
+  const sshPortPart = server.access_port && server.access_port !== 22 ? `-p ${server.access_port} ` : "";
+  const parsedUser = server.username || (server.access_host?.includes("@") ? server.access_host.split("@")[0] : "");
+  const sshUserPart = parsedUser ? `${parsedUser}@` : "";
+  const sshCommand = resolvedHost ? `ssh ${sshPortPart}${sshUserPart}${resolvedHost}` : "";
+  const rdpPortPart = server.access_port && server.access_port !== 3389 ? `:${server.access_port}` : "";
+  const rdpTarget = resolvedHost ? `${resolvedHost}${rdpPortPart}` : "";
+  const rdpMstscCommand = rdpTarget ? `mstsc /v:${rdpTarget}` : "";
+
+  if (!server.password && !sshCommand && !rdpTarget) return null;
 
   return (
-    <div className="flex flex-wrap items-center gap-5 rounded-md border border-border/60 bg-background/60 px-3 py-2 text-xs">
-      <div className="flex items-center gap-1.5">
-        <span className="text-muted-foreground">Password:</span>
-        <span
-          className="font-mono bg-muted/70 px-1.5 py-0.5 rounded border border-border/40 text-muted-foreground select-all"
-          title={showPlain ? "Plaintext password" : "Encrypted secret token"}
-        >
-          {showPlain
-            ? server.password
-            : (server.encrypted_password || "••••••••")}
-        </span>
-        <CopyButton value={server.password} label="password" />
-        <Button
-          type="button"
-          variant="ghost"
-          size="icon"
-          className="h-6 w-6 shrink-0 text-muted-foreground hover:text-foreground"
-          onClick={() => setShowPlain((prev) => !prev)}
-          title={showPlain ? "Hide password" : "Show password"}
-          aria-label={showPlain ? "Hide password" : "Show password"}
-        >
-          {showPlain ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
-        </Button>
-      </div>
+    <div className="space-y-2">
+      {/* Quick Remote Connection (SSH/RDP) */}
+      {(sshCommand || rdpTarget) && (
+        <div className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-brand/20 bg-brand/5 px-3 py-1.5 text-xs">
+          <div className="flex items-center gap-2 font-mono">
+            <span className="flex items-center gap-1 text-muted-foreground font-sans font-medium">
+              {isRdp ? <Monitor className="h-3.5 w-3.5 text-brand" /> : <Terminal className="h-3.5 w-3.5 text-brand" />}
+              <span>{isRdp ? "RDP:" : "SSH:"}</span>
+            </span>
+            <span className="text-foreground select-all">{isRdp ? rdpMstscCommand : sshCommand}</span>
+          </div>
+          <CopyButton
+            value={isRdp ? rdpMstscCommand : sshCommand}
+            label={isRdp ? "RDP command" : "SSH command"}
+            onCopy={() => {
+              recordAccess(server.id, isRdp ? "copy_rdp_command" : "copy_ssh_command");
+              toast({
+                title: isRdp ? "RDP command copied" : "SSH command copied",
+                description: "Command copied to clipboard (logged in audit trail).",
+              });
+            }}
+          />
+        </div>
+      )}
+
+      {/* Password & Credentials row */}
+      {server.password && (
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded-md border border-border/60 bg-background/60 px-3 py-2 text-xs">
+          <div className="flex items-center gap-1.5">
+            <span className="text-muted-foreground">Password:</span>
+            <span
+              className="font-mono bg-muted/70 px-1.5 py-0.5 rounded border border-border/40 text-muted-foreground select-all"
+              title={showPlain ? "Plaintext password" : "Encrypted secret token"}
+            >
+              {showPlain
+                ? server.password
+                : (server.encrypted_password || "••••••••")}
+            </span>
+            <CopyButton
+              value={server.password}
+              label="password"
+              onCopy={() => {
+                recordAccess(server.id, "copy_password");
+                toast({
+                  title: "Password copied",
+                  description: "Credential copy recorded in audit log.",
+                });
+              }}
+            />
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              className="h-6 w-6 shrink-0 text-muted-foreground hover:text-foreground"
+              onClick={() => {
+                setShowPlain((prev) => {
+                  const next = !prev;
+                  if (next) {
+                    recordAccess(server.id, "reveal_password");
+                    toast({
+                      title: "Password revealed",
+                      description: "Credential reveal recorded in audit log.",
+                    });
+                  }
+                  return next;
+                });
+              }}
+              title={showPlain ? "Hide password" : "Show password"}
+              aria-label={showPlain ? "Hide password" : "Show password"}
+            >
+              {showPlain ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
+            </Button>
+          </div>
+
+          <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
+            <ShieldCheck className="h-3.5 w-3.5 text-brand" />
+            <span>All password reveals and copies are recorded in audit logs.</span>
+            <Link
+              to={`/activity?entity_type=server&entity_id=${server.id}`}
+              className="text-brand hover:underline inline-flex items-center ml-1"
+            >
+              Audit trail &rarr;
+            </Link>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -134,7 +216,11 @@ export default function ServerTable({ servers }: Props) {
                     {server.ip_address ? (
                       <span className="inline-flex items-center gap-1">
                         <span className="font-mono text-sm tabular-nums">{server.ip_address}</span>
-                        <CopyButton value={server.ip_address} label="IP address" />
+                        <CopyButton
+                          value={server.ip_address}
+                          label="IP address"
+                          onCopy={() => recordAccess(server.id, "copy_ip_address")}
+                        />
                       </span>
                     ) : (
                       <span className="text-muted-foreground">—</span>
@@ -149,7 +235,11 @@ export default function ServerTable({ servers }: Props) {
                           </span>
                         )}
                         <span className="font-mono text-sm">{target}</span>
-                        <CopyButton value={target} label="access host" />
+                        <CopyButton
+                          value={target}
+                          label="access host"
+                          onCopy={() => recordAccess(server.id, "copy_access_host")}
+                        />
                       </span>
                     ) : (
                       <span className="text-muted-foreground">—</span>

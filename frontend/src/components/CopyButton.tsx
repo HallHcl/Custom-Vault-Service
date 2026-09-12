@@ -10,6 +10,8 @@ interface Props {
   /** For the accessible name / tooltip, e.g. "IP address". Defaults to "value". */
   label?: string;
   className?: string;
+  /** Optional callback fired when text is successfully copied. */
+  onCopy?: () => void;
 }
 
 /**
@@ -66,7 +68,7 @@ export async function writeTextToClipboard(text: string): Promise<boolean> {
  * check for ~1.5s. Supports both secure (HTTPS/localhost) and HTTP LAN contexts.
  * Falls back to a toast if clipboard copying is completely unavailable.
  */
-export function CopyButton({ value, label = "value", className }: Props) {
+export function CopyButton({ value, label = "value", className, onCopy }: Props) {
   const [copied, setCopied] = useState(false);
   const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
 
@@ -78,6 +80,7 @@ export function CopyButton({ value, label = "value", className }: Props) {
       setCopied(true);
       clearTimeout(timer.current);
       timer.current = setTimeout(() => setCopied(false), 1500);
+      onCopy?.();
     } else {
       toast({
         title: "Couldn't copy",

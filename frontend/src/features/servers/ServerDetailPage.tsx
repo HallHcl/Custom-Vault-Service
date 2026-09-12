@@ -1,6 +1,6 @@
 import { useState } from "react";
-import { useNavigate, useParams } from "react-router-dom";
-import { Eye, EyeOff } from "lucide-react";
+import { Link, useNavigate, useParams } from "react-router-dom";
+import { Eye, EyeOff, Monitor, ShieldCheck, Terminal } from "lucide-react";
 import { RequireRole } from "@/components/auth/RequireRole";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -13,6 +13,8 @@ import { useProject } from "@/hooks/useProjects";
 import { useServer, type ServerDetail } from "@/hooks/useServers";
 import { cn } from "@/lib/utils";
 import { panelSurface } from "@/lib/panelSurface";
+import { api } from "@/lib/api";
+import { toast } from "@/hooks/use-toast";
 
 const SERVICE_TYPE_LABELS: Record<string, string> = {
   application: "Application",
@@ -38,6 +40,27 @@ export default function ServerDetailPage() {
   const { id } = useParams<{ id: string }>();
   const { data: server, isLoading, isError, error, refetch } = useServer(id);
   const [showPlainPassword, setShowPlainPassword] = useState(false);
+
+  async function recordAccess(actionType: string) {
+    if (!server?.id) return;
+    try {
+      await api.post(`/servers/${server.id}/access-log`, { action_type: actionType });
+    } catch {
+      // Non-blocking: audit failure should not disrupt user flow
+    }
+  }
+
+  const resolvedHost = server?.ip_address || server?.hostname || "";
+  const isRdp = server?.access_method === "rdp";
+
+  const sshPortPart = server?.access_port && server.access_port !== 22 ? `-p ${server.access_port} ` : "";
+  const parsedUser = server?.username || (server?.access_host?.includes("@") ? server.access_host.split("@")[0] : "");
+  const sshUserPart = parsedUser ? `${parsedUser}@` : "";
+  const sshCommand = resolvedHost ? `ssh ${sshPortPart}${sshUserPart}${resolvedHost}` : "";
+
+  const rdpPortPart = server?.access_port && server.access_port !== 3389 ? `:${server.access_port}` : "";
+  const rdpTarget = resolvedHost ? `${resolvedHost}${rdpPortPart}` : "";
+  const rdpMstscCommand = rdpTarget ? `mstsc /v:${rdpTarget}` : "";
 
   // ServerDetail only embeds environment.project as { id, name }, so the
   // Client segment is backfilled by a separate useProject fetch (cache-shared
@@ -134,6 +157,45 @@ export default function ServerDetailPage() {
                   </div>
                 )}
 
+                {/* One-Click Remote Connection widget */}
+                {(sshCommand || rdpTarget) && (
+                  <div className={cn(panelSurface(), "p-3 space-y-2 border-brand/20 bg-brand/5")}>
+                    <div className="flex items-center justify-between">
+                      <span className="flex items-center gap-1.5 text-xs font-semibold text-foreground">
+                        {isRdp ? <Monitor className="h-3.5 w-3.5 text-brand" /> : <Terminal className="h-3.5 w-3.5 text-brand" />}
+                        <span>{isRdp ? "Remote Desktop Connection (RDP)" : "One-Click Remote Connection (SSH)"}</span>
+                      </span>
+                      <Badge variant="outline" className="text-[10px] uppercase font-mono tracking-wider">
+                        {isRdp ? "RDP Session" : "SSH Terminal"}
+                      </Badge>
+                    </div>
+
+                    <div className="flex items-center justify-between gap-2 bg-background/90 rounded border border-border/80 px-2.5 py-1.5 font-mono text-xs text-foreground select-all">
+                      <span className="truncate">{isRdp ? rdpMstscCommand : sshCommand}</span>
+                      <CopyButton
+                        value={isRdp ? rdpMstscCommand : sshCommand}
+                        label={isRdp ? "RDP command" : "SSH command"}
+                        onCopy={() => {
+                          recordAccess(isRdp ? "copy_rdp_command" : "copy_ssh_command");
+                          toast({
+                            title: isRdp ? "RDP command copied" : "SSH command copied",
+                            description: "Command copied to clipboard (logged in audit trail).",
+                          });
+                        }}
+                      />
+                    </div>
+
+                    {isRdp && (
+                      <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-muted-foreground pt-0.5">
+                        <span>Target Host: <span className="font-mono text-foreground select-all">{rdpTarget}</span></span>
+                        {server.username && (
+                          <span>User: <span className="font-mono text-foreground select-all">{server.username}</span></span>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                )}
+
                 <div className={cn(panelSurface(), "p-3")}>
                   <p className="mb-2 text-label text-muted-foreground">
                     Access documentation
@@ -157,7 +219,13 @@ export default function ServerDetailPage() {
                       <dt className="text-xs text-muted-foreground">Username</dt>
                       <dd className="flex items-center gap-1 break-words">
                         {server.username || "—"}
-                        {server.username && <CopyButton value={server.username} label="username" />}
+                        {server.username && (
+                          <CopyButton
+                            value={server.username}
+                            label="username"
+                            onCopy={() => recordAccess("copy_username")}
+                          />
+                        )}
                       </dd>
                     </div>
                     <div className="min-w-0">
@@ -173,13 +241,35 @@ export default function ServerDetailPage() {
                                 ? server.password
                                 : (server.encrypted_password || "••••••••")}
                             </span>
-                            <CopyButton value={server.password} label="password" />
+                            <CopyButton
+                              value={server.password}
+                              label="password"
+                              onCopy={() => {
+                                recordAccess("copy_password");
+                                toast({
+                                  title: "Password copied",
+                                  description: "Credential copy recorded in audit log.",
+                                });
+                              }}
+                            />
                             <Button
                               type="button"
                               variant="ghost"
                               size="icon"
                               className="h-6 w-6 shrink-0 text-muted-foreground hover:text-foreground"
-                              onClick={() => setShowPlainPassword((prev) => !prev)}
+                              onClick={() => {
+                                setShowPlainPassword((prev) => {
+                                  const next = !prev;
+                                  if (next) {
+                                    recordAccess("reveal_password");
+                                    toast({
+                                      title: "Password revealed",
+                                      description: "Credential reveal recorded in audit log.",
+                                    });
+                                  }
+                                  return next;
+                                });
+                              }}
                               title={showPlainPassword ? "Hide password" : "Show password"}
                               aria-label={showPlainPassword ? "Hide password" : "Show password"}
                             >
@@ -207,6 +297,7 @@ export default function ServerDetailPage() {
                                 : server.ip_address || server.hostname || "")
                             }
                             label="access host"
+                            onCopy={() => recordAccess("copy_access_host")}
                           />
                         )}
                       </dd>
@@ -220,6 +311,20 @@ export default function ServerDetailPage() {
                       <dd className="break-words">{server.access_path ?? "—"}</dd>
                     </div>
                   </dl>
+
+                  {/* Audit disclaimer notice with link to audit trail */}
+                  <div className="mt-3 pt-2.5 border-t border-border/50 flex flex-wrap items-center justify-between gap-2 text-xs text-muted-foreground">
+                    <span className="flex items-center gap-1.5">
+                      <ShieldCheck className="h-3.5 w-3.5 text-brand" />
+                      <span>All credential reveals and copies are recorded in the audit log.</span>
+                    </span>
+                    <Link
+                      to={`/activity?entity_type=server&entity_id=${server.id}`}
+                      className="text-brand hover:underline inline-flex items-center gap-0.5 shrink-0"
+                    >
+                      View audit trail &rarr;
+                    </Link>
+                  </div>
                 </div>
 
                 {server.monitoring_url && (

@@ -341,6 +341,23 @@ export interface paths {
         patch: operations["updateServer"];
         trace?: never;
     };
+    "/api/servers/{id}/access-log": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Log a credential access action (copy/reveal password or host/command) for audit trail */
+        post: operations["logServerAccess"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/servers/{id}/restore": {
         parameters: {
             query?: never;
@@ -952,6 +969,7 @@ export interface components {
             access_path: string | null;
             username: string | null;
             password: string | null;
+            encrypted_password?: string | null;
         };
         /** @enum {string|null} */
         ServiceType: "application" | "database" | "proxy" | "monitoring" | "repository" | "metrics" | "jump_host" | "other" | null;
@@ -1229,7 +1247,7 @@ export interface components {
         /** @enum {string} */
         EntityType: "client" | "project" | "environment" | "server" | "credential_reference" | "people" | "resource" | "resource_version" | "resource_attachment" | "schedule" | "expiration" | "user";
         /** @enum {string} */
-        ActivityAction: "create" | "update" | "delete" | "restore";
+        ActivityAction: "create" | "update" | "delete" | "restore" | "access";
         SearchResults: {
             clients: components["schemas"]["SearchHit"][];
             projects: components["schemas"]["SearchHit"][];
@@ -3006,6 +3024,72 @@ export interface operations {
             };
             /** @description Conflict */
             409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    logServerAccess: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    action_type: string;
+                };
+            };
+        };
+        responses: {
+            /** @description Access logged */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        success: boolean;
+                    };
+                };
+            };
+            /** @description Validation error */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Not authenticated */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Insufficient permissions */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Not found */
+            404: {
                 headers: {
                     [name: string]: unknown;
                 };

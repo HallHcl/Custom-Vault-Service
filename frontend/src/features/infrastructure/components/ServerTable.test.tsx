@@ -1,8 +1,18 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import ServerTable from "./ServerTable";
 import type { Server } from "@/types";
+
+const apiPostMock = vi.fn();
+vi.mock("@/lib/api", () => ({
+  api: {
+    post: (...args: unknown[]) => apiPostMock(...args),
+  },
+  default: {
+    post: (...args: unknown[]) => apiPostMock(...args),
+  },
+}));
 
 vi.mock("./CredentialRefList", () => ({
   default: () => <div data-testid="mock-cred-list">No credential references.</div>,
@@ -28,6 +38,16 @@ const BASE_SERVER: Server = {
 };
 
 describe("ServerTable", () => {
+  beforeEach(() => {
+    apiPostMock.mockReset();
+    apiPostMock.mockResolvedValue({ data: { success: true } });
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    Object.defineProperty(navigator, "clipboard", {
+      value: { writeText },
+      configurable: true,
+    });
+  });
+
   it("renders access method and target when access_method is provided", () => {
     render(
       <MemoryRouter>
@@ -129,6 +149,83 @@ describe("ServerTable", () => {
     fireEvent.click(screen.getByRole("button", { name: /show password/i }));
     expect(screen.getByText("secretPassword123")).toBeInTheDocument();
     expect(screen.queryByText("enc_9f8a7b6c5d4e3f21")).not.toBeInTheDocument();
+  });
+
+  it("logs reveal_password and copy_password when viewing or copying password from the drawer", async () => {
+    const serverWithCreds: Server = {
+      ...BASE_SERVER,
+      password: "secretPassword123",
+      encrypted_password: "enc_9f8a7b6c5d4e3f21",
+    };
+
+    render(
+      <MemoryRouter>
+        <ServerTable servers={[serverWithCreds]} />
+      </MemoryRouter>
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Show" }));
+
+    // Click copy password
+    const copyBtn = screen.getByRole("button", { name: /copy password/i });
+    fireEvent.click(copyBtn);
+
+    await waitFor(() => {
+      expect(apiPostMock).toHaveBeenCalledWith("/servers/s1/access-log", {
+        action_type: "copy_password",
+      });
+    });
+
+    // Click eye to reveal password
+    const eyeBtn = screen.getByRole("button", { name: /show password/i });
+    fireEvent.click(eyeBtn);
+
+    await waitFor(() => {
+      expect(apiPostMock).toHaveBeenCalledWith("/servers/s1/access-log", {
+        action_type: "reveal_password",
+      });
+    });
+  });
+
+  it("renders One-Click Remote Connection command and logs copy_ssh_command when copied", async () => {
+    render(
+      <MemoryRouter>
+        <ServerTable servers={[BASE_SERVER]} />
+      </MemoryRouter>
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Show" }));
+
+    expect(screen.getByText("SSH:")).toBeInTheDocument();
+    expect(screen.getByText("ssh root@10.0.0.1")).toBeInTheDocument();
+
+    const copyBtn = screen.getByRole("button", { name: /copy ssh command/i });
+    fireEvent.click(copyBtn);
+
+    await waitFor(() => {
+      expect(apiPostMock).toHaveBeenCalledWith("/servers/s1/access-log", {
+        action_type: "copy_ssh_command",
+      });
+    });
+  });
+
+  it("renders audit trail link pointing to /activity?entity_type=server&entity_id=:id", () => {
+    const serverWithCreds: Server = {
+      ...BASE_SERVER,
+      password: "secretPassword123",
+    };
+
+    render(
+      <MemoryRouter>
+        <ServerTable servers={[serverWithCreds]} />
+      </MemoryRouter>
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Show" }));
+
+    expect(screen.getByText(/all password reveals and copies are recorded in audit logs/i)).toBeInTheDocument();
+    const link = screen.getByRole("link", { name: /audit trail/i });
+    expect(link).toHaveAttribute("href", "/activity?entity_type=server&entity_id=s1");
   });
 });
 

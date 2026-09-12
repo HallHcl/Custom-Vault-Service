@@ -12,7 +12,7 @@ export type EntityType =
   | "expiration"
   | "user";
 
-export type ActivityAction = "create" | "update" | "delete" | "restore";
+export type ActivityAction = "create" | "update" | "delete" | "restore" | "access";
 
 /** Every list endpoint in the actual backend returns this envelope, not a bare array. */
 export interface Paginated<T> {
