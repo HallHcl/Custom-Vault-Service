@@ -19,6 +19,7 @@ import {
 } from "@/components/ui/select";
 import { ProjectPicker } from "@/components/ProjectPicker";
 import { ScheduleTypeCombobox } from "@/components/ScheduleTypeCombobox";
+import { DatePicker } from "@/components/ui/date-picker";
 import { ConflictState } from "@/components/state/ConflictState";
 import { ErrorState } from "@/components/state/ErrorState";
 import { LoadingState } from "@/components/state/LoadingState";
@@ -420,15 +421,13 @@ export default function ScheduleFormPage({ mode }: Props) {
                       readOnly
                     />
                   ) : (
-                    <Input
+                    <DatePicker
                       id="date"
-                      type="date"
                       value={scheduledDate}
-                      onChange={(e) => setScheduledDate(e.target.value)}
-                      required
+                      onChange={setScheduledDate}
                       aria-invalid={!!fieldErrors.scheduled_date}
                       aria-describedby={fieldErrors.scheduled_date ? errorId("date") : undefined}
-                      className={cn(fieldErrors.scheduled_date && INVALID_CONTROL)}
+                      aria-required={true}
                     />
                   )}
                   {!isEdit && fieldErrors.scheduled_date && (
