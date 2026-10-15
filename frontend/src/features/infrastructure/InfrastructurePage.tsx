@@ -8,11 +8,15 @@ import { HOME_SEGMENT, useBreadcrumbs } from "@/components/layout/BreadcrumbsCon
 import { useProjects } from "@/hooks/useProjects";
 import { useEnvironments } from "@/hooks/useEnvironments";
 import { useServers } from "@/hooks/useServers";
+import { usePagination } from "@/hooks/usePagination";
+import { PaginationControls } from "@/components/PaginationControls";
 import EnvironmentTabs from "./components/EnvironmentTabs";
 import ServerTable from "./components/ServerTable";
 
 export default function InfrastructurePage() {
   useBreadcrumbs([HOME_SEGMENT, { label: "Infrastructure" }]);
+
+  const pagination = usePagination({ initialPerPage: 20 });
 
   // The Client picker was removed with the hidden Client UI — the project
   // list is no longer scoped to a client.
@@ -26,7 +30,9 @@ export default function InfrastructurePage() {
   const [projectId, setProjectId] = useState<string | undefined>(undefined);
 
   useEffect(() => {
-    setProjectId(projects[0]?.id);
+    if (projects.length > 0) {
+      setProjectId((curr) => (curr && projects.some((p) => p.id === curr) ? curr : projects[0].id));
+    }
   }, [projects]);
 
   const {
@@ -39,16 +45,46 @@ export default function InfrastructurePage() {
   const [environmentId, setEnvironmentId] = useState<string | undefined>(undefined);
 
   useEffect(() => {
-    setEnvironmentId(environments[0]?.id);
+    if (environments.length > 0) {
+      setEnvironmentId((curr) =>
+        curr && environments.some((e) => e.id === curr) ? curr : environments[0].id
+      );
+    } else {
+      setEnvironmentId(undefined);
+    }
   }, [environments]);
+
+  function handleEnvironmentChange(id: string) {
+    setEnvironmentId(id);
+    pagination.setPage(1);
+  }
+
+  function handleProjectChange(id: string | undefined) {
+    setProjectId(id);
+    pagination.setPage(1);
+  }
 
   const {
     data: servers = [],
+    pagination: pageInfo,
     isLoading: serversLoading,
     isError: serversIsError,
     error: serversError,
     refetch: refetchServers,
-  } = useServers(environmentId);
+  } = useServers(environmentId, pagination.params);
+
+  const totalServers = pageInfo?.total ?? 0;
+  const totalPages = pageInfo?.total_pages ?? 1;
+
+  // Defensive: if page is out of bounds, snap to totalPages
+  useEffect(() => {
+    if (pageInfo && pageInfo.total_pages > 0 && pagination.page > pageInfo.total_pages) {
+      pagination.setPage(pageInfo.total_pages);
+    }
+  }, [pageInfo?.total_pages, pagination.page, pagination.setPage]);
+
+  const from = totalServers === 0 ? 0 : (pagination.page - 1) * pagination.perPage + 1;
+  const to = Math.min(pagination.page * pagination.perPage, totalServers);
 
   const isLoading = projectsLoading || environmentsLoading || serversLoading;
   const isError = projectsIsError || environmentsIsError || serversIsError;
@@ -68,7 +104,7 @@ export default function InfrastructurePage() {
         actions={
           <ProjectPicker
             value={projectId}
-            onChange={setProjectId}
+            onChange={handleProjectChange}
             placeholder="Project"
             className="w-48"
             aria-label="Project"
@@ -85,15 +121,36 @@ export default function InfrastructurePage() {
           <EnvironmentTabs
             environments={environments}
             value={environmentId}
-            onValueChange={setEnvironmentId}
+            onValueChange={handleEnvironmentChange}
           />
 
           {environmentId && (
-            <div>
-              {servers.length === 0 ? (
+            <div className="space-y-4">
+              {servers.length === 0 && totalServers === 0 ? (
                 <EmptyState title="No servers found" message="No servers in this environment." />
               ) : (
-                <ServerTable servers={servers} />
+                <>
+                  <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-muted-foreground">
+                    <span>
+                      Showing <span className="font-mono font-medium text-foreground">{from}–{to}</span> of{" "}
+                      <span className="font-mono font-medium text-foreground">{totalServers}</span> servers
+                    </span>
+                  </div>
+
+                  <ServerTable servers={servers} />
+
+                  <PaginationControls
+                    page={pagination.page}
+                    totalPages={totalPages}
+                    perPage={pagination.perPage}
+                    onPrevPage={pagination.prevPage}
+                    onNextPage={pagination.nextPage}
+                    onPerPageChange={(newPerPage) => {
+                      pagination.setPerPage(newPerPage);
+                      pagination.setPage(1);
+                    }}
+                  />
+                </>
               )}
             </div>
           )}
