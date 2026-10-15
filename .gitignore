@@ -6,3 +6,4 @@ dist/
 backend/uploads/*
 !backend/uploads/.gitkeep
 backups/
+scratch/
