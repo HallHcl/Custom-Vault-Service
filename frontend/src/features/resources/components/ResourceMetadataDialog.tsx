@@ -226,7 +226,7 @@ export default function ResourceMetadataDialog({ open, onOpenChange, resource }:
               <div className="space-y-2 pt-2 border-t border-border">
                 <Label>Attachments &amp; Diagrams</Label>
                 <p className="text-xs text-muted-foreground">
-                  Upload diagrams, screenshots, or documents (.md, .pdf, .txt) to attach to this resource.
+                  Upload diagrams, screenshots, or documents (.md, .pdf, .txt, .xlsx, .csv, etc.) to attach to this resource.
                 </p>
                 <ImageDropzone
                   resourceId={resource.id}

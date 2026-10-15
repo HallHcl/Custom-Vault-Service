@@ -10,26 +10,67 @@ import {
 } from "@/hooks/useResourceAttachments";
 
 export const ALLOWED_IMAGE_TYPES = [
+  // Images
   "image/png",
   "image/jpeg",
   "image/webp",
   "image/svg+xml",
+  "image/gif",
+  // Text & Markdown
   "text/markdown",
   "text/plain",
   "text/x-markdown",
+  // PDF
   "application/pdf",
+  // Spreadsheets (Excel, CSV)
+  "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+  "application/vnd.ms-excel",
+  "text/csv",
+  "application/csv",
+  "text/x-csv",
+  "application/x-csv",
+  "text/comma-separated-values",
+  "text/x-comma-separated-values",
+  // Word documents
+  "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+  "application/msword",
+  // Presentations (PowerPoint)
+  "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+  "application/vnd.ms-powerpoint",
+  // Archives & Data
+  "application/zip",
+  "application/x-zip-compressed",
+  "application/json",
+  "application/xml",
+  "text/xml",
 ];
 
 export const ALLOWED_EXTENSIONS = [
+  // Images
   ".png",
   ".jpg",
   ".jpeg",
   ".webp",
   ".svg",
+  ".gif",
+  // Documents
   ".md",
   ".markdown",
   ".txt",
   ".pdf",
+  // Spreadsheets
+  ".xlsx",
+  ".xls",
+  ".csv",
+  // Word & Presentations
+  ".docx",
+  ".doc",
+  ".pptx",
+  ".ppt",
+  // Archives & Data
+  ".zip",
+  ".json",
+  ".xml",
 ];
 
 export const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10 MB
@@ -85,7 +126,7 @@ export function ImageDropzone({
     for (const file of files) {
       if (!isFileTypeAllowed(file)) {
         setError(
-          `"${file.name}" has an unsupported format. Allowed formats: PNG, JPEG, WebP, SVG, Markdown (.md), Text (.txt), PDF.`
+          `"${file.name}" has an unsupported format. Allowed formats: PNG, JPEG, WebP, SVG, PDF, Excel (.xlsx, .xls), CSV (.csv), Word (.docx), PowerPoint (.pptx), Markdown (.md), Text (.txt), ZIP.`
         );
         return;
       }
@@ -205,7 +246,7 @@ export function ImageDropzone({
         <input
           ref={fileInputRef}
           type="file"
-          accept="image/png,image/jpeg,image/webp,image/svg+xml,.md,.txt,.markdown,.pdf,application/pdf"
+          accept="image/png,image/jpeg,image/webp,image/svg+xml,image/gif,.md,.txt,.markdown,.pdf,application/pdf,.xlsx,.xls,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel,.csv,text/csv,.docx,.doc,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/msword,.pptx,.ppt,application/vnd.openxmlformats-officedocument.presentationml.presentation,.zip,application/zip"
           multiple
           className="hidden"
           data-testid="image-dropzone-input"
@@ -236,7 +277,7 @@ export function ImageDropzone({
                 <span className="text-brand underline underline-offset-2">browse</span>
               </p>
               <p className="text-xs text-muted-foreground mt-0.5">
-                PNG, JPEG, WebP, SVG, Markdown (.md), Text (.txt), PDF up to 10 MB each
+                PNG, JPEG, WebP, SVG, PDF, Excel, CSV, Word, PPT, Markdown, Text, ZIP up to 10 MB each
               </p>
             </div>
             <Button

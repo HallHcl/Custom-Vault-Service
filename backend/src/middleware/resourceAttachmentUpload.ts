@@ -9,27 +9,92 @@ import { ApiError } from "./errorHandler";
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 export const ALLOWED_MIME_TYPES = [
+  // Images
   "image/png",
   "image/jpeg",
   "image/webp",
   "image/svg+xml",
+  "image/gif",
+  // Text & Markdown
   "text/markdown",
   "text/plain",
   "text/x-markdown",
+  // PDF
   "application/pdf",
+  // Spreadsheets (Excel, CSV)
+  "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+  "application/vnd.ms-excel",
+  "text/csv",
+  "application/csv",
+  "text/x-csv",
+  "application/x-csv",
+  "text/comma-separated-values",
+  "text/x-comma-separated-values",
+  // Word documents
+  "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+  "application/msword",
+  // Presentations (PowerPoint)
+  "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+  "application/vnd.ms-powerpoint",
+  // Archives
+  "application/zip",
+  "application/x-zip-compressed",
+  // Data
+  "application/json",
+  "application/xml",
+  "text/xml",
 ] as const;
 
 export const ALLOWED_EXTENSIONS = [
+  // Images
   ".png",
   ".jpg",
   ".jpeg",
   ".webp",
   ".svg",
+  ".gif",
+  // Documents
   ".md",
   ".markdown",
   ".txt",
   ".pdf",
+  // Spreadsheets
+  ".xlsx",
+  ".xls",
+  ".csv",
+  // Word & Presentations
+  ".docx",
+  ".doc",
+  ".pptx",
+  ".ppt",
+  // Archives & Data
+  ".zip",
+  ".json",
+  ".xml",
 ] as const;
+
+export const EXT_TO_MIME: Record<string, string> = {
+  ".md": "text/markdown",
+  ".markdown": "text/markdown",
+  ".txt": "text/plain",
+  ".pdf": "application/pdf",
+  ".png": "image/png",
+  ".jpg": "image/jpeg",
+  ".jpeg": "image/jpeg",
+  ".webp": "image/webp",
+  ".svg": "image/svg+xml",
+  ".gif": "image/gif",
+  ".xlsx": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+  ".xls": "application/vnd.ms-excel",
+  ".csv": "text/csv",
+  ".docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+  ".doc": "application/msword",
+  ".pptx": "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+  ".ppt": "application/vnd.ms-powerpoint",
+  ".zip": "application/zip",
+  ".json": "application/json",
+  ".xml": "application/xml",
+};
 
 export const MAX_FILE_SIZE_BYTES = 10 * 1024 * 1024; // 10MB
 
@@ -121,19 +186,19 @@ const upload = multer({
 
     if (isMimeAllowed || isExtAllowed) {
       if (
-        (ext === ".md" || ext === ".markdown") &&
         (!file.mimetype ||
           file.mimetype === "application/octet-stream" ||
-          file.mimetype === "text/plain")
+          (file.mimetype === "text/plain" && ext !== ".txt")) &&
+        EXT_TO_MIME[ext]
       ) {
-        file.mimetype = "text/markdown";
+        file.mimetype = EXT_TO_MIME[ext];
       }
       cb(null, true);
     } else {
       cb(
         new ApiError(
           400,
-          `Invalid file type: ${file.mimetype}. Allowed types: images (PNG, JPEG, WebP, SVG) and documents (Markdown, Text, PDF)`,
+          `Invalid file type: ${file.mimetype}. Allowed types: images (PNG, JPEG, WebP, SVG, GIF), documents (PDF, Markdown, Text, Excel, CSV, Word, PowerPoint), and ZIP archives`,
           "VALIDATION_ERROR",
           { fieldErrors: { file: [`Unsupported file type: ${file.mimetype}`] } }
         )

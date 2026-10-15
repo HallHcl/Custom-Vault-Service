@@ -5,7 +5,9 @@ import {
   Copy,
   Download,
   File,
+  FileArchive,
   FileCode,
+  FileSpreadsheet,
   FileText,
   Image as ImageIcon,
   Maximize2,
@@ -53,6 +55,26 @@ export function getFileIconAndBadge(mimeType: string, fileName: string) {
   }
   if (ext === "txt" || mimeType.includes("text")) {
     return { badge: "TXT", icon: FileText };
+  }
+  if (
+    ["xlsx", "xls", "csv"].includes(ext) ||
+    mimeType.includes("spreadsheet") ||
+    mimeType.includes("csv") ||
+    mimeType.includes("excel")
+  ) {
+    return { badge: ext ? ext.toUpperCase() : "SHEET", icon: FileSpreadsheet };
+  }
+  if (
+    ["zip", "tar", "gz", "rar", "7z"].includes(ext) ||
+    mimeType.includes("zip")
+  ) {
+    return { badge: ext ? ext.toUpperCase() : "ZIP", icon: FileArchive };
+  }
+  if (["docx", "doc"].includes(ext) || mimeType.includes("word")) {
+    return { badge: ext ? ext.toUpperCase() : "DOC", icon: FileText };
+  }
+  if (["pptx", "ppt"].includes(ext) || mimeType.includes("presentation")) {
+    return { badge: ext ? ext.toUpperCase() : "PPT", icon: FileText };
   }
   return { badge: ext.toUpperCase() || "FILE", icon: File };
 }
@@ -322,7 +344,7 @@ export function AttachmentGallery({
         <ImageIcon className="h-8 w-8 mb-2 opacity-50" />
         <p className="text-sm font-medium text-foreground">No diagrams or attachments yet</p>
         <p className="text-xs text-muted-foreground mt-1">
-          Upload diagrams, images, or documents (.md, .pdf, .txt) to attach them to this resource.
+          Upload diagrams, images, or documents (.md, .pdf, .txt, .xlsx, .csv, etc.) to attach them to this resource.
         </p>
       </div>
     );

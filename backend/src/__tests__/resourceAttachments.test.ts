@@ -328,6 +328,43 @@ describe("Resource Attachments", () => {
       createdAttachmentPaths.push(res.body.file_path);
     });
 
+    it("uploads an Excel spreadsheet (.xlsx) (201)", async () => {
+      const xlsxBuffer = Buffer.from("PK\x03\x04fake-xlsx-content");
+
+      const res = await request(app)
+        .post(`/api/resources/${resourceId}/attachments`)
+        .set("Authorization", `Bearer ${member1Token}`)
+        .attach("file", xlsxBuffer, {
+          filename: "servers.xlsx",
+          contentType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        });
+
+      expect(res.status).toBe(201);
+      expect(res.body.mime_type).toBe(
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+      );
+      expect(res.body.file_name).toBe("servers.xlsx");
+
+      createdAttachmentIds.push(res.body.id);
+      createdAttachmentPaths.push(res.body.file_path);
+    });
+
+    it("uploads a CSV document (.csv) (201)", async () => {
+      const csvBuffer = Buffer.from("host,ip,status\nweb1,10.0.0.1,online");
+
+      const res = await request(app)
+        .post(`/api/resources/${resourceId}/attachments`)
+        .set("Authorization", `Bearer ${member1Token}`)
+        .attach("file", csvBuffer, { filename: "inventory.csv", contentType: "text/csv" });
+
+      expect(res.status).toBe(201);
+      expect(res.body.mime_type).toBe("text/csv");
+      expect(res.body.file_name).toBe("inventory.csv");
+
+      createdAttachmentIds.push(res.body.id);
+      createdAttachmentPaths.push(res.body.file_path);
+    });
+
     it("handles Thai characters and long filenames safely without exceeding Windows path limits (201)", async () => {
       const longThaiName = "เอกสารคู่มือการติดตั้งระบบงานและขั้นตอนการดูแลเซิร์ฟเวอร์แบบละเอียดมากที่สุดในโลกประจำปี2026.pdf";
       const sampleBuffer = Buffer.from("%PDF-1.4 thai test content");

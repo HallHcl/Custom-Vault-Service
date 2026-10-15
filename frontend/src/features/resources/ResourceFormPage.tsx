@@ -489,7 +489,7 @@ export default function ResourceFormPage({ mode: modeProp }: ResourceFormPagePro
                     <input
                       ref={contentFileInputRef}
                       type="file"
-                      accept=".md,.txt,.markdown,.json,.yaml,.yml,.sh,.sql,.env,.conf,text/*"
+                      accept=".md,.txt,.markdown,.json,.yaml,.yml,.sh,.sql,.env,.conf,.csv,text/*"
                       className="hidden"
                       id="content-file-input"
                       data-testid="content-file-input"
@@ -547,7 +547,7 @@ export default function ResourceFormPage({ mode: modeProp }: ResourceFormPagePro
                 <div className="space-y-0.5">
                   <Label>Attachments & Diagrams</Label>
                   <p className="text-xs text-muted-foreground">
-                    Upload diagrams, screenshots, or reference documents (.md, .pdf, .txt) to attach to this resource.
+                    Upload diagrams, screenshots, or reference documents (.md, .pdf, .txt, .xlsx, .csv, etc.) to attach to this resource.
                   </p>
                 </div>
 

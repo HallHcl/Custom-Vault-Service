@@ -45,7 +45,7 @@ describe("ImageDropzone", () => {
       screen.getByText(/drag and drop diagrams or images/i)
     ).toBeInTheDocument();
     expect(
-      screen.getByText(/PNG, JPEG, WebP, SVG, Markdown \(\.md\), Text \(\.txt\), PDF up to 10 MB each/i)
+      screen.getByText(/PNG, JPEG, WebP, SVG, PDF, Excel, CSV, Word, PPT, Markdown, Text, ZIP up to 10 MB each/i)
     ).toBeInTheDocument();
   });
 
@@ -53,11 +53,11 @@ describe("ImageDropzone", () => {
     renderDropzone();
     const input = screen.getByTestId("image-dropzone-input");
 
-    const zipFile = new File(["dummy zip"], "archive.zip", { type: "application/zip" });
-    fireEvent.change(input, { target: { files: [zipFile] } });
+    const exeFile = new File(["dummy binary"], "program.exe", { type: "application/x-msdownload" });
+    fireEvent.change(input, { target: { files: [exeFile] } });
 
     expect(
-      await screen.findByText(/"archive.zip" has an unsupported format/i)
+      await screen.findByText(/"program.exe" has an unsupported format/i)
     ).toBeInTheDocument();
   });
 
@@ -79,26 +79,30 @@ describe("ImageDropzone", () => {
     renderDropzone();
     const input = screen.getByTestId("image-dropzone-input");
 
-    const zipFile = new File(["dummy zip"], "archive.zip", { type: "application/zip" });
-    fireEvent.change(input, { target: { files: [zipFile] } });
+    const exeFile = new File(["dummy binary"], "program.exe", { type: "application/x-msdownload" });
+    fireEvent.change(input, { target: { files: [exeFile] } });
 
-    expect(await screen.findByText(/"archive.zip" has an unsupported format/i)).toBeInTheDocument();
+    expect(await screen.findByText(/"program.exe" has an unsupported format/i)).toBeInTheDocument();
     const dismissButton = screen.getByRole("button", { name: /dismiss/i });
     fireEvent.click(dismissButton);
 
-    expect(screen.queryByText(/"archive.zip" has an unsupported format/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/"program.exe" has an unsupported format/i)).not.toBeInTheDocument();
   });
 
-  it("calls onFilesSelected when valid files are provided in staging mode", async () => {
+  it("calls onFilesSelected when valid files including Excel (.xlsx) and CSV (.csv) are provided in staging mode", async () => {
     const onFilesSelected = vi.fn();
     renderDropzone({ onFilesSelected });
 
     const input = screen.getByTestId("image-dropzone-input");
-    const validPng = new File(["png content"], "diagram.png", { type: "image/png" });
-    fireEvent.change(input, { target: { files: [validPng] } });
+    const validXlsx = new File(["fake xlsx"], "data.xlsx", {
+      type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    });
+    const validCsv = new File(["a,b,c"], "records.csv", { type: "text/csv" });
+
+    fireEvent.change(input, { target: { files: [validXlsx, validCsv] } });
 
     expect(onFilesSelected).toHaveBeenCalledTimes(1);
-    expect(onFilesSelected).toHaveBeenCalledWith([validPng]);
+    expect(onFilesSelected).toHaveBeenCalledWith([validXlsx, validCsv]);
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
   });
 
