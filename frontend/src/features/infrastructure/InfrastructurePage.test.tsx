@@ -162,4 +162,20 @@ describe("InfrastructurePage", () => {
       );
     });
   });
+
+  it("renders server count and pagination controls when servers are present", async () => {
+    mockGetByPath({
+      servers: ok({
+        data: [SERVER_1],
+        pagination: { page: 1, per_page: 20, total: 25, total_pages: 2 },
+      }),
+    });
+    renderPage();
+
+    expect(await screen.findByText("Web 01")).toBeInTheDocument();
+    expect(screen.getByText(/showing/i)).toBeInTheDocument();
+    expect(screen.getByText("25")).toBeInTheDocument();
+    expect(screen.getByRole("navigation", { name: /pagination/i })).toBeInTheDocument();
+    expect(screen.getByText(/page 1 of 2/i)).toBeInTheDocument();
+  });
 });
