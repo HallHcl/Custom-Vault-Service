@@ -14,8 +14,8 @@ export default function EnvironmentTabs({ environments, value, onValueChange }: 
   }
 
   return (
-    <Tabs value={value} onValueChange={onValueChange}>
-      <TabsList>
+    <Tabs value={value ?? environments[0]?.id ?? ""} onValueChange={onValueChange}>
+      <TabsList className="flex-wrap h-auto gap-2">
         {environments.map((env) => (
           <TabsTrigger key={env.id} value={env.id}>
             {env.name}
