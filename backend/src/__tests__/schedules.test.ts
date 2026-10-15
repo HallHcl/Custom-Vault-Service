@@ -524,4 +524,40 @@ describe("standard CRUD pattern", () => {
     expect(updateLog?.old_value.status).toBe("pending");
     expect(updateLog?.new_value.status).toBe("in_progress");
   });
+
+  describe("custom schedule types and GET /api/schedules/types", () => {
+    it("allows creating schedules with custom types like Task and Issue", async () => {
+      const taskRes = await createScheduleAs(
+        adminToken,
+        validScheduleBody({ title: `${PREFIX}TaskSchedule`, type: "Task" })
+      );
+      expect(taskRes.status).toBe(201);
+      expect(taskRes.body.type).toBe("Task");
+
+      const issueRes = await createScheduleAs(
+        adminToken,
+        validScheduleBody({ title: `${PREFIX}IssueSchedule`, type: "Issue" })
+      );
+      expect(issueRes.status).toBe(201);
+      expect(issueRes.body.type).toBe("Issue");
+    });
+
+    it("returns distinct active schedule types from GET /api/schedules/types", async () => {
+      const customType = `Custom_${RUN_ID}`;
+      await createScheduleAs(
+        adminToken,
+        validScheduleBody({ title: `${PREFIX}CustomSchedule`, type: customType })
+      );
+
+      const typesRes = await request(app)
+        .get("/api/schedules/types")
+        .set("Authorization", `Bearer ${adminToken}`);
+
+      expect(typesRes.status).toBe(200);
+      expect(Array.isArray(typesRes.body)).toBe(true);
+      expect(typesRes.body).toContain(customType);
+      expect(typesRes.body).toContain("Task");
+      expect(typesRes.body).toContain("Issue");
+    });
+  });
 });

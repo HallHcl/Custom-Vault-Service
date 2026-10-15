@@ -1,5 +1,5 @@
 import { format } from "date-fns";
-import { Calendar, Clock, FileText, Folder, HardDrive, Pencil, User } from "lucide-react";
+import { Calendar, Clock, FileText, Folder, Pencil, User } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -105,14 +105,6 @@ export default function ScheduleDetailDialog({
                 </p>
               </div>
 
-              <div className="space-y-1">
-                <span className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
-                  <HardDrive className="h-3.5 w-3.5" /> Server
-                </span>
-                <p className="font-medium text-foreground">
-                  {detail?.server?.name ?? "—"}
-                </p>
-              </div>
 
               <div className="space-y-1">
                 <span className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground">

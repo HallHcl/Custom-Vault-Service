@@ -119,6 +119,18 @@ export interface CreateScheduleInput {
   notes?: string;
 }
 
+const SCHEDULE_TYPES_KEY = ["schedules", "types"];
+
+export function useScheduleTypes() {
+  return useQuery({
+    queryKey: SCHEDULE_TYPES_KEY,
+    queryFn: async () => {
+      const result = await apiClient.GET("/api/schedules/types");
+      return unwrapApiResult(result);
+    },
+  });
+}
+
 export function useCreateSchedule() {
   const queryClient = useQueryClient();
   return useMutation({
@@ -126,7 +138,10 @@ export function useCreateSchedule() {
       const result = await apiClient.POST("/api/schedules", { body: input });
       return unwrapApiResult(result);
     },
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: [KEY] }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: [KEY] });
+      queryClient.invalidateQueries({ queryKey: SCHEDULE_TYPES_KEY });
+    },
   });
 }
 

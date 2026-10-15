@@ -18,7 +18,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { ProjectPicker } from "@/components/ProjectPicker";
-import { ServerPicker } from "@/components/ServerPicker";
+import { ScheduleTypeCombobox } from "@/components/ScheduleTypeCombobox";
 import { ConflictState } from "@/components/state/ConflictState";
 import { ErrorState } from "@/components/state/ErrorState";
 import { LoadingState } from "@/components/state/LoadingState";
@@ -30,9 +30,8 @@ import { usePeople } from "@/hooks/usePeople";
 import { parseScheduledDate, useCreateSchedule, useSchedule, useUpdateSchedule } from "@/hooks/useSchedules";
 import { cn } from "@/lib/utils";
 import { panelSurface } from "@/lib/panelSurface";
-import type { ScheduleStatus, ScheduleType } from "@/types";
+import type { ScheduleStatus } from "@/types";
 
-const SCHEDULE_TYPES: ScheduleType[] = ["PM", "MA", "other"];
 
 /**
  * Upper bound on `notes`, mirroring the backend's SCHEDULE_NOTES_MAX_LENGTH
@@ -53,16 +52,13 @@ interface FieldErrors {
   scheduled_date?: string;
   assigned_to?: string;
   project_id?: string;
-  server_id?: string;
-  parent?: string;
   notes?: string;
 }
 
 /**
  * Fields in render order, for "focus the first invalid one". Create mode
  * only: edit mode has exactly one validated field (notes) and focuses it
- * directly, so it needs no order at all. `parent` maps to the Server picker
- * — the message renders beneath that control, so that is where focus goes.
+ * directly, so it needs no order at all.
  */
 const FIELD_DOM_ORDER_CREATE: ReadonlyArray<{ key: keyof FieldErrors; elementId: string }> = [
   { key: "title", elementId: "title" },
@@ -70,8 +66,6 @@ const FIELD_DOM_ORDER_CREATE: ReadonlyArray<{ key: keyof FieldErrors; elementId:
   { key: "scheduled_date", elementId: "date" },
   { key: "assigned_to", elementId: "assignedTo" },
   { key: "project_id", elementId: "project" },
-  { key: "server_id", elementId: "server" },
-  { key: "parent", elementId: "server" },
   { key: "notes", elementId: "notes" },
 ];
 
@@ -135,11 +129,10 @@ export default function ScheduleFormPage({ mode }: Props) {
   // for them). Edit mode reads directly from scheduleDetail.
   // ---------------------------------------------------------------------------
   const [title, setTitle] = useState("");
-  const [type, setType] = useState<ScheduleType>("PM");
+  const [type, setType] = useState<string>("Task");
   const [scheduledDate, setScheduledDate] = useState("");
   const [assignedTo, setAssignedTo] = useState<string | undefined>(undefined);
   const [projectId, setProjectId] = useState<string | undefined>(undefined);
-  const [serverId, setServerId] = useState<string | undefined>(undefined);
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
 
   // ---------------------------------------------------------------------------
@@ -189,7 +182,6 @@ export default function ScheduleFormPage({ mode }: Props) {
 
   function handleProjectChange(next: string | undefined) {
     setProjectId(next);
-    setServerId(undefined);
   }
 
   async function handleSubmit(event: FormEvent) {
@@ -207,11 +199,11 @@ export default function ScheduleFormPage({ mode }: Props) {
     } else {
       const nextErrors: FieldErrors = {};
       if (!title.trim()) nextErrors.title = "Title is required.";
-      if (!type) nextErrors.type = "Type is required.";
+      if (!type || !type.trim()) nextErrors.type = "Type is required.";
       if (!scheduledDate) nextErrors.scheduled_date = "Date is required.";
       if (!assignedTo) nextErrors.assigned_to = "Assignee is required.";
-      if (!projectId && !serverId) {
-        nextErrors.parent = "Select a Project, a Server, or both.";
+      if (!projectId) {
+        nextErrors.project_id = "Project is required.";
       }
       const notesError = validateNotes(notes);
       if (notesError) nextErrors.notes = notesError;
@@ -240,7 +232,6 @@ export default function ScheduleFormPage({ mode }: Props) {
           scheduled_date: scheduledDate,
           assigned_to: assignedTo,
           project_id: projectId,
-          server_id: serverId,
           notes: notes || undefined,
         });
         toast({ title: "Schedule created" });
@@ -323,13 +314,12 @@ export default function ScheduleFormPage({ mode }: Props) {
   const projectName = isEdit
     ? (scheduleDetail?.project_id ? (scheduleDetail?.project?.name ?? "—") : "—")
     : undefined;
-  const serverName = isEdit && scheduleDetail?.server_id ? (scheduleDetail?.server?.name ?? "—") : undefined;
   const cancelledAfterStarting = status === "cancelled" && Boolean(startedAt);
 
   const pageTitle = isEdit ? "Edit schedule" : "New schedule";
   const pageDescription = isEdit
     ? "Update this schedule's notes. Every other field is fixed after creation."
-    : "Schedule a new visit against a project, a server, or both.";
+    : "Schedule a new task or activity for a project.";
 
   return (
     <div className="space-y-6">
@@ -401,24 +391,14 @@ export default function ScheduleFormPage({ mode }: Props) {
                   {isEdit ? (
                     <Input id="type" value={scheduleDetail?.type ?? ""} disabled readOnly />
                   ) : (
-                    <Select value={type} onValueChange={(v) => setType(v as ScheduleType)}>
-                      <SelectTrigger
-                        id="type"
-                        aria-required="true"
-                        aria-invalid={!!fieldErrors.type}
-                        aria-describedby={fieldErrors.type ? errorId("type") : undefined}
-                        className={cn(fieldErrors.type && INVALID_CONTROL)}
-                      >
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {SCHEDULE_TYPES.map((t) => (
-                          <SelectItem key={t} value={t}>
-                            {t}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                    <ScheduleTypeCombobox
+                      id="type"
+                      value={type}
+                      onChange={(v) => setType(v ?? "")}
+                      aria-invalid={!!fieldErrors.type}
+                      aria-describedby={fieldErrors.type ? errorId("type") : undefined}
+                      className={cn(fieldErrors.type && INVALID_CONTROL)}
+                    />
                   )}
                   {!isEdit && fieldErrors.type && (
                     <p id={errorId("type")} className="text-xs text-danger">
@@ -498,58 +478,25 @@ export default function ScheduleFormPage({ mode }: Props) {
                   {isEdit ? (
                     <Input id="project" value={projectName} disabled readOnly />
                   ) : (
-                    <ProjectPicker
-                      id="project"
-                      value={projectId}
-                      onChange={handleProjectChange}
-                      placeholder="None"
-                      aria-invalid={!!fieldErrors.parent}
-                      aria-describedby={fieldErrors.parent ? errorId("server") : undefined}
-                      className={cn(fieldErrors.parent && INVALID_CONTROL)}
-                    />
+                    <>
+                      <ProjectPicker
+                        id="project"
+                        value={projectId}
+                        onChange={handleProjectChange}
+                        placeholder="Select project..."
+                        aria-invalid={!!fieldErrors.project_id}
+                        aria-describedby={fieldErrors.project_id ? errorId("project") : undefined}
+                        className={cn(fieldErrors.project_id && INVALID_CONTROL)}
+                      />
+                      {fieldErrors.project_id && (
+                        <p id={errorId("project")} className="text-xs text-danger">
+                          {fieldErrors.project_id}
+                        </p>
+                      )}
+                    </>
                   )}
                 </div>
               </div>
-
-              {/* Server — edit only shows when server_id is set; create always shows */}
-              {isEdit && serverName && (
-                <div className="space-y-1">
-                  <Label htmlFor="server">Server</Label>
-                  <Input id="server" value={serverName} disabled readOnly />
-                </div>
-              )}
-
-              {!isEdit && (
-                <div className="space-y-1">
-                  <Label htmlFor="server">Server</Label>
-                  <ServerPicker
-                    id="server"
-                    value={serverId}
-                    onChange={setServerId}
-                    projectId={projectId}
-                    placeholder="None"
-                    aria-invalid={!!fieldErrors.parent}
-                    aria-describedby={fieldErrors.parent ? errorId("server") : undefined}
-                    className={cn(fieldErrors.parent && INVALID_CONTROL)}
-                  />
-                  <p className="text-xs text-muted-foreground">
-                    {projectId
-                      ? "Scoped to servers under the selected project."
-                      : "Optional — pick a project, a server, or both."}
-                  </p>
-                  {/*
-                    The cross-field message lives here, under the Server picker,
-                    and both pickers point at it: it belongs to the Project/Server
-                    pair, not to either control alone. role="alert" is kept because
-                    this one appears in response to a submit and can sit below the fold.
-                  */}
-                  {fieldErrors.parent && (
-                    <p id={errorId("server")} role="alert" className="text-xs text-danger">
-                      {fieldErrors.parent}
-                    </p>
-                  )}
-                </div>
-              )}
 
               {/* Status + timestamps (edit only) */}
               {isEdit && (

@@ -322,3 +322,13 @@ export async function restoreSchedule(id: string, actingPeopleId: string): Promi
     return restored;
   });
 }
+
+export async function getDistinctScheduleTypes(): Promise<string[]> {
+  const result = await pool.query<{ type: string }>(
+    `SELECT DISTINCT type
+     FROM schedules
+     WHERE type IS NOT NULL AND TRIM(type) != '' AND deleted_at IS NULL
+     ORDER BY type ASC`
+  );
+  return result.rows.map((r) => r.type);
+}

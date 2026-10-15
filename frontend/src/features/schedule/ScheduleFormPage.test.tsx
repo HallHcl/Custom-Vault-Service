@@ -100,6 +100,7 @@ function mockGetByPath(
     if (path === "/api/environments")
       return Promise.resolve(overrides.environments ?? ok(paginated(ENVIRONMENTS)));
     if (path === "/api/servers") return Promise.resolve(overrides.servers ?? ok(paginated(SERVERS)));
+    if (path === "/api/schedules/types") return Promise.resolve(ok(["Task", "Issue", "PM", "MA", "Other"]));
     if (path === "/api/schedules/{id}") return Promise.resolve(overrides.schedule ?? ok(scheduleDetail()));
     throw new Error(`Unexpected path: ${path}`);
   });
@@ -159,18 +160,18 @@ describe("ScheduleFormPage — Create mode", () => {
     expect(nav.textContent).toContain("New schedule");
   });
 
-  it("still offers title/type/date/assignee/project/server as editable inputs, with no status/started/completed fields", async () => {
+  it("still offers title/type/date/assignee/project as editable inputs, with no server/status/started/completed fields", async () => {
     renderCreatePage();
 
     expect(screen.getByLabelText("Title")).not.toBeDisabled();
     expect(screen.getByLabelText("Date")).not.toBeDisabled();
+    expect(screen.queryByText("Server")).not.toBeInTheDocument();
     expect(screen.queryByText("Started")).not.toBeInTheDocument();
     expect(screen.queryByText("Completed")).not.toBeInTheDocument();
   });
 
   const assigneeCombobox = () => screen.getByRole("combobox", { name: "Assigned to" });
   const projectCombobox = () => screen.getByRole("combobox", { name: "Project" });
-  const serverCombobox = () => screen.getByRole("combobox", { name: "Server" });
 
   async function pick(combobox: HTMLElement, optionName: string) {
     fireEvent.click(combobox);
@@ -200,11 +201,10 @@ describe("ScheduleFormPage — Create mode", () => {
     expect(path).toBe("/api/schedules");
     expect(options.body).toEqual({
       title: "New PM visit",
-      type: "PM",
+      type: "Task",
       scheduled_date: "2026-10-01",
       assigned_to: "person-1",
       project_id: "p1",
-      server_id: undefined,
       notes: undefined,
     });
     expect(options.body.status).toBeUndefined();
@@ -221,72 +221,16 @@ describe("ScheduleFormPage — Create mode", () => {
     expect(await screen.findByText("Schedule list page")).toBeInTheDocument();
   });
 
-  it("submits with a server selected and no project (server-only linkage)", async () => {
-    postMock.mockResolvedValue(ok({ ...SAMPLE_SCHEDULE, id: "s3" }));
-    renderCreatePage();
-
-    fillRequiredFields();
-    await pick(assigneeCombobox(), "Alex Rivera");
-
-    fireEvent.click(serverCombobox());
-    fireEvent.click(await screen.findByRole("option", { name: "web-01" }));
-
-    fireEvent.click(screen.getByRole("button", { name: /save/i }));
-    await waitFor(() => expect(postMock).toHaveBeenCalledTimes(1));
-
-    expect(postMock.mock.calls[0][1].body).toMatchObject({ project_id: undefined, server_id: "srv-1" });
-  });
-
-  it("blocks submit with a clear validation message when neither project nor server is selected", async () => {
+  it("blocks submit with a validation message when project is not selected", async () => {
     renderCreatePage();
 
     fillRequiredFields();
     await pick(assigneeCombobox(), "Alex Rivera");
     fireEvent.click(screen.getByRole("button", { name: /save/i }));
 
-    expect(await screen.findByText("Select a Project, a Server, or both.")).toBeInTheDocument();
-    expect(postMock).not.toHaveBeenCalled();
-  });
-
-  it("marks BOTH pickers invalid and points both at the single message under the Server picker", async () => {
-    renderCreatePage();
-    await screen.findByLabelText("Title");
-
-    fireEvent.click(screen.getByRole("button", { name: /save/i }));
-
-    const alert = await screen.findByRole("alert");
-    expect(alert).toHaveTextContent("Select a Project, a Server, or both.");
-    expect(alert).toHaveAttribute("id", "server-error");
+    expect(await screen.findByText("Project is required.")).toBeInTheDocument();
     expect(projectCombobox()).toHaveAttribute("aria-invalid", "true");
-    expect(projectCombobox()).toHaveAttribute("aria-describedby", "server-error");
-    expect(serverCombobox()).toHaveAttribute("aria-invalid", "true");
-    expect(serverCombobox()).toHaveAttribute("aria-describedby", "server-error");
-    expect(screen.getAllByText("Select a Project, a Server, or both.")).toHaveLength(1);
-  });
-
-  it("scopes the Server picker to the selected Project's servers", async () => {
-    renderCreatePage();
-
-    fireEvent.click(projectCombobox());
-    fireEvent.click(await screen.findByRole("option", { name: "Migration" }));
-
-    fireEvent.click(serverCombobox());
-
-    expect(await screen.findByRole("option", { name: "web-01" })).toBeInTheDocument();
-    expect(screen.queryByRole("option", { name: "unrelated-server" })).not.toBeInTheDocument();
-  });
-
-  it("clears an already-selected Server when the Project changes", async () => {
-    renderCreatePage();
-
-    fireEvent.click(serverCombobox());
-    fireEvent.click(await screen.findByRole("option", { name: "unrelated-server" }));
-    await waitFor(() => expect(serverCombobox().textContent).toBe("unrelated-server"));
-
-    fireEvent.click(projectCombobox());
-    fireEvent.click(await screen.findByRole("option", { name: "Migration" }));
-
-    await waitFor(() => expect(serverCombobox().textContent).not.toBe("unrelated-server"));
+    expect(postMock).not.toHaveBeenCalled();
   });
 
   describe("validation — create mode", () => {
@@ -440,18 +384,11 @@ describe("ScheduleFormPage — Edit mode", () => {
     expect(screen.getByLabelText(/Notes/i)).not.toBeDisabled();
   });
 
-  it("shows no server field when the schedule has no server_id", async () => {
+  it("shows no server field across edit mode", async () => {
+    mockGetByPath({ schedule: ok(scheduleDetail({ server_id: "srv-1" })) });
     renderEditPage();
     await screen.findByDisplayValue("Quarterly PM");
     expect(screen.queryByText("Server")).not.toBeInTheDocument();
-  });
-
-  it("shows the linked server's name read-only when server_id is set", async () => {
-    mockGetByPath({ schedule: ok(scheduleDetail({ server_id: "srv-1" })) });
-    renderEditPage();
-
-    expect(await screen.findByText("Server")).toBeInTheDocument();
-    expect(await screen.findByDisplayValue("db-01")).toBeDisabled();
   });
 
   it("shows status as a read-only badge with no status dropdown", async () => {

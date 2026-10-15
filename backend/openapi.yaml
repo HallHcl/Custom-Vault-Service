@@ -988,10 +988,6 @@ components:
             - is_overdue
     ScheduleType:
       type: string
-      enum:
-        - PM
-        - MA
-        - other
     ScheduleStatus:
       type: string
       enum:
@@ -4836,10 +4832,8 @@ paths:
                   minLength: 1
                 type:
                   type: string
-                  enum:
-                    - PM
-                    - MA
-                    - other
+                  minLength: 1
+                  maxLength: 50
                 scheduled_date:
                   type: string
                 assigned_to:
@@ -4874,6 +4868,29 @@ paths:
                 $ref: "#/components/schemas/ErrorResponse"
         "403":
           description: Insufficient permissions
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /api/schedules/types:
+    get:
+      tags:
+        - Schedules
+      operationId: listScheduleTypes
+      summary: List distinct schedule types
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Distinct schedule types
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: string
+        "401":
+          description: Not authenticated
           content:
             application/json:
               schema:

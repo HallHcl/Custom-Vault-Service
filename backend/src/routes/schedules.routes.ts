@@ -1,10 +1,11 @@
 import { Router } from "express";
 import { requireAnyRole, requireRole } from "../middleware/rbac";
-import { create, getOne, list, remove, restore, update } from "../controllers/schedules.controller";
+import { create, getOne, list, listScheduleTypes, remove, restore, update } from "../controllers/schedules.controller";
 
 const router = Router();
 
 router.get("/", list);
+router.get("/types", listScheduleTypes);
 router.post("/", requireAnyRole(["admin", "member"]), create);
 router.get("/:id", getOne);
 router.patch("/:id", requireAnyRole(["admin", "member"]), update);

@@ -16,7 +16,7 @@ export type ActivityAction = "create" | "update" | "delete" | "restore" | "acces
 
 export type ScheduleStatus = "pending" | "in_progress" | "done" | "cancelled";
 
-export type ScheduleType = "PM" | "MA" | "other";
+export type ScheduleType = string;
 
 export type PeopleType =
   | "internal_engineer"

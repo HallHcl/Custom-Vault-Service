@@ -1009,6 +1009,16 @@ registry.registerPath({
 });
 
 registry.registerPath({
+  method: "get",
+  path: "/api/schedules/types",
+  tags: ["Schedules"],
+  operationId: "listScheduleTypes",
+  summary: "List distinct schedule types",
+  security: bearerAuth,
+  responses: { 200: ok("Distinct schedule types", z.array(z.string())), ...errors(401) },
+});
+
+registry.registerPath({
   method: "post",
   path: "/api/schedules",
   tags: ["Schedules"],

@@ -27,7 +27,7 @@ export const createScheduleSchema = z
     project_id: z.string().uuid().optional(),
     server_id: z.string().uuid().optional(),
     title: z.string().min(1),
-    type: z.enum(SCHEDULE_TYPES),
+    type: z.string().trim().min(1, "Type is required").max(50, "Type must be 50 characters or less"),
     scheduled_date: z.string().refine((value) => !Number.isNaN(Date.parse(value)), {
       message: "scheduled_date must be a valid date",
     }),

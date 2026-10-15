@@ -89,7 +89,7 @@ export const AccessMethodSchema = z
   .enum(["ssh", "rdp", "telnet", "web", "other"])
   .openapi("AccessMethod");
 
-export const ScheduleTypeSchema = z.enum(["PM", "MA", "other"]).openapi("ScheduleType");
+export const ScheduleTypeSchema = z.string().openapi("ScheduleType");
 
 export const ScheduleStatusSchema = z
   .enum(["pending", "in_progress", "done", "cancelled"])

@@ -7,6 +7,7 @@ import {
 } from "../validators/schedules.validator";
 import {
   createSchedule,
+  getDistinctScheduleTypes,
   getScheduleById,
   listSchedules,
   ListSchedulesParams,
@@ -102,4 +103,9 @@ export async function restore(req: Request, res: Response) {
   const changedBy = requireChangedBy(req);
   const restored = await restoreSchedule(paramId(req, "id"), changedBy);
   res.json(restored);
+}
+
+export async function listScheduleTypes(_req: Request, res: Response) {
+  const types = await getDistinctScheduleTypes();
+  res.json(types);
 }

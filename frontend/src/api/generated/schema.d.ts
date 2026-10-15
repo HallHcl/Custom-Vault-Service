@@ -660,6 +660,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/schedules/types": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List distinct schedule types */
+        get: operations["listScheduleTypes"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/schedules/{id}": {
         parameters: {
             query?: never;
@@ -1170,8 +1187,7 @@ export interface components {
         ScheduleListItem: components["schemas"]["Schedule"] & {
             is_overdue: boolean;
         };
-        /** @enum {string} */
-        ScheduleType: "PM" | "MA" | "other";
+        ScheduleType: string;
         /** @enum {string} */
         ScheduleStatus: "pending" | "in_progress" | "done" | "cancelled";
         Schedule: {
@@ -4666,8 +4682,7 @@ export interface operations {
                     /** Format: uuid */
                     server_id?: string;
                     title: string;
-                    /** @enum {string} */
-                    type: "PM" | "MA" | "other";
+                    type: string;
                     scheduled_date: string;
                     /** Format: uuid */
                     assigned_to: string;
@@ -4705,6 +4720,35 @@ export interface operations {
             };
             /** @description Insufficient permissions */
             403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    listScheduleTypes: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Distinct schedule types */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": string[];
+                };
+            };
+            /** @description Not authenticated */
+            401: {
                 headers: {
                     [name: string]: unknown;
                 };

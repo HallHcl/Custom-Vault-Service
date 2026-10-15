@@ -76,13 +76,13 @@ describe("ScheduleDetailDialog", () => {
     getMock.mockResolvedValue(ok(SCHEDULE_DETAIL));
   });
 
-  it("renders full schedule details including project, server, assignee, and notes", async () => {
+  it("renders full schedule details including project, assignee, and notes without server", async () => {
     renderDialog();
 
     expect(await screen.findByText("Monthly Backup Verification")).toBeInTheDocument();
     expect(await screen.findByText("Alex Engineer")).toBeInTheDocument();
     expect(screen.getByText("Alpha Project")).toBeInTheDocument();
-    expect(screen.getByText("db-primary-01")).toBeInTheDocument();
+    expect(screen.queryByText("db-primary-01")).not.toBeInTheDocument();
     expect(screen.getByText("Verified all snapshot backups. Everything is intact.")).toBeInTheDocument();
   });
 
