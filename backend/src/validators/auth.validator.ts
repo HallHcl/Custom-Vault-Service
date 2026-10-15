@@ -24,3 +24,12 @@ export const updateThemePreferenceSchema = z.object({
 export type UpdateThemePreferenceInput = z.infer<
   typeof updateThemePreferenceSchema
 >;
+
+export const updateLinkedPersonSchema = z.object({
+  people_id: z.string().uuid(),
+});
+
+export type UpdateLinkedPersonInput = z.infer<
+  typeof updateLinkedPersonSchema
+>;
+

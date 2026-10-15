@@ -38,19 +38,21 @@ let adminUserId: string;
 let memberUserId: string;
 let changePwUserId: string;
 let changePwPersonId: string;
+let originalAdminPersonId: string | null = null;
 let adminToken: string;
 let memberToken: string;
 let changePwToken: string;
 
 beforeAll(async () => {
-  const adminRow = await pool.query<{ id: string }>(
-    `SELECT id FROM users WHERE username = $1`,
+  const adminRow = await pool.query<{ id: string; people_id: string | null }>(
+    `SELECT id, people_id FROM users WHERE username = $1`,
     [ADMIN_USERNAME]
   );
   if (adminRow.rows.length === 0) {
     throw new Error("Seeded admin user not found. Run `npm run seed` first.");
   }
   adminUserId = adminRow.rows[0].id;
+  originalAdminPersonId = adminRow.rows[0].people_id;
   await pool.query(`UPDATE users SET theme_preference = NULL WHERE id = $1`, [adminUserId]);
 
   const roleRow = await pool.query<{ id: string }>(
@@ -108,6 +110,9 @@ beforeAll(async () => {
 });
 
 afterAll(async () => {
+  if (originalAdminPersonId) {
+    await pool.query(`UPDATE users SET people_id = $1 WHERE id = $2`, [originalAdminPersonId, adminUserId]);
+  }
   await pool.query(`DELETE FROM user_roles WHERE user_id = $1`, [memberUserId]);
   await pool.query(`DELETE FROM users WHERE id = $1`, [memberUserId]);
   await pool.query(`DELETE FROM user_roles WHERE user_id = $1`, [changePwUserId]);
@@ -309,3 +314,108 @@ describe("POST /api/auth/change-password", () => {
     expect(logRows.rows[0].new_value).toEqual({ action: "password_changed" });
   });
 });
+
+describe("PUT /api/auth/me/person", () => {
+  let testPerson1Id: string;
+  let testPerson2Id: string;
+  let tempUserId: string;
+
+  beforeAll(async () => {
+    const p1 = await pool.query<{ id: string }>(
+      `INSERT INTO people (name, email, type) VALUES ($1, $2, 'internal_engineer') RETURNING id`,
+      [`Test Person One ${RUN_ID}`, `person1_${RUN_ID}@example.com`]
+    );
+    testPerson1Id = p1.rows[0].id;
+
+    const p2 = await pool.query<{ id: string }>(
+      `INSERT INTO people (name, email, type) VALUES ($1, $2, 'internal_engineer') RETURNING id`,
+      [`Test Person Two ${RUN_ID}`, `person2_${RUN_ID}@example.com`]
+    );
+    testPerson2Id = p2.rows[0].id;
+
+    const hash = await bcrypt.hash("tempPass123!", 10);
+    const u = await pool.query<{ id: string }>(
+      `INSERT INTO users (people_id, username, email, password_hash) VALUES ($1, $2, $3, $4) RETURNING id`,
+      [testPerson2Id, `tempuser_${RUN_ID}`, `tempuser_${RUN_ID}@example.com`, hash]
+    );
+    tempUserId = u.rows[0].id;
+  });
+
+  afterAll(async () => {
+    await pool.query(`DELETE FROM users WHERE id = $1`, [tempUserId]);
+    await pool.query(`DELETE FROM people WHERE id IN ($1, $2)`, [testPerson1Id, testPerson2Id]);
+  });
+
+  it("returns 401 without a token", async () => {
+    const res = await request(app)
+      .put("/api/auth/me/person")
+      .send({ people_id: testPerson1Id });
+    expect(res.status).toBe(401);
+  });
+
+  it("returns 403 for a non-admin user", async () => {
+    const res = await request(app)
+      .put("/api/auth/me/person")
+      .set("Authorization", `Bearer ${memberToken}`)
+      .send({ people_id: testPerson1Id });
+    expect(res.status).toBe(403);
+  });
+
+  it("returns 400 VALIDATION_ERROR for an invalid UUID", async () => {
+    const res = await request(app)
+      .put("/api/auth/me/person")
+      .set("Authorization", `Bearer ${adminToken}`)
+      .send({ people_id: "not-a-uuid" });
+    expect(res.status).toBe(400);
+    expect(res.body.error.code).toBe("VALIDATION_ERROR");
+  });
+
+  it("returns 404 for a non-existent person", async () => {
+    const res = await request(app)
+      .put("/api/auth/me/person")
+      .set("Authorization", `Bearer ${adminToken}`)
+      .send({ people_id: "00000000-0000-0000-0000-000000000000" });
+    expect(res.status).toBe(404);
+  });
+
+  it("updates linked person for admin and returns new token and person details", async () => {
+    const res = await request(app)
+      .put("/api/auth/me/person")
+      .set("Authorization", `Bearer ${adminToken}`)
+      .send({ people_id: testPerson1Id });
+
+    expect(res.status).toBe(200);
+    expect(res.body.user.peopleId).toBe(testPerson1Id);
+    expect(res.body.user.person.id).toBe(testPerson1Id);
+    expect(res.body.user.person.name).toBe(`Test Person One ${RUN_ID}`);
+    expect(typeof res.body.token).toBe("string");
+
+    // Subsequent GET /auth/me with the new token reflects the new person
+    const meRes = await request(app)
+      .get("/api/auth/me")
+      .set("Authorization", `Bearer ${res.body.token}`);
+
+    expect(meRes.status).toBe(200);
+    expect(meRes.body.peopleId).toBe(testPerson1Id);
+    expect(meRes.body.person.name).toBe(`Test Person One ${RUN_ID}`);
+  });
+
+  it("unlinks existing user if target person was already linked to someone else", async () => {
+    // testPerson2Id is currently linked to tempUserId
+    const res = await request(app)
+      .put("/api/auth/me/person")
+      .set("Authorization", `Bearer ${adminToken}`)
+      .send({ people_id: testPerson2Id });
+
+    expect(res.status).toBe(200);
+    expect(res.body.user.peopleId).toBe(testPerson2Id);
+
+    // Verify tempUserId was unlinked (people_id set to null)
+    const tempUserCheck = await pool.query<{ people_id: string | null }>(
+      `SELECT people_id FROM users WHERE id = $1`,
+      [tempUserId]
+    );
+    expect(tempUserCheck.rows[0].people_id).toBeNull();
+  });
+});
+

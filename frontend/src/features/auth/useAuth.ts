@@ -2,11 +2,18 @@ import { useCallback, useEffect, useSyncExternalStore } from "react";
 import api from "@/lib/api";
 import { getToken, setToken } from "@/lib/authToken";
 
+export interface AuthPerson {
+  id: string;
+  name: string;
+  email: string | null;
+}
+
 export interface AuthUser {
   id: string;
   username: string;
   email: string;
   peopleId: string | null;
+  person?: AuthPerson | null;
   roles: string[];
   /** Present on GET /auth/me (NULL resolved to "light" server-side); absent
    *  from the POST /auth/login payload. */
@@ -96,6 +103,16 @@ export function useAuth() {
     setState({ user: null, status: "unauthenticated" });
   }, []);
 
+  const updateLinkedPerson = useCallback(async (peopleId: string) => {
+    const { data } = await api.put<{ token: string; user: AuthUser }>(
+      "/auth/me/person",
+      { people_id: peopleId }
+    );
+    setToken(data.token);
+    setState({ user: data.user, status: "authenticated" });
+    return data.user;
+  }, []);
+
   return {
     user: snapshot.user,
     roles: snapshot.user?.roles ?? [],
@@ -103,5 +120,6 @@ export function useAuth() {
     isLoading: snapshot.status === "loading",
     login,
     logout,
+    updateLinkedPerson,
   };
 }

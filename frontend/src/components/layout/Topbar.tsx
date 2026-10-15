@@ -52,16 +52,19 @@ export default function Topbar() {
             <Button variant="ghost" className="flex items-center gap-2 px-2">
               <Avatar className="h-7 w-7">
                 <AvatarFallback>
-                  {user ? initials(user.username) : "?"}
+                  {user ? initials(user.person?.name ?? user.username) : "?"}
                 </AvatarFallback>
               </Avatar>
               <span className="hidden text-sm font-medium sm:inline">
-                {user?.username ?? "Account"}
+                {user?.person?.name ?? user?.username ?? "Account"}
               </span>
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="w-56">
-            <DropdownMenuLabel>{user?.email ?? "Signed in"}</DropdownMenuLabel>
+            <DropdownMenuLabel>
+              <div className="font-medium text-foreground">{user?.person?.name ?? user?.username}</div>
+              <div className="text-xs font-normal text-muted-foreground">{user?.email ?? "Signed in"}</div>
+            </DropdownMenuLabel>
             <DropdownMenuSeparator />
             <DropdownMenuItem onClick={() => navigate("/settings/manage-users")}>
               <UserCog className="mr-2 h-4 w-4" />

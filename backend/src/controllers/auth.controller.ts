@@ -5,12 +5,14 @@ import { ApiError } from "../middleware/errorHandler";
 import {
   changePasswordSchema,
   loginSchema,
+  updateLinkedPersonSchema,
   updateThemePreferenceSchema,
 } from "../validators/auth.validator";
 import {
   findRoleNamesForUser,
   findUserById,
   findUserByUsername,
+  updateUserLinkedPerson,
   updateUserPassword,
   updateUserThemePreference,
 } from "../services/auth.service";
@@ -54,6 +56,13 @@ export async function login(req: Request, res: Response) {
       username: user.username,
       email: user.email,
       peopleId: user.people_id,
+      person: user.person_name
+        ? {
+            id: user.people_id,
+            name: user.person_name,
+            email: user.person_email ?? null,
+          }
+        : null,
       roles,
     },
   });
@@ -74,6 +83,13 @@ export async function me(req: Request, res: Response) {
     username: user.username,
     email: user.email,
     peopleId: user.people_id,
+    person: user.person_name
+      ? {
+          id: user.people_id,
+          name: user.person_name,
+          email: user.person_email ?? null,
+        }
+      : null,
     roles: req.user.roles,
     theme_preference: user.theme_preference ?? DEFAULT_THEME,
   });
@@ -111,8 +127,69 @@ export async function updateMe(req: Request, res: Response) {
     username: user.username,
     email: user.email,
     peopleId: user.people_id,
+    person: user.person_name
+      ? {
+          id: user.people_id,
+          name: user.person_name,
+          email: user.person_email ?? null,
+        }
+      : null,
     roles: req.user.roles,
     theme_preference: user.theme_preference ?? DEFAULT_THEME,
+  });
+}
+
+export async function updateLinkedPerson(req: Request, res: Response) {
+  if (!req.user) {
+    throw new ApiError(401, "Not authenticated", "UNAUTHORIZED");
+  }
+
+  const parseResult = updateLinkedPersonSchema.safeParse(req.body);
+  if (!parseResult.success) {
+    throw new ApiError(
+      400,
+      "Validation failed",
+      "VALIDATION_ERROR",
+      parseResult.error.flatten()
+    );
+  }
+
+  const updatedUser = await updateUserLinkedPerson(
+    req.user.id,
+    parseResult.data.people_id,
+    req.user.peopleId
+  );
+
+  const roles = await findRoleNamesForUser(updatedUser.id);
+
+  const secret = process.env.JWT_SECRET;
+  if (!secret) {
+    throw new ApiError(500, "JWT secret is not configured");
+  }
+
+  const token = jwt.sign(
+    { id: updatedUser.id, peopleId: updatedUser.people_id, roles },
+    secret,
+    { expiresIn: "8h" }
+  );
+
+  res.json({
+    token,
+    user: {
+      id: updatedUser.id,
+      username: updatedUser.username,
+      email: updatedUser.email,
+      peopleId: updatedUser.people_id,
+      person: updatedUser.person_name
+        ? {
+            id: updatedUser.people_id,
+            name: updatedUser.person_name,
+            email: updatedUser.person_email ?? null,
+          }
+        : null,
+      roles,
+      theme_preference: updatedUser.theme_preference ?? DEFAULT_THEME,
+    },
   });
 }
 
