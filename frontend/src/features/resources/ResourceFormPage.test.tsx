@@ -209,6 +209,24 @@ describe("ResourceFormPage — create mode", () => {
     });
   });
 
+  it("loads spreadsheet content from CSV into Content editor as markdown table", async () => {
+    renderCreatePage();
+
+    const fileInput = screen.getByTestId("content-file-input");
+    const file = new File(["col1,col2\nval1,val2"], "servers.csv", {
+      type: "text/csv",
+    });
+
+    fireEvent.change(fileInput, { target: { files: [file] } });
+
+    expect(await screen.findByDisplayValue("servers")).toBeInTheDocument();
+    await waitFor(() => {
+      expect(screen.getByLabelText("Content")).toHaveValue(
+        "| col1 | col2 |\n| --- | --- |\n| val1 | val2 |"
+      );
+    });
+  });
+
   it("navigates back on Cancel without saving", async () => {
     renderCreatePage();
     fireEvent.click(screen.getByRole("button", { name: /cancel/i }));

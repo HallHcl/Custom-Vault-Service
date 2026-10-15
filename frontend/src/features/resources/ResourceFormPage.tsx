@@ -137,7 +137,88 @@ export default function ResourceFormPage({ mode: modeProp }: ResourceFormPagePro
     if (!file) return;
 
     try {
-      const text = await file.text();
+      const ext = ("." + (file.name.split(".").pop() || "")).toLowerCase();
+      let text = "";
+
+      if (ext === ".xlsx" || ext === ".xls") {
+        const XLSX = await import("xlsx");
+        const arrayBuffer = await file.arrayBuffer();
+        const workbook = XLSX.read(arrayBuffer, { type: "array" });
+        const sheetSections: string[] = [];
+
+        for (const sheetName of workbook.SheetNames) {
+          const sheet = workbook.Sheets[sheetName];
+          const rows: unknown[][] = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: "" });
+          while (rows.length > 0 && rows[rows.length - 1].every((c) => String(c ?? "").trim() === "")) {
+            rows.pop();
+          }
+          if (rows.length === 0) continue;
+
+          const colCount = Math.max(...rows.map((r) => r.length));
+          if (colCount === 0) continue;
+
+          const normalizedRows = rows.map((r) => {
+            const row = [...r];
+            while (row.length < colCount) row.push("");
+            return row.map((c) => String(c ?? "").replace(/\|/g, "\\|").replace(/\r?\n/g, " "));
+          });
+
+          const header = normalizedRows[0];
+          const separator = new Array(colCount).fill("---");
+          const dataRows = normalizedRows.slice(1);
+
+          const tableLines = [
+            `| ${header.join(" | ")} |`,
+            `| ${separator.join(" | ")} |`,
+            ...dataRows.map((r) => `| ${r.join(" | ")} |`),
+          ];
+
+          if (workbook.SheetNames.length > 1) {
+            sheetSections.push(`### Sheet: ${sheetName}\n\n${tableLines.join("\n")}`);
+          } else {
+            sheetSections.push(tableLines.join("\n"));
+          }
+        }
+
+        text = sheetSections.join("\n\n");
+        if (!text) {
+          text = `*(Empty spreadsheet: ${file.name})*`;
+        }
+      } else if (ext === ".csv") {
+        try {
+          const rawText = await file.text();
+          const XLSX = await import("xlsx");
+          const workbook = XLSX.read(rawText, { type: "string" });
+          const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
+          const rows: unknown[][] = XLSX.utils.sheet_to_json(firstSheet, { header: 1, defval: "" });
+          while (rows.length > 0 && rows[rows.length - 1].every((c) => String(c ?? "").trim() === "")) {
+            rows.pop();
+          }
+          if (rows.length > 0) {
+            const colCount = Math.max(...rows.map((r) => r.length));
+            const normalizedRows = rows.map((r) => {
+              const row = [...r];
+              while (row.length < colCount) row.push("");
+              return row.map((c) => String(c ?? "").replace(/\|/g, "\\|").replace(/\r?\n/g, " "));
+            });
+            const header = normalizedRows[0];
+            const separator = new Array(colCount).fill("---");
+            const dataRows = normalizedRows.slice(1);
+            text = [
+              `| ${header.join(" | ")} |`,
+              `| ${separator.join(" | ")} |`,
+              ...dataRows.map((r) => `| ${r.join(" | ")} |`),
+            ].join("\n");
+          } else {
+            text = rawText;
+          }
+        } catch {
+          text = await file.text();
+        }
+      } else {
+        text = await file.text();
+      }
+
       setContent(text);
       setFieldErrors((prev) => ({ ...prev, content: undefined }));
 
@@ -155,7 +236,7 @@ export default function ResourceFormPage({ mode: modeProp }: ResourceFormPagePro
     } catch {
       toast({
         title: "Failed to read file",
-        description: "Could not read text content from the selected file.",
+        description: "Could not read content from the selected file.",
         variant: "destructive",
       });
     } finally {
@@ -489,7 +570,7 @@ export default function ResourceFormPage({ mode: modeProp }: ResourceFormPagePro
                     <input
                       ref={contentFileInputRef}
                       type="file"
-                      accept=".md,.txt,.markdown,.json,.yaml,.yml,.sh,.sql,.env,.conf,.csv,text/*"
+                      accept=".md,.txt,.markdown,.json,.yaml,.yml,.sh,.sql,.env,.conf,.csv,.xlsx,.xls,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel,text/*"
                       className="hidden"
                       id="content-file-input"
                       data-testid="content-file-input"
@@ -515,7 +596,7 @@ export default function ResourceFormPage({ mode: modeProp }: ResourceFormPagePro
                   aria-invalid={!!fieldErrors.content}
                   aria-describedby={fieldErrors.content ? errorId("content") : undefined}
                   error={!!fieldErrors.content}
-                  placeholder="Enter markdown or text content, or click 'Choose File' to load from a file..."
+                  placeholder="Enter markdown or text content, or click 'Choose File' to load from a file (.md, .txt, .xlsx, .csv)..."
                 />
                 {fieldErrors.content && (
                   <p id={errorId("content")} className="text-xs text-danger">
