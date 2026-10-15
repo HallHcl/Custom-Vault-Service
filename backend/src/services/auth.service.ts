@@ -81,6 +81,20 @@ export async function updateUserLinkedPerson(
 
     const effectiveActingPeopleId = actingPeopleId ?? existingUser.people_id ?? newPeopleId;
 
+    // Determine candidate email from target person
+    let targetEmail = existingUser.email;
+    if (targetPerson.email && targetPerson.email.trim() !== "") {
+      const candidateEmail = targetPerson.email.trim();
+      const emailConflictResult = await tx.query<User>(
+        `SELECT id FROM users WHERE email = $1 AND id != $2 AND deleted_at IS NULL`,
+        [candidateEmail, userId]
+      );
+      if (emailConflictResult.rows.length > 0) {
+        throw new ApiError(409, "Email is already in use by another user", "CONFLICT");
+      }
+      targetEmail = candidateEmail;
+    }
+
     // 3. Unlink any other user currently linked to newPeopleId to satisfy unique index
     const conflictUserResult = await tx.query<User>(
       `SELECT * FROM users WHERE people_id = $1 AND id != $2 AND deleted_at IS NULL`,
@@ -103,10 +117,10 @@ export async function updateUserLinkedPerson(
       );
     }
 
-    // 4. Update the current user's people_id
+    // 4. Update the current user's people_id and email
     const updatedUserResult = await tx.query<User>(
-      `UPDATE users SET people_id = $1, updated_at = now() WHERE id = $2 RETURNING *`,
-      [newPeopleId, userId]
+      `UPDATE users SET people_id = $1, email = $2, updated_at = now() WHERE id = $3 RETURNING *`,
+      [newPeopleId, targetEmail, userId]
     );
     const updatedUser = updatedUserResult.rows[0];
 

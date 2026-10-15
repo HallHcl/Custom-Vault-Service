@@ -378,7 +378,7 @@ describe("PUT /api/auth/me/person", () => {
     expect(res.status).toBe(404);
   });
 
-  it("updates linked person for admin and returns new token and person details", async () => {
+  it("updates linked person for admin, synchronizes user email, and returns new token", async () => {
     const res = await request(app)
       .put("/api/auth/me/person")
       .set("Authorization", `Bearer ${adminToken}`)
@@ -386,18 +386,74 @@ describe("PUT /api/auth/me/person", () => {
 
     expect(res.status).toBe(200);
     expect(res.body.user.peopleId).toBe(testPerson1Id);
+    expect(res.body.user.email).toBe(`person1_${RUN_ID}@example.com`);
     expect(res.body.user.person.id).toBe(testPerson1Id);
     expect(res.body.user.person.name).toBe(`Test Person One ${RUN_ID}`);
+    expect(res.body.user.person.email).toBe(`person1_${RUN_ID}@example.com`);
     expect(typeof res.body.token).toBe("string");
 
-    // Subsequent GET /auth/me with the new token reflects the new person
+    // Verify DB reflects updated email
+    const dbUser = await pool.query<{ email: string; people_id: string }>(
+      `SELECT email, people_id FROM users WHERE id = $1`,
+      [adminUserId]
+    );
+    expect(dbUser.rows[0].email).toBe(`person1_${RUN_ID}@example.com`);
+    expect(dbUser.rows[0].people_id).toBe(testPerson1Id);
+
+    // Subsequent GET /auth/me with the new token reflects the new person and email
     const meRes = await request(app)
       .get("/api/auth/me")
       .set("Authorization", `Bearer ${res.body.token}`);
 
     expect(meRes.status).toBe(200);
     expect(meRes.body.peopleId).toBe(testPerson1Id);
+    expect(meRes.body.email).toBe(`person1_${RUN_ID}@example.com`);
     expect(meRes.body.person.name).toBe(`Test Person One ${RUN_ID}`);
+  });
+
+  it("preserves existing user email when linked person has no email", async () => {
+    const pNoEmail = await pool.query<{ id: string }>(
+      `INSERT INTO people (name, email, type) VALUES ($1, NULL, 'internal_engineer') RETURNING id`,
+      [`Test Person No Email ${RUN_ID}`]
+    );
+    const personNoEmailId = pNoEmail.rows[0].id;
+
+    try {
+      const res = await request(app)
+        .put("/api/auth/me/person")
+        .set("Authorization", `Bearer ${adminToken}`)
+        .send({ people_id: personNoEmailId });
+
+      expect(res.status).toBe(200);
+      expect(res.body.user.peopleId).toBe(personNoEmailId);
+      // Keeps the previous email because target person has no email
+      expect(res.body.user.email).toBe(`person1_${RUN_ID}@example.com`);
+      expect(res.body.user.person.email).toBeNull();
+    } finally {
+      await pool.query(`DELETE FROM people WHERE id = $1`, [personNoEmailId]);
+    }
+  });
+
+  it("returns 409 CONFLICT if target person's email is already used by another user", async () => {
+    // tempUserId already has email tempuser_${RUN_ID}@example.com
+    const pConflict = await pool.query<{ id: string }>(
+      `INSERT INTO people (name, email, type) VALUES ($1, $2, 'internal_engineer') RETURNING id`,
+      [`Conflict Person ${RUN_ID}`, `tempuser_${RUN_ID}@example.com`]
+    );
+    const conflictPersonId = pConflict.rows[0].id;
+
+    try {
+      const res = await request(app)
+        .put("/api/auth/me/person")
+        .set("Authorization", `Bearer ${adminToken}`)
+        .send({ people_id: conflictPersonId });
+
+      expect(res.status).toBe(409);
+      expect(res.body.error.code).toBe("CONFLICT");
+      expect(res.body.error.message).toMatch(/already in use/i);
+    } finally {
+      await pool.query(`DELETE FROM people WHERE id = $1`, [conflictPersonId]);
+    }
   });
 
   it("unlinks existing user if target person was already linked to someone else", async () => {
