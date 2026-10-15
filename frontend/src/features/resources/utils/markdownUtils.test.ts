@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { formatInline, htmlToMarkdown, markdownToHtml } from "./markdownUtils";
+import {
+  convertSheetRowsToMarkdown,
+  formatInline,
+  htmlToMarkdown,
+  markdownToHtml,
+} from "./markdownUtils";
 
 describe("markdownUtils", () => {
   it("formats inline bold, strikethrough, underline, and italic", () => {
@@ -51,5 +56,33 @@ describe("markdownUtils", () => {
     const backToMd = htmlToMarkdown(html);
     expect(backToMd).toContain("| Col 1 | Col 2 |");
     expect(backToMd).toContain("| A | B |");
+  });
+
+  it("intelligently parses complex spreadsheet rows with title, tables, and notes", () => {
+    const sheetData = [
+      ["As part of the Customs CCTV project requirements..."],
+      ["If you encounter any issues..."],
+      [],
+      ["Full Name", "User", "Password", "Required form", "Create Date."],
+      ["Chanachol Kamolprapa", "chanachol.kam", ".k177W3*8:IZ", "Zabbix Team", "9/9/2029"],
+      [],
+      ["Password-mariadb = s,;ddyooHv8"],
+      ["VIP 10.220.5.119", "", ".k177W3*8:IZ"],
+    ];
+
+    const md = convertSheetRowsToMarkdown(sheetData);
+
+    // Pre-table notes should be plain text paragraphs, not mangled table headers
+    expect(md).toContain("As part of the Customs CCTV project requirements...");
+    expect(md).toContain("If you encounter any issues...");
+
+    // The actual table should be a clean markdown table
+    expect(md).toContain("| Full Name | User | Password | Required form | Create Date. |");
+    expect(md).toContain("| --- | --- | --- | --- | --- |");
+    expect(md).toContain("| Chanachol Kamolprapa | chanachol.kam | .k177W3*8:IZ | Zabbix Team | 9/9/2029 |");
+
+    // Footnotes and key-values
+    expect(md).toContain("Password-mariadb = s,;ddyooHv8");
+    expect(md).toContain("VIP 10.220.5.119: .k177W3*8:IZ");
   });
 });

@@ -413,7 +413,7 @@ export default function ResourcesPage() {
                           </div>
                           {contentViewMode === "formatted" ? (
                             <div
-                              className="max-h-[500px] overflow-auto rounded-md border border-border bg-card p-4 text-sm text-foreground leading-relaxed prose prose-neutral dark:prose-invert max-w-none"
+                              className="word-canvas max-h-[500px] overflow-auto rounded-md border border-border bg-card p-4 text-sm text-foreground leading-relaxed max-w-none"
                               dangerouslySetInnerHTML={{
                                 __html: markdownToHtml(resourceDetail.current_version.content),
                               }}

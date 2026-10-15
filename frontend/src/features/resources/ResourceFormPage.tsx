@@ -28,6 +28,7 @@ import { useCreateResourceVersion, useResourceVersion } from "@/hooks/useResourc
 import { ImageDropzone, formatBytes } from "./components/ImageDropzone";
 import { AttachmentGallery } from "./components/AttachmentGallery";
 import { WordRichEditor } from "./components/WordRichEditor";
+import { convertSheetRowsToMarkdown } from "./utils/markdownUtils";
 import type { ResourceType } from "@/types";
 import {
   RESOURCE_TYPE_LABELS,
@@ -148,35 +149,18 @@ export default function ResourceFormPage({ mode: modeProp }: ResourceFormPagePro
 
         for (const sheetName of workbook.SheetNames) {
           const sheet = workbook.Sheets[sheetName];
-          const rows: unknown[][] = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: "" });
-          while (rows.length > 0 && rows[rows.length - 1].every((c) => String(c ?? "").trim() === "")) {
-            rows.pop();
-          }
-          if (rows.length === 0) continue;
-
-          const colCount = Math.max(...rows.map((r) => r.length));
-          if (colCount === 0) continue;
-
-          const normalizedRows = rows.map((r) => {
-            const row = [...r];
-            while (row.length < colCount) row.push("");
-            return row.map((c) => String(c ?? "").replace(/\|/g, "\\|").replace(/\r?\n/g, " "));
+          const rows: unknown[][] = XLSX.utils.sheet_to_json(sheet, {
+            header: 1,
+            raw: false,
+            defval: "",
           });
-
-          const header = normalizedRows[0];
-          const separator = new Array(colCount).fill("---");
-          const dataRows = normalizedRows.slice(1);
-
-          const tableLines = [
-            `| ${header.join(" | ")} |`,
-            `| ${separator.join(" | ")} |`,
-            ...dataRows.map((r) => `| ${r.join(" | ")} |`),
-          ];
+          const sheetMarkdown = convertSheetRowsToMarkdown(rows);
+          if (!sheetMarkdown.trim()) continue;
 
           if (workbook.SheetNames.length > 1) {
-            sheetSections.push(`### Sheet: ${sheetName}\n\n${tableLines.join("\n")}`);
+            sheetSections.push(`### Sheet: ${sheetName}\n\n${sheetMarkdown}`);
           } else {
-            sheetSections.push(tableLines.join("\n"));
+            sheetSections.push(sheetMarkdown);
           }
         }
 
@@ -190,28 +174,13 @@ export default function ResourceFormPage({ mode: modeProp }: ResourceFormPagePro
           const XLSX = await import("xlsx");
           const workbook = XLSX.read(rawText, { type: "string" });
           const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
-          const rows: unknown[][] = XLSX.utils.sheet_to_json(firstSheet, { header: 1, defval: "" });
-          while (rows.length > 0 && rows[rows.length - 1].every((c) => String(c ?? "").trim() === "")) {
-            rows.pop();
-          }
-          if (rows.length > 0) {
-            const colCount = Math.max(...rows.map((r) => r.length));
-            const normalizedRows = rows.map((r) => {
-              const row = [...r];
-              while (row.length < colCount) row.push("");
-              return row.map((c) => String(c ?? "").replace(/\|/g, "\\|").replace(/\r?\n/g, " "));
-            });
-            const header = normalizedRows[0];
-            const separator = new Array(colCount).fill("---");
-            const dataRows = normalizedRows.slice(1);
-            text = [
-              `| ${header.join(" | ")} |`,
-              `| ${separator.join(" | ")} |`,
-              ...dataRows.map((r) => `| ${r.join(" | ")} |`),
-            ].join("\n");
-          } else {
-            text = rawText;
-          }
+          const rows: unknown[][] = XLSX.utils.sheet_to_json(firstSheet, {
+            header: 1,
+            raw: false,
+            defval: "",
+          });
+          const sheetMarkdown = convertSheetRowsToMarkdown(rows);
+          text = sheetMarkdown || rawText;
         } catch {
           text = await file.text();
         }

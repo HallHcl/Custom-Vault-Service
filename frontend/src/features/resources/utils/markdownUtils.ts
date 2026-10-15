@@ -65,12 +65,11 @@ export function markdownToHtml(markdown: string): string {
       i--;
 
       if (tableLines.length >= 1) {
-        const rows = tableLines.map((row) =>
-          row
-            .split("|")
-            .slice(1, -1)
-            .map((c) => c.trim())
-        );
+        const rows = tableLines.map((row) => {
+          const trimmed = row.trim();
+          const inner = trimmed.startsWith("|") && trimmed.endsWith("|") ? trimmed.slice(1, -1) : trimmed;
+          return inner.split(/(?<!\\)\|/).map((c) => c.trim().replace(/\\\|/g, "|"));
+        });
 
         let headerRow: string[] | null = null;
         let bodyRows: string[][] = [];
@@ -83,23 +82,23 @@ export function markdownToHtml(markdown: string): string {
           bodyRows = rows.slice(1);
         }
 
-        let tableHtml = '<table class="w-full border-collapse border border-border my-3 text-xs">';
+        let tableHtml = '<div class="table-container my-3 overflow-x-auto rounded border border-border"><table class="w-full min-w-full border-collapse text-xs">';
         if (headerRow) {
           tableHtml += '<thead class="bg-muted/60 border-b border-border"><tr>';
           for (const th of headerRow) {
-            tableHtml += `<th class="border border-border px-3 py-1.5 font-semibold text-left">${formatInline(th)}</th>`;
+            tableHtml += `<th class="border-b border-r border-border last:border-r-0 bg-muted/60 px-3 py-2 font-semibold text-left whitespace-nowrap text-foreground">${formatInline(th)}</th>`;
           }
           tableHtml += "</tr></thead>";
         }
         tableHtml += "<tbody>";
         for (const row of bodyRows) {
-          tableHtml += '<tr class="border-b border-border/60 hover:bg-muted/20">';
+          tableHtml += '<tr class="border-b border-border/60 last:border-b-0 hover:bg-muted/20 transition-colors">';
           for (const td of row) {
-            tableHtml += `<td class="border border-border px-3 py-1.5">${formatInline(td)}</td>`;
+            tableHtml += `<td class="border-r border-border/40 last:border-r-0 px-3 py-2 align-top text-foreground">${formatInline(td)}</td>`;
           }
           tableHtml += "</tr>";
         }
-        tableHtml += "</tbody></table>";
+        tableHtml += "</tbody></table></div>";
         result.push(tableHtml);
         continue;
       }
@@ -345,7 +344,11 @@ function processTable(tableEl: HTMLElement): string {
     const cells: string[] = [];
     const cellElements = tr.querySelectorAll("th, td");
     cellElements.forEach((cell) => {
-      cells.push(nodeToMarkdown(cell).replace(/\r?\n/g, " ").trim());
+      const cellText = nodeToMarkdown(cell)
+        .replace(/\r?\n/g, " ")
+        .replace(/\|/g, "\\|")
+        .trim();
+      cells.push(cellText);
     });
     if (cells.length > 0) {
       rows.push(cells);
@@ -387,4 +390,117 @@ function processList(listEl: HTMLElement, type: "ul" | "ol"): string {
     }
   }
   return items.join("\n");
+}
+
+/**
+ * Converts spreadsheet rows (from SheetJS / XLSX or CSV) into clean, structured Markdown.
+ * Intelligently separates title/notice paragraphs, multi-column tables, and footnote notes
+ * instead of forcing the entire worksheet into one single distorted table.
+ */
+export function convertSheetRowsToMarkdown(rawRows: unknown[][]): string {
+  if (!Array.isArray(rawRows) || rawRows.length === 0) return "";
+
+  // 1. Clean each row: stringify, trim, strip trailing empty cells
+  const cleanedRows: string[][] = rawRows.map((r) => {
+    if (!Array.isArray(r)) return [];
+    const cells = r.map((c) => (c == null ? "" : String(c).trim()));
+    while (cells.length > 0 && cells[cells.length - 1] === "") {
+      cells.pop();
+    }
+    return cells;
+  });
+
+  // Strip leading and trailing empty rows
+  while (cleanedRows.length > 0 && cleanedRows[0].length === 0) cleanedRows.shift();
+  while (cleanedRows.length > 0 && cleanedRows[cleanedRows.length - 1].length === 0) cleanedRows.pop();
+  if (cleanedRows.length === 0) return "";
+
+  // 2. Segment rows into clusters separated by empty rows
+  const clusters: string[][][] = [];
+  let currentCluster: string[][] = [];
+  for (const row of cleanedRows) {
+    if (row.length === 0) {
+      if (currentCluster.length > 0) {
+        clusters.push(currentCluster);
+        currentCluster = [];
+      }
+    } else {
+      currentCluster.push(row);
+    }
+  }
+  if (currentCluster.length > 0) {
+    clusters.push(currentCluster);
+  }
+
+  const sections: string[] = [];
+
+  for (const cluster of clusters) {
+    const maxCols = Math.max(...cluster.map((r) => r.length));
+
+    // Case A: Pure text or 1-column notes/paragraphs
+    if (maxCols <= 1) {
+      for (const r of cluster) {
+        if (r.length > 0 && r[0]) {
+          sections.push(r[0]);
+        }
+      }
+      continue;
+    }
+
+    // Case B: Contains multi-column data (tables, pre-table titles, post-table notes)
+    // Find where the table starts (first row with >= 2 columns)
+    const tableStartIdx = cluster.findIndex((r) => r.length >= 2);
+    let tableEndIdx = cluster.length - 1;
+    // Find where table ends (skip trailing single-cell notes)
+    while (tableEndIdx > tableStartIdx && cluster[tableEndIdx].length < 2) {
+      tableEndIdx--;
+    }
+
+    // Pre-table titles or notice paragraphs
+    for (let i = 0; i < tableStartIdx; i++) {
+      if (cluster[i][0]) {
+        sections.push(cluster[i][0]);
+      }
+    }
+
+    // Table rows
+    const tableRows = cluster.slice(tableStartIdx, tableEndIdx + 1);
+    if (tableRows.length >= 2) {
+      const colCount = Math.max(...tableRows.map((r) => r.length));
+      const normalized = tableRows.map((r) => {
+        const copy = [...r];
+        while (copy.length < colCount) copy.push("");
+        return copy.map((c) => c.replace(/\|/g, "\\|").replace(/\r?\n/g, " "));
+      });
+
+      const header = normalized[0];
+      const separator = new Array(colCount).fill("---");
+      const body = normalized.slice(1);
+
+      const lines = [
+        `| ${header.join(" | ")} |`,
+        `| ${separator.join(" | ")} |`,
+        ...body.map((r) => `| ${r.join(" | ")} |`),
+      ];
+      sections.push(lines.join("\n"));
+    } else if (tableRows.length === 1) {
+      const nonEmpties = tableRows[0].filter((c) => c.trim().length > 0);
+      if (nonEmpties.length === 1) {
+        sections.push(nonEmpties[0]);
+      } else if (nonEmpties.length === 2) {
+        sections.push(`${nonEmpties[0]}: ${nonEmpties[1]}`);
+      } else if (nonEmpties.length > 2) {
+        sections.push(nonEmpties.join(" | "));
+      }
+    }
+
+    // Post-table notes / remarks
+    for (let i = tableEndIdx + 1; i < cluster.length; i++) {
+      if (cluster[i][0]) {
+        sections.push(cluster[i][0]);
+      }
+    }
+  }
+
+  return sections.join("\n\n");
 }
