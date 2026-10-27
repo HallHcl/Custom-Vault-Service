@@ -17,6 +17,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Folder, Layers, LayoutGrid, List } from "lucide-react";
 import {
   Table,
   TableBody,
@@ -76,6 +77,7 @@ export default function ProjectsPage() {
     ENVIRONMENTS_PER_PROJECT
   );
 
+  const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
   const [formOpen, setFormOpen] = useState(false);
   const [editingProject, setEditingProject] = useState<Project | undefined>(undefined);
   const [deletingProject, setDeletingProject] = useState<Project | undefined>(undefined);
@@ -124,9 +126,7 @@ export default function ProjectsPage() {
     <div className="space-y-6">
       <PageHeader title="Projects" />
 
-      {/* Unified toolbar: search, filters, and the primary action share one
-          visually-bounded surface instead of floating as separate elements
-          (Phase A UX pattern, piloted on Clients). */}
+      {/* Unified toolbar: search, filters, view toggle, and the primary action */}
       <Toolbar>
         <FilterBar>
           <Input
@@ -174,9 +174,34 @@ export default function ProjectsPage() {
           </Select>
         </FilterBar>
 
-        <RequireRole roles={["admin"]}>
-          <Button onClick={openCreateForm}>New project</Button>
-        </RequireRole>
+        <div className="flex items-center gap-2">
+          <div className="flex items-center rounded-lg border bg-muted/40 p-0.5" role="group" aria-label="View mode">
+            <Button
+              variant={viewMode === "grid" ? "secondary" : "ghost"}
+              size="sm"
+              className="h-8 px-2.5 text-xs font-medium gap-1.5"
+              aria-label="Grid view"
+              onClick={() => setViewMode("grid")}
+            >
+              <LayoutGrid className="h-4 w-4" />
+              Grid
+            </Button>
+            <Button
+              variant={viewMode === "list" ? "secondary" : "ghost"}
+              size="sm"
+              className="h-8 px-2.5 text-xs font-medium gap-1.5"
+              aria-label="List view"
+              onClick={() => setViewMode("list")}
+            >
+              <List className="h-4 w-4" />
+              List
+            </Button>
+          </div>
+
+          <RequireRole roles={["admin"]}>
+            <Button onClick={openCreateForm}>New project</Button>
+          </RequireRole>
+        </div>
       </Toolbar>
 
       {isLoading ? (
@@ -192,6 +217,101 @@ export default function ProjectsPage() {
         />
       ) : (
         <>
+          {viewMode === "grid" ? (
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4" data-testid="projects-grid">
+              {projects.map((project) => {
+                const isDeleted = Boolean(project.deleted_at);
+                const goToDetail = () => navigate(`/projects/${project.id}`);
+                return (
+                  <div
+                    key={project.id}
+                    className={cn(
+                      "group relative flex flex-col justify-between p-4 rounded-xl border bg-card text-card-foreground shadow-sm hover:border-primary/50 hover:bg-accent/40 hover:shadow-md transition-all cursor-pointer select-none",
+                      isDeleted && "text-muted-foreground"
+                    )}
+                    role="button"
+                    tabIndex={0}
+                    aria-label={`View ${project.name}`}
+                    onClick={goToDetail}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" || e.key === " ") {
+                        e.preventDefault();
+                        goToDetail();
+                      }
+                    }}
+                  >
+                    <div>
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="flex items-center gap-2.5 min-w-0">
+                          <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-amber-500/10 text-amber-500 ring-1 ring-amber-500/20 group-hover:bg-amber-500/20 group-hover:scale-105 transition-all">
+                            <Folder className="h-6 w-6 fill-amber-500/20" />
+                          </div>
+                          <div className="min-w-0">
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                              <span className="font-semibold text-sm leading-tight text-foreground group-hover:text-primary transition-colors truncate">
+                                {project.name}
+                              </span>
+                              {isDeleted && <Badge variant="neutral">Deleted</Badge>}
+                            </div>
+                            <div className="mt-0.5">
+                              <Badge variant="outline" className="text-[10px] px-1.5 py-0 font-normal">
+                                {project.owner_status}
+                              </Badge>
+                            </div>
+                          </div>
+                        </div>
+
+                        <div
+                          className={cn(
+                            "inline-flex shrink-0 transition-opacity",
+                            !isDeleted && "opacity-60",
+                            "group-hover:opacity-100",
+                            "group-focus-within:opacity-100"
+                          )}
+                          onClick={(e) => e.stopPropagation()}
+                          onKeyDown={(e) => e.stopPropagation()}
+                        >
+                          {isDeleted ? (
+                            <RequireRole roles={["admin"]}>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => handleRestore(project)}
+                              >
+                                Restore
+                              </Button>
+                            </RequireRole>
+                          ) : (
+                            <RowActions
+                              onEdit={canManage ? () => openEditForm(project) : undefined}
+                              onDelete={canManage ? () => setDeletingProject(project) : undefined}
+                            />
+                          )}
+                        </div>
+                      </div>
+
+                      <p className="mt-3 text-xs text-muted-foreground line-clamp-2 min-h-[2rem]">
+                        {project.description ?? "No description provided."}
+                      </p>
+                    </div>
+
+                    <div className="flex items-center justify-between pt-3 mt-3 border-t border-border/60 text-xs text-muted-foreground">
+                      <div className="flex items-center gap-1.5 font-medium">
+                        <Layers className="h-3.5 w-3.5 text-muted-foreground" />
+                        <RelatedCount
+                          result={environmentCounts.get(project.id)}
+                          noun="Environment"
+                        />
+                      </div>
+                      <span className="font-mono text-[11px] tabular-nums">
+                        {new Date(project.updated_at).toLocaleDateString()}
+                      </span>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          ) : (
           <Table>
             <TableHeader>
               <TableRow>
@@ -293,6 +413,7 @@ export default function ProjectsPage() {
               })}
             </TableBody>
           </Table>
+          )}
 
           {/* Capped at 50 (the shared default also offers 100): every rendered
               row fires one extra child-count request, so the page size is what

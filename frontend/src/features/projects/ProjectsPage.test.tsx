@@ -135,9 +135,9 @@ describe("ProjectsPage", () => {
     renderPage();
 
     const nameCell = await screen.findByText("Migration");
-    const row = nameCell.closest("tr")!;
-    expect(row).toHaveAttribute("role", "button");
-    fireEvent.click(row);
+    const item = nameCell.closest("[role='button']")!;
+    expect(item).toHaveAttribute("role", "button");
+    fireEvent.click(item);
 
     expect(navigateMock).toHaveBeenCalledWith("/projects/p1");
   });
@@ -147,8 +147,8 @@ describe("ProjectsPage", () => {
     renderPage();
 
     const nameCell = await screen.findByText("Migration");
-    const row = nameCell.closest("tr")!;
-    fireEvent.keyDown(row, { key: "Enter" });
+    const item = nameCell.closest("[role='button']")!;
+    fireEvent.keyDown(item, { key: "Enter" });
 
     expect(navigateMock).toHaveBeenCalledWith("/projects/p1");
   });
@@ -395,7 +395,10 @@ describe("ProjectsPage", () => {
       expect(await screen.findByText("Legacy Rollback")).toBeInTheDocument();
       const badge = screen.getByText("Deleted");
       expect(badge).toBeInTheDocument();
-      expectDeletedTreatment(badge, "Projects");
+      expectDeletedTreatment(badge, "Projects", {
+        container: "[role='button']",
+        textClass: "text-muted-foreground",
+      });
     });
   });
 
@@ -601,6 +604,31 @@ describe("ProjectsPage", () => {
       fireEvent.click(screen.getByText("harness-restore"));
 
       expect(await screen.findByText("2 Environments")).toBeInTheDocument();
+    });
+  });
+
+  describe("view mode (Grid / List toggle)", () => {
+    it("renders Google Drive folder grid by default and allows toggling to Table list view", async () => {
+      mockGetByPath({
+        projects: okResult([SAMPLE_PROJECT]),
+        clients: okResult([SAMPLE_CLIENT]),
+      });
+
+      renderPage();
+
+      // By default in grid mode:
+      expect(await screen.findByTestId("projects-grid")).toBeInTheDocument();
+      expect(screen.queryByRole("table")).not.toBeInTheDocument();
+
+      // Toggle to List view:
+      fireEvent.click(screen.getByRole("button", { name: "List view" }));
+      expect(screen.getByRole("table")).toBeInTheDocument();
+      expect(screen.queryByTestId("projects-grid")).not.toBeInTheDocument();
+
+      // Toggle back to Grid view:
+      fireEvent.click(screen.getByRole("button", { name: "Grid view" }));
+      expect(screen.getByTestId("projects-grid")).toBeInTheDocument();
+      expect(screen.queryByRole("table")).not.toBeInTheDocument();
     });
   });
 });

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import type { FormEvent } from "react";
 import {
   Dialog,
@@ -61,6 +61,7 @@ const DUPLICATE_NAME_MESSAGE = "An environment with this name already exists for
 interface Props {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  defaultProjectId?: string;
 }
 
 /**
@@ -70,19 +71,25 @@ interface Props {
  * the "New environment" flow as a modal since there's no detail page to
  * navigate to for a record that doesn't exist yet.
  */
-export default function EnvironmentFormDialog({ open, onOpenChange }: Props) {
+export default function EnvironmentFormDialog({ open, onOpenChange, defaultProjectId }: Props) {
   const createEnvironment = useCreateEnvironment();
 
   const [name, setName] = useState<EnvironmentName | "">("");
-  const [projectId, setProjectId] = useState<string | undefined>(undefined);
+  const [projectId, setProjectId] = useState<string | undefined>(defaultProjectId);
   const [description, setDescription] = useState("");
   const [status, setStatus] = useState<EnvironmentStatus>("implementation");
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
   const [formError, setFormError] = useState<string | undefined>(undefined);
 
+  useEffect(() => {
+    if (open && defaultProjectId) {
+      setProjectId(defaultProjectId);
+    }
+  }, [open, defaultProjectId]);
+
   function reset() {
     setName("");
-    setProjectId(undefined);
+    setProjectId(defaultProjectId);
     setDescription("");
     setStatus("implementation");
     setFieldErrors({});
@@ -201,18 +208,20 @@ export default function EnvironmentFormDialog({ open, onOpenChange }: Props) {
             {fieldErrors.name && <p className="text-xs text-danger">{fieldErrors.name}</p>}
           </div>
 
-          <div className="space-y-1">
-            <Label htmlFor="project">Project</Label>
-            <ProjectPicker
-              id="project"
-              value={projectId}
-              onChange={setProjectId}
-              placeholder="Select a project"
-            />
-            {fieldErrors.project_id && (
-              <p className="text-xs text-danger">{fieldErrors.project_id}</p>
-            )}
-          </div>
+          {!defaultProjectId && (
+            <div className="space-y-1">
+              <Label htmlFor="project">Project</Label>
+              <ProjectPicker
+                id="project"
+                value={projectId}
+                onChange={setProjectId}
+                placeholder="Select a project"
+              />
+              {fieldErrors.project_id && (
+                <p className="text-xs text-danger">{fieldErrors.project_id}</p>
+              )}
+            </div>
+          )}
 
           <div className="space-y-1">
             <Label htmlFor="status">Status</Label>

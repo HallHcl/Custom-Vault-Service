@@ -461,8 +461,8 @@ describe("EnvironmentDetailPage", () => {
     });
   });
 
-  describe("breadcrumb trail (Client segments removed with the hidden Client UI)", () => {
-    it("shows Home > Projects > [Project] > Environments > [Environment], with no Client segment", async () => {
+  describe("breadcrumb trail (Google Drive folder hierarchy: Projects > [Project] > [Environment])", () => {
+    it("shows Home > Projects > [Project] > [Environment], linking directly back to parent project folder", async () => {
       mockGetByPath({});
 
       renderPage();
@@ -476,10 +476,7 @@ describe("EnvironmentDetailPage", () => {
         "href",
         "/projects/p1"
       );
-      expect(within(nav).getByRole("link", { name: "Environments" })).toHaveAttribute(
-        "href",
-        "/environments"
-      );
+      expect(within(nav).queryByRole("link", { name: "Environments" })).not.toBeInTheDocument();
       expect(within(nav).getByText("PROD")).toHaveAttribute("aria-current", "page");
       expect(within(nav).queryByRole("link", { name: "Clients" })).not.toBeInTheDocument();
       expect(within(nav).queryByRole("link", { name: "Acme Corp" })).not.toBeInTheDocument();
@@ -516,6 +513,46 @@ describe("EnvironmentDetailPage", () => {
       expect(screen.getByText("Loading servers...")).toBeInTheDocument();
       // The shell's page-level loading state has resolved and must be gone.
       expect(screen.queryByText(/loading environment/i)).not.toBeInTheDocument();
+    });
+  });
+
+  describe("servers pagination", () => {
+    it("renders server count in header, Showing X–Y of Z servers, and PaginationControls", async () => {
+      const mockServer = {
+        id: "s1",
+        environment_id: "e1",
+        hostname: "srv-01",
+        ip_address: "10.0.0.1",
+        tech_stack: ["node"],
+        monitoring_url: null,
+        notes: null,
+        created_at: "2026-01-01T00:00:00.000Z",
+        updated_at: "2026-01-01T00:00:00.000Z",
+        deleted_at: null,
+        display_name: "Srv 01",
+        service_type: "application",
+        access_method: "ssh",
+        access_host: "root@10.0.0.1",
+        access_port: 22,
+        access_path: null,
+      };
+
+      mockGetByPath({
+        servers: ok({
+          data: [mockServer],
+          pagination: { page: 1, per_page: 20, total: 35, total_pages: 2 },
+        }),
+      });
+
+      renderPage();
+
+      expect(await screen.findByRole("heading", { name: "Servers (35)", level: 2 })).toBeInTheDocument();
+      expect(screen.getByText(/Showing/)).toBeInTheDocument();
+      expect(screen.getByText("1–20")).toBeInTheDocument();
+      expect(screen.getByText("35")).toBeInTheDocument();
+      expect(screen.getByRole("navigation", { name: "Pagination" })).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: /next/i })).toBeEnabled();
+      expect(screen.getByRole("button", { name: /previous/i })).toBeDisabled();
     });
   });
 });

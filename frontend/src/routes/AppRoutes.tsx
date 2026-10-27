@@ -4,7 +4,6 @@ import { RequireAuth } from "@/components/auth/RequireAuth";
 import LoginPage from "@/features/auth/LoginPage";
 import ProjectsPage from "@/features/projects/ProjectsPage";
 import ProjectDetailPage from "@/features/projects/ProjectDetailPage";
-import EnvironmentsPage from "@/features/environments/EnvironmentsPage";
 import EnvironmentDetailPage from "@/features/environments/EnvironmentDetailPage";
 import ServersPage from "@/features/servers/ServersPage";
 import ServerDetailPage from "@/features/servers/ServerDetailPage";
@@ -35,7 +34,8 @@ export default function AppRoutes() {
           <Route path="clients/:id" element={<Navigate to="/overview" replace />} />
           <Route path="projects" element={<ProjectsPage />} />
           <Route path="projects/:id" element={<ProjectDetailPage />} />
-          <Route path="environments" element={<EnvironmentsPage />} />
+          {/* Environments is unified into Projects — any old /environments link lands on Projects. */}
+          <Route path="environments" element={<Navigate to="/projects" replace />} />
           <Route path="environments/:id" element={<EnvironmentDetailPage />} />
           <Route path="servers" element={<ServersPage />} />
           <Route path="servers/new" element={<ServerFormPage mode="create" />} />

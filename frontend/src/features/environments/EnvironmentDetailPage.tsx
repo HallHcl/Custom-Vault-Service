@@ -1,3 +1,4 @@
+import { useEffect } from "react";
 import { useParams } from "react-router-dom";
 import { RequireRole } from "@/components/auth/RequireRole";
 import { Button } from "@/components/ui/button";
@@ -9,6 +10,7 @@ import { HOME_SEGMENT, useBreadcrumbs } from "@/components/layout/BreadcrumbsCon
 import EnvironmentEditCard from "./components/EnvironmentEditCard";
 import { VpnResourceStatus } from "./components/VpnResourceStatus";
 import ServerTable from "@/features/infrastructure/components/ServerTable";
+import { PaginationControls } from "@/components/PaginationControls";
 import { Badge } from "@/components/ui/badge";
 import {
   useEnvironment,
@@ -23,41 +25,49 @@ export default function EnvironmentDetailPage() {
   const { id } = useParams<{ id: string }>();
   const { data: environment, isLoading, isError, error, refetch } = useEnvironment(id);
 
-  // Client breadcrumb segments were dropped along with the hidden Client UI.
+  // Google Drive folder breadcrumbs: Projects > [Project Name] > [Environment Name]
   useBreadcrumbs(
     environment
       ? [
           HOME_SEGMENT,
           { label: "Projects", href: "/projects" },
           { label: environment.project.name, href: `/projects/${environment.project.id}` },
-          { label: "Environments", href: "/environments" },
           { label: environment.name },
         ]
-      : [HOME_SEGMENT, { label: "Environments", href: "/environments" }]
+      : [HOME_SEGMENT, { label: "Projects", href: "/projects" }]
   );
   // Environment update is admin-only — verified against
   // backend/src/routes/environments.routes.ts.
   const canEdit = useHasRole(["admin"]);
 
-  // Only the ?edit escape hatch of usePagination is used here — this page
-  // has nothing to paginate. Reflecting edit mode in the URL (rather than
-  // local state) is what makes the list page's row-action "Edit" and this
-  // page's own Edit button converge on the same state, and keeps edit mode
-  // shareable/deep-linkable/bookmarkable.
-  const { getParam, setParams } = usePagination();
-  const isEditing = canEdit && getParam("edit") === "true";
+  const pagination = usePagination({ initialSort: "display_name", initialOrder: "asc" });
+  const isEditing = canEdit && pagination.getParam("edit") === "true";
 
   function enterEdit() {
-    setParams({ edit: "true" });
+    pagination.setParams({ edit: "true" });
   }
 
   function exitEdit() {
-    setParams({ edit: undefined });
+    pagination.setParams({ edit: undefined });
   }
 
-  // Servers is out of scope for its own CRUD/migration in this ticket —
-  // useServers already exists and is read-only-safe to reuse here as-is.
-  const { data: servers = [], isLoading: serversLoading } = useServers(environment?.id);
+  const {
+    data: servers = [],
+    pagination: pageInfo,
+    isLoading: serversLoading,
+  } = useServers(environment?.id, pagination.params);
+
+  const totalServers = pageInfo?.total ?? 0;
+  const totalPages = pageInfo?.total_pages ?? 1;
+
+  useEffect(() => {
+    if (pageInfo && pageInfo.total_pages > 0 && pagination.page > pageInfo.total_pages) {
+      pagination.setPage(pageInfo.total_pages);
+    }
+  }, [pageInfo?.total_pages, pagination.page, pagination.setPage]);
+
+  const from = totalServers === 0 ? 0 : (pagination.page - 1) * pagination.perPage + 1;
+  const to = Math.min(pagination.page * pagination.perPage, totalServers);
 
   return (
     /**
@@ -68,8 +78,8 @@ export default function EnvironmentDetailPage() {
      * drop its duplicated back-link and loading/error/not-found chain.
      */
     <DetailPageShell<EnvironmentDetail>
-      backTo="/environments"
-      backLabel="Back to environments"
+      backTo={environment ? `/projects/${environment.project.id}` : "/projects"}
+      backLabel={environment ? `Back to ${environment.project.name}` : "Back to projects"}
       entity={environment}
       isLoading={isLoading}
       isError={isError}
@@ -127,7 +137,7 @@ export default function EnvironmentDetailPage() {
           <Card>
             <CardHeader>
               <CardTitle asChild>
-                <h2>Servers ({servers.length})</h2>
+                <h2>Servers ({totalServers})</h2>
               </CardTitle>
             </CardHeader>
             <CardContent>
@@ -137,10 +147,31 @@ export default function EnvironmentDetailPage() {
                   renders. */}
               {serversLoading ? (
                 <LoadingState message="Loading servers..." />
-              ) : servers.length === 0 ? (
+              ) : servers.length === 0 && totalServers === 0 ? (
                 <EmptyState title="No servers" message="This environment has no servers yet." />
               ) : (
-                <ServerTable servers={servers} />
+                <div className="space-y-4">
+                  <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-muted-foreground">
+                    <span>
+                      Showing <span className="font-mono font-medium text-foreground">{from}–{to}</span> of{" "}
+                      <span className="font-mono font-medium text-foreground">{totalServers}</span> servers
+                    </span>
+                  </div>
+
+                  <ServerTable servers={servers} />
+
+                  <PaginationControls
+                    page={pagination.page}
+                    totalPages={totalPages}
+                    perPage={pagination.perPage}
+                    onPrevPage={pagination.prevPage}
+                    onNextPage={pagination.nextPage}
+                    onPerPageChange={(newPerPage) => {
+                      pagination.setPerPage(newPerPage);
+                      pagination.setPage(1);
+                    }}
+                  />
+                </div>
               )}
             </CardContent>
           </Card>

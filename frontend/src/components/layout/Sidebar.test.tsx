@@ -62,7 +62,7 @@ describe("Sidebar", () => {
         group.items.map((item) => item.label),
       ])
     ).toEqual([
-      ["Delivery", ["Projects", "Environments", "Servers"]],
+      ["Delivery", ["Projects", "Servers"]],
       ["Operations", ["Infrastructure", "Schedule", "Expirations", "Activity"]],
       ["Knowledge", ["Resources", "People"]],
     ]);
