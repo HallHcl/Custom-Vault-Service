@@ -187,17 +187,15 @@ describe("ServerTable", () => {
     });
   });
 
-  it("renders One-Click Remote Connection command and logs copy_ssh_command when copied", async () => {
+  it("copies full SSH command from the Access column and logs copy_ssh_command", async () => {
     render(
       <MemoryRouter>
         <ServerTable servers={[BASE_SERVER]} />
       </MemoryRouter>
     );
 
-    fireEvent.click(screen.getByRole("button", { name: "Show" }));
-
-    expect(screen.getByText("SSH:")).toBeInTheDocument();
-    expect(screen.getByText("ssh root@10.0.0.1")).toBeInTheDocument();
+    expect(screen.getByText("SSH")).toBeInTheDocument();
+    expect(screen.getByText("root@10.0.0.1:22")).toBeInTheDocument();
 
     const copyBtn = screen.getByRole("button", { name: /copy ssh command/i });
     fireEvent.click(copyBtn);
@@ -207,6 +205,10 @@ describe("ServerTable", () => {
         action_type: "copy_ssh_command",
       });
     });
+
+    // Opening Show credentials does NOT render the redundant SSH command box
+    fireEvent.click(screen.getByRole("button", { name: "Show" }));
+    expect(screen.queryByText("SSH:")).not.toBeInTheDocument();
   });
 
   it("renders audit trail link pointing to /activity?entity_type=server&entity_id=:id", () => {

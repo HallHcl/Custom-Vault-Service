@@ -149,7 +149,7 @@ describe("ServerDetailPage", () => {
     expect(screen.getByText("web-01")).toBeInTheDocument();
     expect(screen.getByText("Application")).toBeInTheDocument();
     expect(screen.getByText("SSH")).toBeInTheDocument();
-    expect(screen.getByText("web-01.internal")).toBeInTheDocument();
+    expect(screen.getByText("10.0.0.1")).toBeInTheDocument();
     expect(screen.getByText("22")).toBeInTheDocument();
   });
 
@@ -272,7 +272,7 @@ describe("ServerDetailPage", () => {
       );
       expect(within(nav).queryByRole("link", { name: "Clients" })).not.toBeInTheDocument();
       // The server page itself renders fine regardless.
-      expect(screen.getByText("web-01.internal")).toBeInTheDocument();
+      expect(screen.getByRole("heading", { name: "Web 01", level: 1 })).toBeInTheDocument();
     });
   });
 
@@ -380,8 +380,8 @@ describe("ServerDetailPage", () => {
     });
   });
 
-  describe("One-Click Remote Connection & credential access logging", () => {
-    it("renders SSH command and logs copy_ssh_command when copied", async () => {
+  describe("credential access logging and clean layout", () => {
+    it("does not render the redundant One-Click Remote Connection widget", async () => {
       mockGetByPath({
         server: ok({
           ...SERVER_DETAIL,
@@ -394,48 +394,9 @@ describe("ServerDetailPage", () => {
 
       renderPage();
 
-      expect(await screen.findByText("One-Click Remote Connection (SSH)")).toBeInTheDocument();
-      expect(screen.getByText("ssh ubuntu@192.168.1.50")).toBeInTheDocument();
-
-      const copyBtn = screen.getByRole("button", { name: /copy ssh command/i });
-      fireEvent.click(copyBtn);
-
-      await waitFor(() => {
-        expect(apiPostMock).toHaveBeenCalledWith("/servers/s1/access-log", {
-          action_type: "copy_ssh_command",
-        });
-      });
-      expect(toastMock).toHaveBeenCalledWith(
-        expect.objectContaining({
-          title: "SSH command copied",
-        })
-      );
-    });
-
-    it("renders RDP connection command when access_method is rdp and logs copy_rdp_command", async () => {
-      mockGetByPath({
-        server: ok({
-          ...SERVER_DETAIL,
-          access_method: "rdp",
-          username: "Administrator",
-          ip_address: "10.0.0.99",
-          access_port: 3389,
-        }),
-      });
-
-      renderPage();
-
-      expect(await screen.findByText("Remote Desktop Connection (RDP)")).toBeInTheDocument();
-      expect(screen.getByText("mstsc /v:10.0.0.99")).toBeInTheDocument();
-
-      const copyBtn = screen.getByRole("button", { name: /copy rdp command/i });
-      fireEvent.click(copyBtn);
-
-      await waitFor(() => {
-        expect(apiPostMock).toHaveBeenCalledWith("/servers/s1/access-log", {
-          action_type: "copy_rdp_command",
-        });
-      });
+      expect(await screen.findByRole("heading", { name: SERVER_DETAIL.display_name, level: 1 })).toBeInTheDocument();
+      expect(screen.queryByText("One-Click Remote Connection (SSH)")).not.toBeInTheDocument();
+      expect(screen.queryByText("Remote Desktop Connection (RDP)")).not.toBeInTheDocument();
     });
 
     it("logs reveal_password and copy_password when viewing/copying password", async () => {
