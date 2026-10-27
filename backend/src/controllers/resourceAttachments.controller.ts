@@ -3,12 +3,16 @@ import { Request, Response } from "express";
 import { ApiError } from "../middleware/errorHandler";
 import { paramId, requireChangedBy } from "../utils/requestContext";
 import { getResourceById } from "../services/resources.service";
-import { uploadAttachmentBodySchema } from "../validators/resources.validator";
+import {
+  updateAttachmentBodySchema,
+  uploadAttachmentBodySchema,
+} from "../validators/resources.validator";
 import {
   createAttachment,
   getAttachmentRecord,
   listAttachments,
   softDeleteAttachment,
+  updateAttachment,
 } from "../services/resourceAttachments.service";
 import { getAttachmentDiskPath } from "../middleware/resourceAttachmentUpload";
 
@@ -85,6 +89,28 @@ export async function streamAttachmentContentHandler(req: Request, res: Response
     }
   });
   stream.pipe(res);
+}
+
+export async function updateAttachmentHandler(req: Request, res: Response) {
+  const parseResult = updateAttachmentBodySchema.safeParse(req.body);
+  if (!parseResult.success) {
+    throw new ApiError(400, "Validation failed", "VALIDATION_ERROR", parseResult.error.flatten());
+  }
+
+  const resourceId = paramId(req, "id");
+  const attachmentId = paramId(req, "attachmentId");
+  const actingPeopleId = requireChangedBy(req);
+
+  await getResourceById(resourceId);
+  const updated = await updateAttachment(
+    resourceId,
+    attachmentId,
+    parseResult.data,
+    req.user!,
+    actingPeopleId
+  );
+
+  res.json(updated);
 }
 
 export async function deleteAttachmentHandler(req: Request, res: Response) {

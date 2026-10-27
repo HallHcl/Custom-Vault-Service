@@ -6,6 +6,7 @@ import type { ResourceAttachmentWithUploader } from "@/hooks/useResourceAttachme
 
 const getMock = vi.fn();
 const deleteMock = vi.fn();
+const patchMock = vi.fn();
 const toastMock = vi.fn();
 const useAuthMock = vi.fn();
 
@@ -16,6 +17,7 @@ vi.mock("@/api/client", async () => {
     apiClient: {
       GET: (...args: unknown[]) => getMock(...args),
       DELETE: (...args: unknown[]) => deleteMock(...args),
+      PATCH: (...args: unknown[]) => patchMock(...args),
     },
   };
 });
@@ -82,6 +84,7 @@ describe("AttachmentGallery", () => {
   beforeEach(() => {
     getMock.mockReset();
     deleteMock.mockReset();
+    patchMock.mockReset();
     toastMock.mockReset();
     useAuthMock.mockReturnValue({
       user: { peopleId: "user-1", email: "alice@example.com" },
@@ -261,6 +264,55 @@ describe("AttachmentGallery", () => {
     await waitFor(() => {
       expect(toastMock).toHaveBeenCalledWith({ title: "Attachment deleted" });
       expect(onDeleteSuccess).toHaveBeenCalledWith("att-1");
+    });
+  });
+
+  it("opens edit dialog and updates attachment file name and caption", async () => {
+    getMock.mockResolvedValue(ok(SAMPLE_ATTACHMENTS));
+    patchMock.mockResolvedValue(
+      ok({
+        ...SAMPLE_ATTACHMENTS[0],
+        file_name: "renamed-diagram.png",
+        caption: "Updated description",
+      })
+    );
+
+    renderGallery({ resourceId: "res-1" });
+
+    await screen.findByText("architecture-diagram.png");
+    const editBtn = screen.getByRole("button", {
+      name: "Edit architecture-diagram.png",
+    });
+    fireEvent.click(editBtn);
+
+    expect(screen.getByText("Edit Attachment")).toBeInTheDocument();
+    const filenameInput = screen.getByLabelText(/File Name/i);
+    const captionInput = screen.getByLabelText(/Caption \/ Description/i);
+
+    expect(filenameInput).toHaveValue("architecture-diagram.png");
+    expect(captionInput).toHaveValue("High-level architecture overview");
+
+    fireEvent.change(filenameInput, { target: { value: "renamed-diagram.png" } });
+    fireEvent.change(captionInput, { target: { value: "Updated description" } });
+
+    const saveBtn = screen.getByRole("button", { name: /save changes/i });
+    fireEvent.click(saveBtn);
+
+    await waitFor(() => {
+      expect(patchMock).toHaveBeenCalledWith(
+        "/api/resources/{id}/attachments/{attachmentId}",
+        expect.objectContaining({
+          params: { path: { id: "res-1", attachmentId: "att-1" } },
+          body: {
+            file_name: "renamed-diagram.png",
+            caption: "Updated description",
+          },
+        })
+      );
+    });
+
+    await waitFor(() => {
+      expect(toastMock).toHaveBeenCalledWith({ title: "Attachment updated" });
     });
   });
 

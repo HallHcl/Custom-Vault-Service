@@ -42,36 +42,37 @@ describe("ImageDropzone", () => {
   it("renders drag and drop instructions and helper text", () => {
     renderDropzone();
     expect(
-      screen.getByText(/drag and drop diagrams or images/i)
+      screen.getByText(/drag and drop files or attachments/i)
     ).toBeInTheDocument();
     expect(
-      screen.getByText(/PNG, JPEG, WebP, SVG, PDF, Excel, CSV, Word, PPT, Markdown, Text, ZIP up to 10 MB each/i)
+      screen.getByText(/all file types supported up to 1 gb each/i)
     ).toBeInTheDocument();
   });
 
-  it("rejects files with invalid MIME types with an inline error", async () => {
-    renderDropzone();
+  it("accepts all file types including binary (.exe) files", async () => {
+    const onFilesSelected = vi.fn();
+    renderDropzone({ onFilesSelected });
     const input = screen.getByTestId("image-dropzone-input");
 
     const exeFile = new File(["dummy binary"], "program.exe", { type: "application/x-msdownload" });
     fireEvent.change(input, { target: { files: [exeFile] } });
 
-    expect(
-      await screen.findByText(/"program.exe" has an unsupported format/i)
-    ).toBeInTheDocument();
+    expect(onFilesSelected).toHaveBeenCalledTimes(1);
+    expect(onFilesSelected).toHaveBeenCalledWith([exeFile]);
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
   });
 
-  it("rejects files larger than 10 MB with an inline error", async () => {
+  it("rejects files larger than 1 GB with an inline error", async () => {
     renderDropzone();
     const input = screen.getByTestId("image-dropzone-input");
 
-    const largeFile = new File(["a".repeat(100)], "large.png", { type: "image/png" });
-    Object.defineProperty(largeFile, "size", { value: 11 * 1024 * 1024 });
+    const largeFile = new File(["a".repeat(100)], "large.bin", { type: "application/octet-stream" });
+    Object.defineProperty(largeFile, "size", { value: 1024 * 1024 * 1024 + 1024 });
 
     fireEvent.change(input, { target: { files: [largeFile] } });
 
     expect(
-      await screen.findByText(/"large.png" exceeds the 10 MB limit/i)
+      await screen.findByText(/"large.bin" exceeds the 1 GB limit/i)
     ).toBeInTheDocument();
   });
 
@@ -79,14 +80,15 @@ describe("ImageDropzone", () => {
     renderDropzone();
     const input = screen.getByTestId("image-dropzone-input");
 
-    const exeFile = new File(["dummy binary"], "program.exe", { type: "application/x-msdownload" });
-    fireEvent.change(input, { target: { files: [exeFile] } });
+    const largeFile = new File(["a".repeat(100)], "large.bin", { type: "application/octet-stream" });
+    Object.defineProperty(largeFile, "size", { value: 1024 * 1024 * 1024 + 1024 });
+    fireEvent.change(input, { target: { files: [largeFile] } });
 
-    expect(await screen.findByText(/"program.exe" has an unsupported format/i)).toBeInTheDocument();
+    expect(await screen.findByText(/"large.bin" exceeds the 1 GB limit/i)).toBeInTheDocument();
     const dismissButton = screen.getByRole("button", { name: /dismiss/i });
     fireEvent.click(dismissButton);
 
-    expect(screen.queryByText(/"program.exe" has an unsupported format/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/"large.bin" exceeds the 1 GB limit/i)).not.toBeInTheDocument();
   });
 
   it("calls onFilesSelected when valid files including Excel (.xlsx) and CSV (.csv) are provided in staging mode", async () => {

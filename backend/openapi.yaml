@@ -867,6 +867,15 @@ components:
       type: array
       items:
         $ref: "#/components/schemas/ResourceAttachmentWithUploader"
+    UpdateResourceAttachmentBody:
+      type: object
+      properties:
+        file_name:
+          type: string
+          minLength: 1
+        caption:
+          type: string
+          nullable: true
     DeleteAttachmentResponse:
       type: object
       properties:
@@ -4143,6 +4152,62 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
   /api/resources/{id}/attachments/{attachmentId}:
+    patch:
+      tags:
+        - Resources
+      operationId: updateResourceAttachment
+      summary: Update caption or file name of a resource attachment
+      security:
+        - bearerAuth: []
+      parameters:
+        - schema:
+            type: string
+            format: uuid
+          required: true
+          name: id
+          in: path
+        - schema:
+            type: string
+            format: uuid
+          required: true
+          name: attachmentId
+          in: path
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateResourceAttachmentBody"
+      responses:
+        "200":
+          description: Attachment updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ResourceAttachmentWithUploader"
+        "400":
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Not authenticated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Insufficient permissions
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
     delete:
       tags:
         - Resources

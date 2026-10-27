@@ -96,7 +96,7 @@ export const EXT_TO_MIME: Record<string, string> = {
   ".xml": "application/xml",
 };
 
-export const MAX_FILE_SIZE_BYTES = 10 * 1024 * 1024; // 10MB
+export const MAX_FILE_SIZE_BYTES = 1024 * 1024 * 1024; // 1GB
 
 export function getBaseUploadsDir(): string {
   return process.env.UPLOADS_DIR
@@ -181,29 +181,19 @@ const upload = multer({
     file.originalname = originalName;
 
     const ext = path.extname(file.originalname).toLowerCase();
-    const isMimeAllowed = (ALLOWED_MIME_TYPES as readonly string[]).includes(file.mimetype);
-    const isExtAllowed = (ALLOWED_EXTENSIONS as readonly string[]).includes(ext);
-
-    if (isMimeAllowed || isExtAllowed) {
-      if (
-        (!file.mimetype ||
-          file.mimetype === "application/octet-stream" ||
-          (file.mimetype === "text/plain" && ext !== ".txt")) &&
-        EXT_TO_MIME[ext]
-      ) {
-        file.mimetype = EXT_TO_MIME[ext];
-      }
-      cb(null, true);
-    } else {
-      cb(
-        new ApiError(
-          400,
-          `Invalid file type: ${file.mimetype}. Allowed types: images (PNG, JPEG, WebP, SVG, GIF), documents (PDF, Markdown, Text, Excel, CSV, Word, PowerPoint), and ZIP archives`,
-          "VALIDATION_ERROR",
-          { fieldErrors: { file: [`Unsupported file type: ${file.mimetype}`] } }
-        )
-      );
+    if (
+      (!file.mimetype ||
+        file.mimetype === "application/octet-stream" ||
+        (file.mimetype === "text/plain" && ext !== ".txt")) &&
+      EXT_TO_MIME[ext]
+    ) {
+      file.mimetype = EXT_TO_MIME[ext];
+    } else if (!file.mimetype) {
+      file.mimetype = "application/octet-stream";
     }
+
+    // Support all file types
+    cb(null, true);
   },
 });
 
@@ -213,8 +203,8 @@ export function handleAttachmentUpload(req: Request, res: Response, next: NextFu
       if (err instanceof multer.MulterError) {
         if (err.code === "LIMIT_FILE_SIZE") {
           return next(
-            new ApiError(400, "File size exceeds 10MB limit", "VALIDATION_ERROR", {
-              fieldErrors: { file: ["File size exceeds 10MB limit"] },
+            new ApiError(400, "File size exceeds 1GB limit", "VALIDATION_ERROR", {
+              fieldErrors: { file: ["File size exceeds 1GB limit"] },
             })
           );
         }

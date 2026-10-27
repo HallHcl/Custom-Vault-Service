@@ -15,6 +15,7 @@ import {
   deleteAttachmentHandler,
   listAttachmentsHandler,
   streamAttachmentContentHandler,
+  updateAttachmentHandler,
   uploadAttachmentHandler,
 } from "../controllers/resourceAttachments.controller";
 import {
@@ -44,6 +45,11 @@ router.post(
   uploadAttachmentHandler
 );
 router.get("/:id/attachments/:attachmentId/content", streamAttachmentContentHandler);
+router.patch(
+  "/:id/attachments/:attachmentId",
+  requireAnyRole(["admin", "member"]),
+  updateAttachmentHandler
+);
 router.delete("/:id/attachments/:attachmentId", deleteAttachmentHandler);
 
 export default router;

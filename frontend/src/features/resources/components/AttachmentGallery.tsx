@@ -11,6 +11,7 @@ import {
   FileText,
   Image as ImageIcon,
   Maximize2,
+  Pencil,
   Trash2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -35,6 +36,7 @@ import {
   getAttachmentContentUrl,
   useDeleteResourceAttachment,
   useResourceAttachments,
+  useUpdateResourceAttachment,
   type ResourceAttachmentWithUploader,
 } from "@/hooks/useResourceAttachments";
 import { formatBytes } from "./ImageDropzone";
@@ -257,6 +259,43 @@ export function AttachmentGallery({
     useState<ResourceAttachmentWithUploader | null>(null);
   const [attachmentToDelete, setAttachmentToDelete] =
     useState<ResourceAttachmentWithUploader | null>(null);
+  const [attachmentToEdit, setAttachmentToEdit] =
+    useState<ResourceAttachmentWithUploader | null>(null);
+  const [editFileName, setEditFileName] = useState("");
+  const [editCaption, setEditCaption] = useState("");
+
+  const updateMutation = useUpdateResourceAttachment(resourceId);
+
+  function handleOpenEdit(attachment: ResourceAttachmentWithUploader) {
+    setAttachmentToEdit(attachment);
+    setEditFileName(attachment.file_name);
+    setEditCaption(attachment.caption || "");
+  }
+
+  function handleSaveEdit() {
+    if (!attachmentToEdit) return;
+    const target = attachmentToEdit;
+    updateMutation.mutate(
+      {
+        attachmentId: target.id,
+        file_name: editFileName.trim() || target.file_name,
+        caption: editCaption.trim() || null,
+      },
+      {
+        onSuccess: () => {
+          toast({ title: "Attachment updated" });
+          setAttachmentToEdit(null);
+        },
+        onError: (err) => {
+          toast({
+            title: "Couldn't update attachment",
+            description: apiErrorMessage(err),
+            variant: "destructive",
+          });
+        },
+      }
+    );
+  }
 
   async function handleCopyImage(attachment: ResourceAttachmentWithUploader) {
     const contentUrl = getAttachmentContentUrl(resourceId, attachment.id);
@@ -525,6 +564,19 @@ export function AttachmentGallery({
                         type="button"
                         variant="ghost"
                         size="sm"
+                        className="h-8 px-2 text-muted-foreground hover:text-foreground hover:bg-muted"
+                        aria-label={`Edit ${attachment.file_name}`}
+                        onClick={() => handleOpenEdit(attachment)}
+                      >
+                        <Pencil className="h-3.5 w-3.5" />
+                      </Button>
+                    )}
+
+                    {canDelete && (
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
                         className="h-8 px-2 text-muted-foreground hover:text-destructive hover:bg-destructive/10"
                         aria-label={`Delete ${attachment.file_name}`}
                         onClick={() => setAttachmentToDelete(attachment)}
@@ -637,6 +689,71 @@ export function AttachmentGallery({
         variant="destructive"
         onConfirm={handleConfirmDelete}
       />
+
+      {/* Edit Attachment Modal */}
+      <Dialog
+        open={Boolean(attachmentToEdit)}
+        onOpenChange={(open) => !open && setAttachmentToEdit(null)}
+      >
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Edit Attachment</DialogTitle>
+            <DialogDescription>
+              Update the file name or caption description for this attachment.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4 py-2">
+            <div className="space-y-1.5">
+              <label htmlFor="edit-filename" className="text-xs font-medium text-foreground">
+                File Name
+              </label>
+              <input
+                id="edit-filename"
+                type="text"
+                value={editFileName}
+                onChange={(e) => setEditFileName(e.target.value)}
+                className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm shadow-xs focus:outline-none focus:ring-1 focus:ring-ring"
+                placeholder="e.g. system-architecture.png"
+              />
+            </div>
+
+            <div className="space-y-1.5">
+              <label htmlFor="edit-caption" className="text-xs font-medium text-foreground">
+                Caption / Description
+              </label>
+              <textarea
+                id="edit-caption"
+                rows={3}
+                value={editCaption}
+                onChange={(e) => setEditCaption(e.target.value)}
+                className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm shadow-xs focus:outline-none focus:ring-1 focus:ring-ring resize-none"
+                placeholder="Brief description or context for this file..."
+              />
+            </div>
+          </div>
+
+          <DialogFooter className="gap-2 sm:gap-0">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => setAttachmentToEdit(null)}
+              disabled={updateMutation.isPending}
+            >
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              onClick={handleSaveEdit}
+              disabled={updateMutation.isPending || !editFileName.trim()}
+            >
+              {updateMutation.isPending ? "Saving..." : "Save changes"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

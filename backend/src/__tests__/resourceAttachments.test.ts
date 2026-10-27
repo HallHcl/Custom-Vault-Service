@@ -386,17 +386,20 @@ describe("Resource Attachments", () => {
       expect(diskPath.length).toBeLessThan(260);
     });
 
-    it("rejects unsupported file types (e.g. .exe or application/x-msdownload) with 400", async () => {
-      const exeBuffer = Buffer.from("MZ fake executable");
+    it("uploads compiled / binary files (e.g. .exe or application/octet-stream) successfully (201)", async () => {
+      const exeBuffer = Buffer.from("MZ fake executable binary content");
 
       const res = await request(app)
         .post(`/api/resources/${resourceId}/attachments`)
         .set("Authorization", `Bearer ${member1Token}`)
-        .attach("file", exeBuffer, { filename: "program.exe", contentType: "application/x-msdownload" });
+        .attach("file", exeBuffer, { filename: "compiled-tool.exe", contentType: "application/octet-stream" });
 
-      expect(res.status).toBe(400);
-      expect(res.body.error.code).toBe("VALIDATION_ERROR");
-      expect(res.body.error.details.fieldErrors).toHaveProperty("file");
+      expect(res.status).toBe(201);
+      expect(res.body.file_name).toBe("compiled-tool.exe");
+      expect(res.body.mime_type).toBe("application/octet-stream");
+
+      createdAttachmentIds.push(res.body.id);
+      createdAttachmentPaths.push(res.body.file_path);
     });
 
     it("rejects requests missing a file with 400", async () => {
@@ -410,18 +413,20 @@ describe("Resource Attachments", () => {
       expect(res.body.error.details.fieldErrors).toHaveProperty("file");
     });
 
-    it("rejects files exceeding 10MB limit with 400", async () => {
-      // 10MB + 1024 bytes
-      const bigBuffer = Buffer.alloc(10 * 1024 * 1024 + 1024);
+    it("uploads files larger than 10MB (e.g. 11MB) successfully under the 1GB limit (201)", async () => {
+      const bigBuffer = Buffer.alloc(11 * 1024 * 1024);
 
       const res = await request(app)
         .post(`/api/resources/${resourceId}/attachments`)
         .set("Authorization", `Bearer ${member1Token}`)
-        .attach("file", bigBuffer, { filename: "large.png", contentType: "image/png" });
+        .attach("file", bigBuffer, { filename: "firmware.bin", contentType: "application/octet-stream" });
 
-      expect(res.status).toBe(400);
-      expect(res.body.error.code).toBe("VALIDATION_ERROR");
-      expect(res.body.error.details.fieldErrors).toHaveProperty("file");
+      expect(res.status).toBe(201);
+      expect(res.body.file_name).toBe("firmware.bin");
+      expect(res.body.size_bytes).toBe(11 * 1024 * 1024);
+
+      createdAttachmentIds.push(res.body.id);
+      createdAttachmentPaths.push(res.body.file_path);
     });
 
     it("returns 404 when uploading to a non-existent resource", async () => {
@@ -507,6 +512,82 @@ describe("Resource Attachments", () => {
     });
   });
 
+  describe("PATCH /api/resources/:id/attachments/:attachmentId (Update)", () => {
+    it("rejects unauthenticated update request with 401", async () => {
+      const res = await request(app)
+        .patch(`/api/resources/${resourceId}/attachments/${memberUploadedAttachmentId}`)
+        .send({ caption: "Updated caption" });
+      expect(res.status).toBe(401);
+    });
+
+    it("rejects empty payload with 400", async () => {
+      const res = await request(app)
+        .patch(`/api/resources/${resourceId}/attachments/${memberUploadedAttachmentId}`)
+        .set("Authorization", `Bearer ${member1Token}`)
+        .send({});
+      expect(res.status).toBe(400);
+      expect(res.body.error.code).toBe("VALIDATION_ERROR");
+    });
+
+    it("rejects empty file_name with 400", async () => {
+      const res = await request(app)
+        .patch(`/api/resources/${resourceId}/attachments/${memberUploadedAttachmentId}`)
+        .set("Authorization", `Bearer ${member1Token}`)
+        .send({ file_name: "   " });
+      expect(res.status).toBe(400);
+      expect(res.body.error.code).toBe("VALIDATION_ERROR");
+    });
+
+    it("returns 404 for non-existent attachmentId", async () => {
+      const fakeId = "00000000-0000-0000-0000-000000000000";
+      const res = await request(app)
+        .patch(`/api/resources/${resourceId}/attachments/${fakeId}`)
+        .set("Authorization", `Bearer ${member1Token}`)
+        .send({ caption: "Updated caption" });
+      expect(res.status).toBe(404);
+    });
+
+    it("forbids non-admin third party user from updating someone else's attachment (403)", async () => {
+      const res = await request(app)
+        .patch(`/api/resources/${resourceId}/attachments/${memberUploadedAttachmentId}`)
+        .set("Authorization", `Bearer ${member2Token}`)
+        .send({ caption: "Hacked caption" });
+
+      expect(res.status).toBe(403);
+      expect(res.body.error.code).toBe("FORBIDDEN");
+    });
+
+    it("allows the original uploader (member1) to update caption (200)", async () => {
+      const res = await request(app)
+        .patch(`/api/resources/${resourceId}/attachments/${memberUploadedAttachmentId}`)
+        .set("Authorization", `Bearer ${member1Token}`)
+        .send({ caption: "Updated network architecture diagram" });
+
+      expect(res.status).toBe(200);
+      expect(res.body.id).toBe(memberUploadedAttachmentId);
+      expect(res.body.caption).toBe("Updated network architecture diagram");
+      expect(res.body.uploader).toEqual({
+        id: member1PersonId,
+        name: `${PREFIX}Member_1`,
+      });
+    });
+
+    it("allows admin to update both file_name and caption (200)", async () => {
+      const res = await request(app)
+        .patch(`/api/resources/${resourceId}/attachments/${memberUploadedAttachmentId}`)
+        .set("Authorization", `Bearer ${adminToken}`)
+        .send({
+          file_name: "prod-network-diagram.png",
+          caption: "Final verified network diagram",
+        });
+
+      expect(res.status).toBe(200);
+      expect(res.body.id).toBe(memberUploadedAttachmentId);
+      expect(res.body.file_name).toBe("prod-network-diagram.png");
+      expect(res.body.caption).toBe("Final verified network diagram");
+    });
+  });
+
   describe("DELETE /api/resources/:id/attachments/:attachmentId (Soft Delete)", () => {
     it("rejects unauthenticated delete request with 401", async () => {
       const res = await request(app).delete(
@@ -580,7 +661,7 @@ describe("Resource Attachments", () => {
   });
 
   describe("Audit & Activity Logs", () => {
-    it("creates activity_logs records for attachment create and delete actions", async () => {
+    it("creates activity_logs records for attachment create, update, and delete actions", async () => {
       const logsRes = await pool.query<{
         entity_type: string;
         entity_id: string;
@@ -594,11 +675,15 @@ describe("Resource Attachments", () => {
         [memberUploadedAttachmentId]
       );
 
-      expect(logsRes.rows.length).toBe(2);
+      expect(logsRes.rows.length).toBe(4);
       expect(logsRes.rows[0].action).toBe("create");
       expect(logsRes.rows[0].changed_by).toBe(member1PersonId);
-      expect(logsRes.rows[1].action).toBe("delete");
+      expect(logsRes.rows[1].action).toBe("update");
       expect(logsRes.rows[1].changed_by).toBe(member1PersonId);
+      expect(logsRes.rows[2].action).toBe("update");
+      expect(logsRes.rows[2].changed_by).toEqual(expect.any(String));
+      expect(logsRes.rows[3].action).toBe("delete");
+      expect(logsRes.rows[3].changed_by).toBe(member1PersonId);
     });
   });
 });

@@ -73,7 +73,7 @@ export const ALLOWED_EXTENSIONS = [
   ".xml",
 ];
 
-export const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10 MB
+export const MAX_FILE_SIZE = 1024 * 1024 * 1024; // 1 GB
 
 export function formatBytes(bytes: number, decimals = 1): string {
   if (bytes === 0) return "0 B";
@@ -109,30 +109,16 @@ export function ImageDropzone({
 
   const uploadMutation = useUploadResourceAttachment(resourceId);
 
-  function isFileTypeAllowed(file: File): boolean {
-    const ext = "." + (file.name.split(".").pop() || "").toLowerCase();
-    return (
-      ALLOWED_IMAGE_TYPES.includes(file.type) ||
-      ALLOWED_EXTENSIONS.includes(ext)
-    );
-  }
-
   async function handleFiles(fileList: FileList | File[]) {
     if (disabled || isUploading) return;
     const files = Array.from(fileList);
     if (files.length === 0) return;
 
-    // Client-side validation: MIME type or extension & 10MB size
+    // Client-side validation: 1GB size limit
     for (const file of files) {
-      if (!isFileTypeAllowed(file)) {
-        setError(
-          `"${file.name}" has an unsupported format. Allowed formats: PNG, JPEG, WebP, SVG, PDF, Excel (.xlsx, .xls), CSV (.csv), Word (.docx), PowerPoint (.pptx), Markdown (.md), Text (.txt), ZIP.`
-        );
-        return;
-      }
       if (file.size > MAX_FILE_SIZE) {
         setError(
-          `"${file.name}" exceeds the 10 MB limit (${formatBytes(file.size)}).`
+          `"${file.name}" exceeds the 1 GB limit (${formatBytes(file.size)}).`
         );
         return;
       }
@@ -246,7 +232,7 @@ export function ImageDropzone({
         <input
           ref={fileInputRef}
           type="file"
-          accept="image/png,image/jpeg,image/webp,image/svg+xml,image/gif,.md,.txt,.markdown,.pdf,application/pdf,.xlsx,.xls,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel,.csv,text/csv,.docx,.doc,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/msword,.pptx,.ppt,application/vnd.openxmlformats-officedocument.presentationml.presentation,.zip,application/zip"
+          accept="*/*"
           multiple
           className="hidden"
           data-testid="image-dropzone-input"
@@ -273,11 +259,11 @@ export function ImageDropzone({
             </div>
             <div>
               <p className="text-sm font-medium text-foreground">
-                Drag and drop diagrams or images, or{" "}
+                Drag and drop files or attachments, or{" "}
                 <span className="text-brand underline underline-offset-2">browse</span>
               </p>
               <p className="text-xs text-muted-foreground mt-0.5">
-                PNG, JPEG, WebP, SVG, PDF, Excel, CSV, Word, PPT, Markdown, Text, ZIP up to 10 MB each
+                All file types supported up to 1 GB each
               </p>
             </div>
             <Button

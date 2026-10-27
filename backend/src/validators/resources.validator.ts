@@ -96,3 +96,15 @@ export const uploadAttachmentBodySchema = z.object({
 });
 
 export type UploadAttachmentBodyInput = z.infer<typeof uploadAttachmentBodySchema>;
+
+export const updateAttachmentBodySchema = z
+  .object({
+    file_name: z.string().trim().min(1, "File name cannot be empty").optional(),
+    caption: z.string().trim().nullable().optional(),
+  })
+  .refine((data) => data.file_name !== undefined || data.caption !== undefined, {
+    message: "At least one field (file_name or caption) must be provided",
+  });
+
+export type UpdateAttachmentBodyInput = z.infer<typeof updateAttachmentBodySchema>;
+

@@ -94,3 +94,35 @@ export function useDeleteResourceAttachment(resourceId: string | undefined) {
     },
   });
 }
+
+export interface UpdateResourceAttachmentInput {
+  attachmentId: string;
+  file_name?: string;
+  caption?: string | null;
+}
+
+export function useUpdateResourceAttachment(resourceId: string | undefined) {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (input: UpdateResourceAttachmentInput): Promise<ResourceAttachmentWithUploader> => {
+      if (!resourceId) {
+        throw new Error("resourceId is required to update an attachment");
+      }
+
+      const result = await apiClient.PATCH("/api/resources/{id}/attachments/{attachmentId}", {
+        params: { path: { id: resourceId, attachmentId: input.attachmentId } },
+        body: {
+          file_name: input.file_name,
+          caption: input.caption,
+        },
+      });
+
+      return await unwrapApiResult(result);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: [KEY, resourceId] });
+    },
+  });
+}
+

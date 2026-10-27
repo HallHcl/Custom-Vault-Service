@@ -283,7 +283,7 @@ describe("ResourceFormPage — new-version mode", () => {
 
     expect(await screen.findByText("Attachments & Diagrams")).toBeInTheDocument();
     expect(await screen.findByText("No diagrams or attachments yet")).toBeInTheDocument();
-    expect(screen.getByText(/drag and drop diagrams or images/i)).toBeInTheDocument();
+    expect(screen.getByText(/drag and drop/i)).toBeInTheDocument();
   });
 
   it("warns on duplicate baseline submission and allows proceeding", async () => {

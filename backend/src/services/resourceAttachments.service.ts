@@ -4,7 +4,11 @@ import { withTransaction } from "../db/withTransaction";
 import { ApiError } from "../middleware/errorHandler";
 import { logActivity } from "../middleware/activityLogger";
 import { AuthenticatedUser, ResourceAttachment, ResourceAttachmentWithUploader } from "../types";
-import { UploadAttachmentBodyInput } from "../validators/resources.validator";
+import {
+  UpdateAttachmentBodyInput,
+  UploadAttachmentBodyInput,
+} from "../validators/resources.validator";
+import { sanitizeAttachmentFilename } from "../middleware/resourceAttachmentUpload";
 
 export async function createAttachment(
   resourceId: string,
@@ -133,6 +137,110 @@ export async function getAttachmentRecord(
     ...row,
     size_bytes: Number(row.size_bytes),
   };
+}
+
+export async function updateAttachment(
+  resourceId: string,
+  attachmentId: string,
+  input: UpdateAttachmentBodyInput,
+  user: AuthenticatedUser,
+  actingPeopleId: string
+): Promise<ResourceAttachmentWithUploader> {
+  const existingResult = await pool.query<ResourceAttachment>(
+    `SELECT * FROM resource_attachments
+     WHERE id = $1 AND resource_id = $2 AND deleted_at IS NULL`,
+    [attachmentId, resourceId]
+  );
+  const existing = existingResult.rows[0];
+  if (!existing) {
+    throw new ApiError(404, "Attachment not found");
+  }
+
+  const isAdmin = user.roles.includes("admin");
+  const isUploader = Boolean(user.peopleId && existing.uploaded_by === user.peopleId);
+
+  if (!isAdmin && !isUploader) {
+    throw new ApiError(
+      403,
+      "Only administrators or the original uploader can edit this attachment",
+      "FORBIDDEN"
+    );
+  }
+
+  let newFileName = existing.file_name;
+  if (input.file_name !== undefined) {
+    const trimmed = input.file_name.trim();
+    if (trimmed) {
+      const existingExt = path.extname(existing.file_name);
+      const inputExt = path.extname(trimmed);
+      let targetName = trimmed;
+      if (!inputExt && existingExt) {
+        targetName = `${trimmed}${existingExt}`;
+      }
+      const sanitized = sanitizeAttachmentFilename(targetName);
+      newFileName = sanitized.originalName;
+    }
+  }
+
+  let newCaption = existing.caption;
+  if (input.caption !== undefined) {
+    newCaption = input.caption === null ? null : input.caption.trim() || null;
+  }
+
+  return await withTransaction(async (tx) => {
+    const updateResult = await tx.query<ResourceAttachment>(
+      `UPDATE resource_attachments
+       SET file_name = $1, caption = $2
+       WHERE id = $3
+       RETURNING *`,
+      [newFileName, newCaption, attachmentId]
+    );
+
+    const rawAttachment = updateResult.rows[0];
+    const personResult = await tx.query<{ id: string; name: string }>(
+      `SELECT id, name FROM people WHERE id = $1`,
+      [rawAttachment.uploaded_by]
+    );
+    const uploader = personResult.rows[0] || { id: rawAttachment.uploaded_by, name: "Unknown" };
+
+    const updated: ResourceAttachmentWithUploader = {
+      ...rawAttachment,
+      size_bytes: Number(rawAttachment.size_bytes),
+      uploader: {
+        id: uploader.id,
+        name: uploader.name,
+      },
+    };
+
+    const existingPersonResult = await tx.query<{ id: string; name: string }>(
+      `SELECT id, name FROM people WHERE id = $1`,
+      [existing.uploaded_by]
+    );
+    const existingUploader = existingPersonResult.rows[0] || {
+      id: existing.uploaded_by,
+      name: "Unknown",
+    };
+    const existingWithUploader: ResourceAttachmentWithUploader = {
+      ...existing,
+      size_bytes: Number(existing.size_bytes),
+      uploader: {
+        id: existingUploader.id,
+        name: existingUploader.name,
+      },
+    };
+
+    await logActivity(
+      "resource_attachment",
+      attachmentId,
+      "update",
+      actingPeopleId,
+      existingWithUploader,
+      updated,
+      tx
+    );
+
+    return updated;
+  });
 }
 
 export async function softDeleteAttachment(

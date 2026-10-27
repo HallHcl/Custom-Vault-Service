@@ -550,7 +550,8 @@ export interface paths {
         delete: operations["deleteResourceAttachment"];
         options?: never;
         head?: never;
-        patch?: never;
+        /** Update caption or file name of a resource attachment */
+        patch: operations["updateResourceAttachment"];
         trace?: never;
     };
     "/api/people": {
@@ -1144,6 +1145,10 @@ export interface components {
             deleted_at: string | null;
         };
         ResourceAttachmentListResponse: components["schemas"]["ResourceAttachmentWithUploader"][];
+        UpdateResourceAttachmentBody: {
+            file_name?: string;
+            caption?: string | null;
+        };
         DeleteAttachmentResponse: {
             message: string;
         };
@@ -4085,6 +4090,69 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["DeleteAttachmentResponse"];
+                };
+            };
+            /** @description Not authenticated */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Insufficient permissions */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    updateResourceAttachment: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+                attachmentId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["UpdateResourceAttachmentBody"];
+            };
+        };
+        responses: {
+            /** @description Attachment updated */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResourceAttachmentWithUploader"];
+                };
+            };
+            /** @description Validation error */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
             /** @description Not authenticated */

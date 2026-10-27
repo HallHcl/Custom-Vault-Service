@@ -26,6 +26,7 @@ import {
   ResourceAttachmentWithUploaderSchema,
   ResourceAttachmentListResponseSchema,
   DeleteAttachmentResponseSchema,
+  UpdateResourceAttachmentBodySchema,
   ScheduleDetailSchema,
   ScheduleListResponseSchema,
   ScheduleSchema,
@@ -847,6 +848,26 @@ registry.registerPath({
       },
     },
     ...errors(401, 404),
+  },
+});
+
+registry.registerPath({
+  method: "patch",
+  path: "/api/resources/{id}/attachments/{attachmentId}",
+  tags: ["Resources"],
+  operationId: "updateResourceAttachment",
+  summary: "Update caption or file name of a resource attachment",
+  security: bearerAuth,
+  request: {
+    params: z.object({
+      id: z.string().uuid(),
+      attachmentId: z.string().uuid(),
+    }),
+    body: json(UpdateResourceAttachmentBodySchema),
+  },
+  responses: {
+    200: ok("Attachment updated", ResourceAttachmentWithUploaderSchema),
+    ...errors(400, 401, 403, 404),
   },
 });
 

@@ -375,6 +375,13 @@ export const DeleteAttachmentResponseSchema = z
   })
   .openapi("DeleteAttachmentResponse");
 
+export const UpdateResourceAttachmentBodySchema = z
+  .object({
+    file_name: z.string().min(1).optional(),
+    caption: z.string().nullable().optional(),
+  })
+  .openapi("UpdateResourceAttachmentBody");
+
 export const PersonSchema = z
   .object({
     id: z.string().uuid(),
