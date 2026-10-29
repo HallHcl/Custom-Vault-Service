@@ -11,18 +11,28 @@ export type ServerSort = "display_name" | "created_at" | "updated_at";
 export type Server = components["schemas"]["Server"] & { encrypted_password?: string | null };
 export type ServerDetail = components["schemas"]["ServerDetail"] & { encrypted_password?: string | null };
 
+export interface ServerListFilterParams extends Partial<PaginationParams> {
+  project_id?: string;
+}
+
 // environmentId stays a separate positional arg (not folded into params),
 // mirroring useEnvironments(projectId, params) — InfrastructurePage and
 // EnvironmentDetailPage call this today as useServers(environmentId) and
 // that call shape must keep compiling and behaving the same.
-export function useServers(environmentId?: string, params: Partial<PaginationParams> = {}) {
+export function useServers(
+  environmentId?: string,
+  params: ServerListFilterParams = {},
+  projectId?: string
+) {
+  const effectiveProjectId = projectId || params.project_id;
   const query = useQuery({
-    queryKey: [KEY, { environmentId, ...params }],
+    queryKey: [KEY, { environmentId, projectId: effectiveProjectId, ...params }],
     queryFn: async () => {
       const result = await apiClient.GET("/api/servers", {
         params: {
           query: {
             environment_id: environmentId,
+            project_id: effectiveProjectId,
             page: params.page,
             per_page: params.per_page,
             sort: params.sort as ServerSort | undefined,

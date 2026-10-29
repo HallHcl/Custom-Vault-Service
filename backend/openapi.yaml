@@ -2907,6 +2907,12 @@ paths:
             type: string
             format: uuid
           required: false
+          name: project_id
+          in: query
+        - schema:
+            type: string
+            format: uuid
+          required: false
           name: environment_id
           in: query
         - schema:

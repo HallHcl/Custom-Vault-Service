@@ -238,6 +238,36 @@ describe("POST /api/servers", () => {
   });
 });
 
+describe("GET /api/servers (filtering)", () => {
+  it("filters servers by project_id", async () => {
+    const otherProjectRes = await request(app)
+      .post("/api/projects")
+      .set("Authorization", `Bearer ${adminToken}`)
+      .send({ client_id: clientId, name: `${PREFIX}OtherProject` });
+    const otherProjId = otherProjectRes.body.id;
+    createdProjectIds.push(otherProjId);
+
+    const otherEnvRes = await request(app)
+      .post("/api/environments")
+      .set("Authorization", `Bearer ${adminToken}`)
+      .send({ project_id: otherProjId, name: "DEV" });
+    const otherEnvId = otherEnvRes.body.id;
+    createdEnvironmentIds.push(otherEnvId);
+
+    const s1 = await createServerAs(adminToken, validServerBody({ environment_id: environmentId, display_name: `${PREFIX}Proj1Server` }));
+    const s2 = await createServerAs(adminToken, validServerBody({ environment_id: otherEnvId, display_name: `${PREFIX}Proj2Server` }));
+
+    const res = await request(app)
+      .get(`/api/servers?project_id=${projectId}`)
+      .set("Authorization", `Bearer ${adminToken}`);
+
+    expect(res.status).toBe(200);
+    const ids = res.body.data.map((s: { id: string }) => s.id);
+    expect(ids).toContain(s1.body.id);
+    expect(ids).not.toContain(s2.body.id);
+  });
+});
+
 describe("GET /api/servers/:id (breadcrumb inline context)", () => {
   it("includes inlined environment AND environment.project", async () => {
     const createRes = await createServerAs(adminToken, validServerBody({ display_name: `${PREFIX}Breadcrumb` }));

@@ -19,6 +19,7 @@ export interface ListServersParams {
   sort: string;
   order: "asc" | "desc";
   search?: string;
+  projectId?: string;
   environmentId?: string;
   serviceType?: string;
   accessMethod?: string;
@@ -68,6 +69,11 @@ export async function listServers(
   if (params.search) {
     values.push(`%${params.search}%`);
     conditions.push(`(display_name ILIKE $${values.length} OR hostname ILIKE $${values.length})`);
+  }
+
+  if (params.projectId) {
+    values.push(params.projectId);
+    conditions.push(`environment_id IN (SELECT id FROM environments WHERE project_id = $${values.length})`);
   }
 
   if (params.environmentId) {

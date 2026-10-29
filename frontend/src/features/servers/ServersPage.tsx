@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { ShieldCheck, FileSpreadsheet } from "lucide-react";
 import { RequireRole } from "@/components/auth/RequireRole";
 import { RowActions } from "@/components/RowActions";
@@ -77,6 +77,25 @@ export default function ServersPage() {
   const canEdit = useHasRole(["admin", "member"]);
   const canDelete = useHasRole(["admin"]);
   const pagination = usePagination({ initialSort: "display_name", initialOrder: "asc" });
+  const [searchParams, setSearchParams] = useSearchParams();
+  const selectedProjectId = searchParams.get("project_id") || "all";
+
+  function handleProjectChange(val: string) {
+    pagination.setPage(1);
+    setSearchParams(
+      (prev) => {
+        const next = new URLSearchParams(prev);
+        if (val && val !== "all") {
+          next.set("project_id", val);
+        } else {
+          next.delete("project_id");
+        }
+        return next;
+      },
+      { replace: true }
+    );
+  }
+
   const {
     data: servers = [],
     pagination: pageInfo,
@@ -84,7 +103,10 @@ export default function ServersPage() {
     isError,
     error,
     refetch,
-  } = useServers(undefined, pagination.params);
+  } = useServers(undefined, {
+    ...pagination.params,
+    project_id: selectedProjectId !== "all" ? selectedProjectId : undefined,
+  });
 
   // The list endpoint returns bare environment_id per row (no nested
   // environment name) — cross-reference the environment picker's own list to
@@ -162,6 +184,19 @@ export default function ServersPage() {
             onChange={(e) => pagination.setSearch(e.target.value)}
             className="w-64"
           />
+          <Select value={selectedProjectId} onValueChange={handleProjectChange}>
+            <SelectTrigger className="w-44" aria-label="Filter by project">
+              <SelectValue placeholder="All Projects" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Projects</SelectItem>
+              {projects.map((p) => (
+                <SelectItem key={p.id} value={p.id}>
+                  {p.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
           <Select value={pagination.sort} onValueChange={pagination.setSort}>
             <SelectTrigger className="w-40" aria-label="Sort by">
               <SelectValue placeholder="Sort by" />
@@ -227,7 +262,7 @@ export default function ServersPage() {
       ) : servers.length === 0 ? (
         <EmptyState
           title="No servers found"
-          message={pagination.search ? "Try a different search term." : "No servers have been added yet."}
+          message={pagination.search || selectedProjectId !== "all" ? "Try a different search term or filter." : "No servers have been added yet."}
         />
       ) : (
         <>

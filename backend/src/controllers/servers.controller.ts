@@ -33,6 +33,9 @@ function parseListQuery(req: Request): ListServersParams {
   const search = typeof req.query.search === "string" && req.query.search.length > 0
     ? req.query.search
     : undefined;
+  const projectId = typeof req.query.project_id === "string" && req.query.project_id.length > 0
+    ? req.query.project_id
+    : undefined;
   const environmentId = typeof req.query.environment_id === "string" && req.query.environment_id.length > 0
     ? req.query.environment_id
     : undefined;
@@ -48,7 +51,7 @@ function parseListQuery(req: Request): ListServersParams {
     | "true"
     | "all";
 
-  return { page, perPage, sort, order, search, environmentId, serviceType, accessMethod, deletedMode };
+  return { page, perPage, sort, order, search, projectId, environmentId, serviceType, accessMethod, deletedMode };
 }
 
 export async function list(req: Request, res: Response) {

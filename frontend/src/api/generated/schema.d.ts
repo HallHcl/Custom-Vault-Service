@@ -2871,6 +2871,7 @@ export interface operations {
                 /** @description Default: false */
                 deleted?: "false" | "true" | "all";
                 search?: string;
+                project_id?: string;
                 environment_id?: string;
                 service_type?: string;
                 access_method?: string;

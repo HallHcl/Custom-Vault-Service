@@ -141,6 +141,36 @@ describe("ServersPage", () => {
     useAuthMock.mockReturnValue({ roles: ["member"], isLoading: false });
   });
 
+  it("renders project filter dropdown and passes selected project_id to API", async () => {
+    mockGetByPath({
+      servers: okResult([SAMPLE_SERVER]),
+      environments: okResult([SAMPLE_ENVIRONMENT]),
+      projects: okResult([SAMPLE_PROJECT]),
+    });
+    renderPage();
+
+    const projectSelect = await screen.findByRole("combobox", { name: /filter by project/i });
+    expect(projectSelect).toBeInTheDocument();
+    expect(screen.getByText("All Projects")).toBeInTheDocument();
+
+    fireEvent.click(projectSelect);
+    const option = await screen.findByRole("option", { name: "Migration" });
+    fireEvent.click(option);
+
+    await waitFor(() => {
+      expect(getMock).toHaveBeenCalledWith(
+        "/api/servers",
+        expect.objectContaining({
+          params: expect.objectContaining({
+            query: expect.objectContaining({
+              project_id: "p1",
+            }),
+          }),
+        })
+      );
+    });
+  });
+
   it("navigates to the server's detail page when the row is clicked", async () => {
     mockGetByPath({ servers: okResult([SAMPLE_SERVER]), environments: okResult([SAMPLE_ENVIRONMENT]) });
     renderPage();

@@ -73,6 +73,7 @@ export const listServersQuerySchema = z.object({
   sort: z.enum(["display_name", "created_at", "updated_at"]),
   order: z.enum(["asc", "desc"]),
   search: z.string().optional(),
+  project_id: z.string().uuid().optional(),
   environment_id: z.string().uuid().optional(),
   service_type: z.string().trim().min(1).max(100).optional(),
   access_method: z.enum(ACCESS_METHODS).optional(),

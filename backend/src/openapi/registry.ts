@@ -536,6 +536,7 @@ registry.registerPath({
   request: {
     query: listQuery(["display_name", "created_at", "updated_at"], "display_name", {
       search: z.string().optional(),
+      project_id: z.string().uuid().optional(),
       environment_id: z.string().uuid().optional(),
       service_type: z.string().optional(),
       access_method: z.string().optional(),
