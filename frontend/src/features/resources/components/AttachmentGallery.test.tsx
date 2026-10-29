@@ -370,6 +370,46 @@ describe("AttachmentGallery", () => {
     expect(screen.getAllByRole("button", { name: "Download deploy-instructions.md" }).length).toBeGreaterThanOrEqual(1);
   });
 
+  it("opens PDF document preview in new tab when Preview button is clicked", async () => {
+    const openSpy = vi.spyOn(window, "open").mockImplementation(() => null);
+    const pdfAttachment: ResourceAttachmentWithUploader = {
+      id: "att-pdf",
+      resource_id: "res-1",
+      created_in_version_id: null,
+      file_name: "user-manual.pdf",
+      mime_type: "application/pdf",
+      size_bytes: 512000,
+      caption: null,
+      uploaded_by: "user-1",
+      created_at: "2026-03-01T10:00:00.000Z",
+      file_path: "/api/resources/res-1/attachments/att-pdf/content",
+      deleted_at: null,
+      uploader: { id: "user-1", name: "Alice Smith" },
+    };
+
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({
+        ok: true,
+        blob: () => Promise.resolve(new Blob(["%PDF-1.4 fake"], { type: "application/pdf" })),
+      })
+    );
+
+    getMock.mockResolvedValue(ok([pdfAttachment]));
+    renderGallery({ resourceId: "res-1" });
+
+    await screen.findByText("user-manual.pdf");
+    const previewBtn = screen.getAllByRole("button", { name: "Preview user-manual.pdf" })[0];
+    fireEvent.click(previewBtn);
+
+    await waitFor(() => {
+      expect(openSpy).toHaveBeenCalledWith(expect.stringContaining("blob:"), "_blank");
+    });
+
+    openSpy.mockRestore();
+    vi.unstubAllGlobals();
+  });
+
   it("hides download and action buttons when hideActions is true", async () => {
     getMock.mockResolvedValue(ok(SAMPLE_ATTACHMENTS));
     renderGallery({ resourceId: "res-1", hideActions: true });

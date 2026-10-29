@@ -4,6 +4,8 @@ import {
   Check,
   Copy,
   Download,
+  ExternalLink,
+  Eye,
   File,
   FileArchive,
   FileCode,
@@ -316,6 +318,123 @@ export function AttachmentGallery({
     }
   }
 
+  async function handlePreviewAttachment(attachment: ResourceAttachmentWithUploader) {
+    const contentUrl = getAttachmentContentUrl(resourceId, attachment.id);
+    try {
+      const token = getToken();
+      const res = await fetch(contentUrl, {
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      });
+      if (!res.ok) throw new Error("Failed to load file for preview");
+      const blob = await res.blob();
+      const ext = (attachment.file_name.split(".").pop() || "").toLowerCase();
+
+      // 1. PDF Documents -> open native browser PDF reader in new tab
+      if (attachment.mime_type.includes("pdf") || ext === "pdf") {
+        const pdfBlob = new Blob([blob], { type: "application/pdf" });
+        const blobUrl = URL.createObjectURL(pdfBlob);
+        window.open(blobUrl, "_blank");
+        return;
+      }
+
+      // 2. Images -> open full size in new tab
+      if (isImageAttachment(attachment.mime_type, attachment.file_name)) {
+        const blobUrl = URL.createObjectURL(blob);
+        window.open(blobUrl, "_blank");
+        return;
+      }
+
+      // 3. Spreadsheets (.xlsx, .xls, .csv) -> convert sheet to HTML table in new tab
+      if (
+        ["xlsx", "xls", "csv"].includes(ext) ||
+        attachment.mime_type.includes("spreadsheet") ||
+        attachment.mime_type.includes("excel") ||
+        attachment.mime_type.includes("csv")
+      ) {
+        try {
+          const XLSX = await import("xlsx");
+          const arrayBuffer = await blob.arrayBuffer();
+          const workbook = XLSX.read(arrayBuffer, { type: "array" });
+          const firstSheetName = workbook.SheetNames[0];
+          const worksheet = workbook.Sheets[firstSheetName];
+          const tableHtml = XLSX.utils.sheet_to_html(worksheet, { id: "data-table" });
+
+          const fullHtml = `<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>${attachment.file_name} - Preview</title>
+  <style>
+    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; margin: 24px; background: #0f172a; color: #f8fafc; }
+    h2 { margin-bottom: 6px; font-size: 18px; color: #38bdf8; }
+    .sheet-title { color: #94a3b8; font-size: 13px; margin-bottom: 16px; }
+    table { border-collapse: collapse; width: 100%; font-size: 12px; background: #1e293b; border-radius: 6px; overflow: hidden; box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.2); }
+    th, td { border: 1px solid #334155; padding: 8px 12px; text-align: left; }
+    th { background: #0f172a; font-weight: 600; color: #cbd5e1; }
+    tr:nth-child(even) { background: #1e293b; }
+    tr:nth-child(odd) { background: #182234; }
+    tr:hover { background: #334155; }
+  </style>
+</head>
+<body>
+  <h2>${attachment.file_name}</h2>
+  <div class="sheet-title">Sheet: ${firstSheetName} • Generated web preview</div>
+  ${tableHtml}
+</body>
+</html>`;
+          const htmlBlob = new Blob([fullHtml], { type: "text/html;charset=utf-8" });
+          const blobUrl = URL.createObjectURL(htmlBlob);
+          window.open(blobUrl, "_blank");
+          return;
+        } catch {
+          // fallback to download if parsing fails
+        }
+      }
+
+      // 4. Text / Markdown / Code / Logs
+      if (
+        ["txt", "md", "markdown", "json", "log", "yaml", "yml", "sh", "sql", "conf", "env"].includes(ext) ||
+        attachment.mime_type.startsWith("text/")
+      ) {
+        const textContent = await blob.text();
+        const escaped = textContent.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+        const fullHtml = `<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>${attachment.file_name} - Preview</title>
+  <style>
+    body { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; margin: 24px; background: #0f172a; color: #f8fafc; font-size: 13px; line-height: 1.6; }
+    h2 { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; font-size: 18px; color: #38bdf8; margin-bottom: 16px; }
+    pre { background: #1e293b; padding: 16px; border-radius: 8px; border: 1px solid #334155; overflow-x: auto; white-space: pre-wrap; word-break: break-word; }
+  </style>
+</head>
+<body>
+  <h2>${attachment.file_name}</h2>
+  <pre>${escaped}</pre>
+</body>
+</html>`;
+        const htmlBlob = new Blob([fullHtml], { type: "text/html;charset=utf-8" });
+        const blobUrl = URL.createObjectURL(htmlBlob);
+        window.open(blobUrl, "_blank");
+        return;
+      }
+
+      // 5. Binary format that cannot be previewed natively in browser
+      toast({
+        title: "Preview not supported for this file type",
+        description: `Starting download for "${attachment.file_name}" instead...`,
+      });
+      handleDownloadAttachment(attachment);
+    } catch (err) {
+      toast({
+        title: "Failed to preview file",
+        description: apiErrorMessage(err) || "Could not open preview in new tab",
+        variant: "destructive",
+      });
+    }
+  }
+
   async function handleDownloadAttachment(attachment: ResourceAttachmentWithUploader) {
     const contentUrl = getAttachmentContentUrl(resourceId, attachment.id);
     try {
@@ -445,15 +564,15 @@ export function AttachmentGallery({
                 <div
                   role={hideActions ? undefined : "button"}
                   tabIndex={hideActions ? undefined : 0}
-                  aria-label={hideActions ? undefined : `Download ${attachment.file_name}`}
-                  onClick={hideActions ? undefined : () => handleDownloadAttachment(attachment)}
+                  aria-label={hideActions ? undefined : `Preview ${attachment.file_name}`}
+                  onClick={hideActions ? undefined : () => handlePreviewAttachment(attachment)}
                   onKeyDown={
                     hideActions
                       ? undefined
                       : (e) => {
                           if (e.key === "Enter" || e.key === " ") {
                             e.preventDefault();
-                            handleDownloadAttachment(attachment);
+                            handlePreviewAttachment(attachment);
                           }
                         }
                   }
@@ -462,8 +581,14 @@ export function AttachmentGallery({
                     hideActions ? "cursor-default" : "cursor-pointer hover:bg-muted/50"
                   )}
                 >
-                  <div className="rounded-full bg-background/90 p-3 shadow-xs border border-border/50 text-brand">
+                  <div className="rounded-full bg-background/90 p-3 shadow-xs border border-border/50 text-brand transition-transform duration-200 group-hover/thumb:scale-105">
                     <DocIcon className="h-7 w-7" />
+                  </div>
+                  <div className="absolute inset-0 bg-black/0 group-hover/thumb:bg-black/25 transition-colors flex items-center justify-center opacity-0 group-hover/thumb:opacity-100">
+                    <div className="rounded-full bg-background/90 p-2 text-foreground shadow-md backdrop-blur-xs flex items-center gap-1.5 text-xs font-medium px-3">
+                      <Eye className="h-3.5 w-3.5" />
+                      Preview
+                    </div>
                   </div>
                   <Badge
                     variant="outline"
@@ -546,17 +671,32 @@ export function AttachmentGallery({
                         </Button>
                       </>
                     ) : (
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="sm"
-                        className="flex-1 text-xs h-8 gap-1.5"
-                        onClick={() => handleDownloadAttachment(attachment)}
-                        aria-label={`Download ${attachment.file_name}`}
-                      >
-                        <Download className="h-3.5 w-3.5" />
-                        Download File
-                      </Button>
+                      <>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          className="flex-1 text-xs h-8 gap-1.5"
+                          onClick={() => handlePreviewAttachment(attachment)}
+                          aria-label={`Preview ${attachment.file_name}`}
+                        >
+                          <Eye className="h-3.5 w-3.5" />
+                          Preview
+                        </Button>
+
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          className="h-8 px-2.5 text-xs gap-1"
+                          onClick={() => handleDownloadAttachment(attachment)}
+                          aria-label={`Download ${attachment.file_name}`}
+                          title="Download"
+                        >
+                          <Download className="h-3.5 w-3.5" />
+                          <span className="hidden sm:inline">Download</span>
+                        </Button>
+                      </>
                     )}
 
                     {canDelete && (
@@ -630,6 +770,17 @@ export function AttachmentGallery({
             <div className="flex items-center gap-2">
               {previewAttachment && !hideActions && (
                 <>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="gap-1.5"
+                    onClick={() => handlePreviewAttachment(previewAttachment)}
+                    aria-label={`Open ${previewAttachment.file_name} in new tab`}
+                  >
+                    <ExternalLink className="h-3.5 w-3.5" />
+                    Open in new tab
+                  </Button>
                   <Button
                     type="button"
                     variant="outline"
