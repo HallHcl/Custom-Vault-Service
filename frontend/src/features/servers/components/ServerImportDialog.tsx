@@ -45,6 +45,7 @@ interface Props {
 
 const COLUMN_OPTIONS: { value: ServerColumnType; label: string }[] = [
   { value: "hostname", label: "Hostname" },
+  { value: "display_name", label: "Display Name / Description" },
   { value: "ip_address", label: "IP Address" },
   { value: "username", label: "Username" },
   { value: "password", label: "Password" },
@@ -227,7 +228,7 @@ export function ServerImportDialog({
       try {
         await createServer.mutateAsync({
           environment_id: selectedEnvironmentId,
-          display_name: row.hostname,
+          display_name: row.display_name || row.hostname,
           hostname: row.hostname,
           ip_address: row.ip_address,
           username: row.username,

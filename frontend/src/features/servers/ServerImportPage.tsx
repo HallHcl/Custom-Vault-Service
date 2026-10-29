@@ -48,7 +48,7 @@ import { useEnvironments } from "@/hooks/useEnvironments";
 import { useCreateServer, useServiceTypes } from "@/hooks/useServers";
 import {
   parseTsv,
-  isHeaderRow,
+  detectHeaderRowCount,
   detectColumnMappings,
   buildParsedServers,
   type ColumnMapping,
@@ -58,6 +58,7 @@ import {
 
 const COLUMN_OPTIONS: { value: ServerColumnType; label: string }[] = [
   { value: "hostname", label: "Hostname" },
+  { value: "display_name", label: "Display Name / Description" },
   { value: "ip_address", label: "IP Address" },
   { value: "username", label: "Username" },
   { value: "password", label: "Password" },
@@ -96,6 +97,7 @@ export default function ServerImportPage() {
 
   const [rawText, setRawText] = useState("");
   const [hasHeader, setHasHeader] = useState(true);
+  const [headerRowCount, setHeaderRowCount] = useState<number>(1);
   const [mappings, setMappings] = useState<ColumnMapping[]>([]);
   const [defaultServiceType, setDefaultServiceType] = useState<string | undefined>(undefined);
   const [defaultAccessMethod, setDefaultAccessMethod] = useState<
@@ -138,17 +140,24 @@ export default function ServerImportPage() {
       setRowOverrides({});
       return;
     }
-    const detectedHeader = isHeaderRow(parsedRows[0]);
-    setHasHeader(detectedHeader);
-    const initialMappings = detectColumnMappings(parsedRows, detectedHeader);
+    const detectedCount = detectHeaderRowCount(parsedRows);
+    setHeaderRowCount(detectedCount);
+    setHasHeader(detectedCount > 0);
+    const initialMappings = detectColumnMappings(parsedRows, detectedCount);
     setMappings(initialMappings);
   }, [parsedRows]);
 
-  function handleHeaderToggle(newHasHeader: boolean) {
-    setHasHeader(newHasHeader);
+  function handleHeaderCountChange(count: number) {
+    setHeaderRowCount(count);
+    setHasHeader(count > 0);
     if (parsedRows.length > 0) {
-      setMappings(detectColumnMappings(parsedRows, newHasHeader));
+      setMappings(detectColumnMappings(parsedRows, count));
     }
+  }
+
+  function handleHeaderToggle(newHasHeader: boolean) {
+    const newCount = newHasHeader ? (headerRowCount === 2 ? 2 : 1) : 0;
+    handleHeaderCountChange(newCount);
   }
 
   function handleColumnTypeChange(index: number, newType: ServerColumnType) {
@@ -162,11 +171,11 @@ export default function ServerImportPage() {
     return buildParsedServers(
       parsedRows,
       mappings,
-      hasHeader,
+      headerRowCount,
       defaultServiceType,
       defaultAccessMethod
     );
-  }, [parsedRows, mappings, hasHeader, defaultServiceType, defaultAccessMethod]);
+  }, [parsedRows, mappings, headerRowCount, defaultServiceType, defaultAccessMethod]);
 
   function getEffectiveServiceType(row: ParsedServerRow): string {
     const override = rowOverrides[row.index];
@@ -258,7 +267,7 @@ export default function ServerImportPage() {
       try {
         await createServer.mutateAsync({
           environment_id: selectedEnvironmentId,
-          display_name: row.hostname,
+          display_name: row.display_name || row.hostname,
           hostname: row.hostname,
           ip_address: row.ip_address,
           username: row.username,
@@ -461,20 +470,60 @@ export default function ServerImportPage() {
           {/* Section 4: Column Mapping (Visible when data pasted) */}
           {mappings.length > 0 && (
             <div className="space-y-3 bg-muted/20 p-4 rounded-lg border">
-              <div className="flex flex-wrap items-center justify-between gap-2">
+              <div className="flex flex-wrap items-center justify-between gap-3">
                 <h2 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
                   4. Column Mapping & Headers
                 </h2>
-                <label className="flex items-center gap-2 text-xs font-medium cursor-pointer select-none">
-                  <input
-                    type="checkbox"
-                    checked={hasHeader}
-                    onChange={(e) => handleHeaderToggle(e.target.checked)}
-                    disabled={isImporting}
-                    className="rounded border-gray-300"
-                  />
-                  First row contains column headers
-                </label>
+                <div className="flex flex-wrap items-center gap-3">
+                  <div className="flex items-center gap-1.5 text-xs">
+                    <span className="text-muted-foreground font-medium">Header Rows:</span>
+                    <div className="inline-flex rounded-md border p-0.5 bg-muted/40">
+                      <button
+                        type="button"
+                        onClick={() => handleHeaderCountChange(0)}
+                        className={`px-2 py-0.5 rounded text-xs font-medium transition-colors ${
+                          headerRowCount === 0
+                            ? "bg-background text-foreground shadow-sm"
+                            : "text-muted-foreground hover:text-foreground"
+                        }`}
+                      >
+                        0 (None)
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleHeaderCountChange(1)}
+                        className={`px-2 py-0.5 rounded text-xs font-medium transition-colors ${
+                          headerRowCount === 1
+                            ? "bg-background text-foreground shadow-sm"
+                            : "text-muted-foreground hover:text-foreground"
+                        }`}
+                      >
+                        1 Row
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleHeaderCountChange(2)}
+                        className={`px-2 py-0.5 rounded text-xs font-medium transition-colors ${
+                          headerRowCount === 2
+                            ? "bg-background text-foreground shadow-sm"
+                            : "text-muted-foreground hover:text-foreground"
+                        }`}
+                      >
+                        2 Rows (Multi-level)
+                      </button>
+                    </div>
+                  </div>
+                  <label className="flex items-center gap-1.5 text-xs font-medium cursor-pointer select-none">
+                    <input
+                      type="checkbox"
+                      checked={hasHeader}
+                      onChange={(e) => handleHeaderToggle(e.target.checked)}
+                      disabled={isImporting}
+                      className="rounded border-gray-300"
+                    />
+                    First row contains column headers
+                  </label>
+                </div>
               </div>
 
               <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3">
@@ -578,7 +627,17 @@ export default function ServerImportPage() {
                           </TableCell>
                           <TableCell className="font-medium text-xs">
                             {row.hostname ? (
-                              row.hostname
+                              <div>
+                                <div className="font-semibold text-foreground">{row.hostname}</div>
+                                {row.display_name && row.display_name !== row.hostname && (
+                                  <div
+                                    className="text-[11px] font-normal text-muted-foreground truncate max-w-[200px]"
+                                    title={row.display_name}
+                                  >
+                                    {row.display_name}
+                                  </div>
+                                )}
+                              </div>
                             ) : (
                               <span className="text-destructive italic">Missing Hostname</span>
                             )}

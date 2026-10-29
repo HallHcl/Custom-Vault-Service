@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import {
   parseTsv,
   isHeaderRow,
+  detectHeaderRowCount,
   detectColumnMappings,
   buildParsedServers,
 } from "./excelParser";
@@ -35,7 +36,6 @@ describe("excelParser", () => {
     expect(rows[0][4]).toBe("secret123");
     expect(rows[1][0]).toBe("zabbix-proxy1");
   });
-
 
   it("identifies header rows correctly", () => {
     expect(isHeaderRow(["Hostname", "IP Address", "Username", "Password", "Spec"])).toBe(true);
@@ -114,5 +114,52 @@ describe("excelParser", () => {
     expect(parsed[0].service_type).toBe("Database");
     expect(parsed[1].access_method).toBe("rdp");
     expect(parsed[1].service_type).toBe("Windows");
+  });
+
+  it("handles 2-row multi-level headers and differentiates Host Name and Server Name", () => {
+    const rawTsv = [
+      "System\tHost Name\tServer Name\tCPU\tMemory (GB)\tDisk (GB)\tNetwork\t\t\t\t\t\t\tOS",
+      "\t\t\t\t\t\tVFW\tZONE\tVLAN\tIP Address\tSubnet\tGateway\tService / Port\t",
+      "Monitoring (Zabbix)\tzbapp101\tServer Zabbix and alert\t8\t32\t200\tVFW1\tAPP\t805\t172.16.24.7\t255.255.248.0\t172.16.24.1\tzabbix-server / 10051\tAlma Linux 8.0",
+      "\tzbwb101\tServer web\t8\t32\t200\tVFW1\tWEB\t804\t172.16.16.4\t255.255.248.0\t172.16.16.1\tapache(httpd), nginx / 80,443\tAlma Linux 8.0",
+    ].join("\n");
+
+    const rows = parseTsv(rawTsv);
+    expect(rows).toHaveLength(4);
+
+    // Auto-detect header count
+    const headerCount = detectHeaderRowCount(rows);
+    expect(headerCount).toBe(2);
+
+    const mappings = detectColumnMappings(rows, headerCount);
+    // Column 1: Host Name -> hostname
+    expect(mappings[1].type).toBe("hostname");
+    // Column 2: Server Name -> display_name
+    expect(mappings[2].type).toBe("display_name");
+    // Column 9: IP Address -> ip_address
+    const ipMapping = mappings.find((m) => m.headerName.includes("IP Address"));
+    expect(ipMapping?.type).toBe("ip_address");
+
+    // ZONE (col 7) should NOT be detected as username
+    const zoneMapping = mappings.find((m) => m.headerName.includes("ZONE"));
+    expect(zoneMapping?.type).not.toBe("username");
+
+    const parsed = buildParsedServers(rows, mappings, headerCount);
+    expect(parsed).toHaveLength(2);
+
+    // Row 1: zbapp101
+    expect(parsed[0].hostname).toBe("zbapp101");
+    expect(parsed[0].display_name).toBe("Server Zabbix and alert");
+    expect(parsed[0].ip_address).toBe("172.16.24.7");
+    expect(parsed[0].access_method).toBe("ssh");
+    expect(parsed[0].notes).toContain("System: Monitoring (Zabbix)");
+    expect(parsed[0].isValid).toBe(true);
+
+    // Row 2: zbwb101 with forward-filled System
+    expect(parsed[1].hostname).toBe("zbwb101");
+    expect(parsed[1].display_name).toBe("Server web");
+    expect(parsed[1].ip_address).toBe("172.16.16.4");
+    expect(parsed[1].notes).toContain("System: Monitoring (Zabbix)");
+    expect(parsed[1].isValid).toBe(true);
   });
 });
