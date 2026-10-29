@@ -59,6 +59,7 @@ function mockGetByPath(handlers: {
   clientPeople?: unknown;
   environments?: unknown;
   servers?: unknown;
+  resources?: unknown;
 }) {
   getMock.mockImplementation((path: string) => {
     if (path === "/api/projects/{id}") return Promise.resolve(handlers.project ?? ok(PROJECT_DETAIL));
@@ -66,6 +67,7 @@ function mockGetByPath(handlers: {
     if (path === "/api/clients/{id}/people") return Promise.resolve(handlers.clientPeople ?? ok([]));
     if (path === "/api/environments") return Promise.resolve(handlers.environments ?? ok([]));
     if (path === "/api/servers") return Promise.resolve(handlers.servers ?? ok([]));
+    if (path === "/api/resources") return Promise.resolve(handlers.resources ?? ok([]));
     throw new Error(`Unexpected path in test: ${path}`);
   });
 }
@@ -280,6 +282,74 @@ describe("ProjectDetailPage", () => {
       renderPage();
 
       expect(await screen.findByRole("button", { name: /new environment/i })).toBeInTheDocument();
+    });
+  });
+
+  describe("Attached Resources section", () => {
+    const SAMPLE_RESOURCE = {
+      id: "res-1",
+      project_id: "p1",
+      type: "runbook",
+      title: "Deploy Guide",
+      category: "Operations",
+      tags: [],
+      current_version_id: "ver-1",
+      created_at: "2026-01-01T00:00:00.000Z",
+      updated_at: "2026-01-02T00:00:00.000Z",
+      deleted_at: null,
+      current_version: {
+        id: "ver-1",
+        version_number: 2,
+        created_at: "2026-01-02T00:00:00.000Z",
+        author: { id: "u1", name: "Alice" },
+      },
+    };
+
+    it("renders resources linked to the project as cards", async () => {
+      mockGetByPath({
+        resources: ok({
+          data: [SAMPLE_RESOURCE],
+          pagination: { total: 1, page: 1, per_page: 20, total_pages: 1 },
+        }),
+      });
+
+      renderPage();
+
+      expect(await screen.findByTestId("resources-grid")).toBeInTheDocument();
+      expect(screen.getByText("Deploy Guide")).toBeInTheDocument();
+      expect(screen.getByText("Runbook")).toBeInTheDocument();
+      expect(screen.getByText("v2")).toBeInTheDocument();
+    });
+
+    it("navigates to /resources?selected=res-1 when resource card is clicked", async () => {
+      mockGetByPath({
+        resources: ok({
+          data: [SAMPLE_RESOURCE],
+          pagination: { total: 1, page: 1, per_page: 20, total_pages: 1 },
+        }),
+      });
+
+      renderPage();
+
+      const resCard = await screen.findByRole("button", { name: "Open Deploy Guide resource" });
+      resCard.click();
+
+      expect(navigateMock).toHaveBeenCalledWith("/resources?selected=res-1");
+    });
+
+    it("shows empty state when no resources are attached to the project", async () => {
+      mockGetByPath({
+        resources: ok({
+          data: [],
+          pagination: { total: 0, page: 1, per_page: 20, total_pages: 0 },
+        }),
+      });
+
+      renderPage();
+
+      expect(
+        await screen.findByText(/This project doesn't have any attached resources yet/i)
+      ).toBeInTheDocument();
     });
   });
 });

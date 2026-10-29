@@ -56,5 +56,20 @@ function isApiErrorBody(body: unknown): body is ApiErrorBody {
 
 /** Extracts a user-facing message from a caught mutation error, for toast descriptions. */
 export function apiErrorMessage(err: unknown): string {
-  return err instanceof ApiError ? err.message : "Something went wrong. Please try again.";
+  if (err instanceof ApiError) {
+    if (err.details && typeof err.details === "object") {
+      const details = err.details as Record<string, unknown>;
+      if (details.fieldErrors && typeof details.fieldErrors === "object") {
+        const msgs = Object.entries(details.fieldErrors as Record<string, string[]>)
+          .map(([field, errs]) => `${field}: ${Array.isArray(errs) ? errs.join(", ") : errs}`)
+          .filter(Boolean);
+        if (msgs.length > 0) return msgs.join(" | ");
+      }
+      if (Array.isArray(details.formErrors) && details.formErrors.length > 0) {
+        return details.formErrors.join(", ");
+      }
+    }
+    return err.message;
+  }
+  return "Something went wrong. Please try again.";
 }

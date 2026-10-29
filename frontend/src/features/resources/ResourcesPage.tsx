@@ -58,7 +58,7 @@ export default function ResourcesPage() {
 
   const [selected, setSelected] = useState<ResourceListItem | undefined>(undefined);
   const [activeTab, setActiveTab] = useState<"content" | "history">("content");
-  const [contentViewMode, setContentViewMode] = useState<"raw" | "formatted">("raw");
+  const [contentViewMode, setContentViewMode] = useState<"raw" | "formatted">("formatted");
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
 
   const {

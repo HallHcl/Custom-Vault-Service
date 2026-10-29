@@ -94,15 +94,17 @@ describe("ResourceFormPage — create mode", () => {
     }
   });
 
-  it("blocks submit and shows a field error when content is empty for a content-required type", async () => {
+  it("allows submit when content is empty (content is optional)", async () => {
     postMock.mockResolvedValue(ok({ id: "r1" }));
     renderCreatePage();
 
     fireEvent.change(screen.getByLabelText("Title"), { target: { value: "Deploy guide" } });
     fireEvent.click(screen.getByRole("button", { name: /save/i }));
 
-    expect(await screen.findByText(/content is required/i)).toBeInTheDocument();
-    expect(postMock).not.toHaveBeenCalled();
+    expect(screen.queryByText(/content is required/i)).not.toBeInTheDocument();
+    await waitFor(() => {
+      expect(postMock).toHaveBeenCalled();
+    });
   });
 
   it("blocks submit and shows a field error for a non-https external_url on type link", async () => {

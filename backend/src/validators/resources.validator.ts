@@ -12,9 +12,17 @@ export const RESOURCE_TYPES = [
 
 const CONTENT_REQUIRED_TYPES = new Set(["runbook", "sop", "troubleshooting", "faq"]);
 
+const optionalUuid = z.preprocess(
+  (val) => (val === "" ? null : val),
+  z.string().uuid().nullable().optional()
+);
+
 export const createResourceSchema = z
   .object({
-    project_id: z.string().uuid().optional(),
+    project_id: z.preprocess(
+      (val) => (val === "" ? undefined : val),
+      z.string().uuid().optional()
+    ),
     type: z.string().trim().min(1, "Type cannot be empty"),
     title: z.string().min(1),
     category: z.string().optional(),
@@ -38,17 +46,6 @@ export const createResourceSchema = z
           message: "external_url must be a valid https URL",
         });
       }
-    } else if (data.type === "architecture" || data.type === "pdf") {
-      // Architecture and pdf do not strictly require content
-    } else {
-      // Runbook, sop, troubleshooting, faq, and all custom types require content
-      if (!data.content || !data.content.trim()) {
-        ctx.addIssue({
-          code: "custom",
-          path: ["content"],
-          message: `content is required for type "${data.type}"`,
-        });
-      }
     }
   });
 
@@ -63,19 +60,14 @@ export const updateMetadataSchema = z.object({
   updated_at: z.string().min(1),
 });
 
-export const createResourceVersionSchema = z
-  .object({
-    content: z.string().optional(),
-    external_url: z.string().optional(),
-    commit_message: z.string().optional(),
-    title: z.string().trim().min(1, "Title cannot be empty").optional(),
-    type: z.string().trim().min(1, "Type cannot be empty").optional(),
-    project_id: z.string().uuid().nullable().optional(),
-  })
-  .refine((data) => Boolean(data.content) || Boolean(data.external_url), {
-    message: "At least one of content or external_url must be present",
-    path: ["content"],
-  });
+export const createResourceVersionSchema = z.object({
+  content: z.string().optional(),
+  external_url: z.string().optional(),
+  commit_message: z.string().optional(),
+  title: z.string().trim().min(1, "Title cannot be empty").optional(),
+  type: z.string().trim().min(1, "Type cannot be empty").optional(),
+  project_id: optionalUuid,
+});
 
 export const listResourcesQuerySchema = z.object({
   page: z.number().int().min(1),

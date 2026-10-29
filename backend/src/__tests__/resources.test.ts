@@ -156,14 +156,15 @@ describe("POST /api/resources — creation and type validation", () => {
     expect(res.body.current_version.version_number).toBe(1);
   });
 
-  it("returns 400 VALIDATION_ERROR when content is missing for a content-required type", async () => {
+  it("creates a resource without content (content is optional)", async () => {
     const res = await createResourceAs(adminToken, {
       type: "runbook",
       title: `${PREFIX}NoContent`,
     });
 
-    expect(res.status).toBe(400);
-    expect(res.body.error.code).toBe("VALIDATION_ERROR");
+    expect(res.status).toBe(201);
+    expect(res.body.current_version.version_number).toBe(1);
+    expect(res.body.current_version.content).toBeNull();
   });
 
   it("returns 400 VALIDATION_ERROR when external_url is missing for type=link", async () => {
@@ -198,14 +199,15 @@ describe("POST /api/resources — creation and type validation", () => {
     expect(res.body.type).toBe("Docker");
   });
 
-  it("returns 400 VALIDATION_ERROR when content is missing for a custom type", async () => {
+  it("creates a resource with a custom type without content (content is optional)", async () => {
     const res = await createResourceAs(adminToken, {
       type: "CustomType",
       title: `${PREFIX}NoContentCustom`,
     });
 
-    expect(res.status).toBe(400);
-    expect(res.body.error.code).toBe("VALIDATION_ERROR");
+    expect(res.status).toBe(201);
+    expect(res.body.type).toBe("CustomType");
+    expect(res.body.current_version.content).toBeNull();
   });
 
   it("lists distinct resource types via GET /api/resources/types", async () => {

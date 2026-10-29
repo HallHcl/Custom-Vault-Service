@@ -1,6 +1,18 @@
 import { useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { Folder, Plus, Server, Users } from "lucide-react";
+import {
+  AlertTriangle,
+  BookOpen,
+  ExternalLink,
+  FileCode,
+  FileText,
+  Folder,
+  HelpCircle,
+  Layers,
+  Plus,
+  Server,
+  Users,
+} from "lucide-react";
 import { RequireRole } from "@/components/auth/RequireRole";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -21,6 +33,29 @@ import {
   environmentStatusLabel,
 } from "@/hooks/useEnvironments";
 import { SERVERS_PER_ENVIRONMENT, useChildCounts } from "@/hooks/useChildCounts";
+import { useResources } from "@/hooks/useResources";
+import { RESOURCE_TYPE_LABELS } from "@/lib/resourceTypes";
+
+function getResourceIcon(type: string) {
+  switch (type) {
+    case "runbook":
+      return <BookOpen className="h-6 w-6 text-amber-500" />;
+    case "sop":
+      return <FileText className="h-6 w-6 text-emerald-500" />;
+    case "architecture":
+      return <Layers className="h-6 w-6 text-blue-500" />;
+    case "troubleshooting":
+      return <AlertTriangle className="h-6 w-6 text-orange-500" />;
+    case "faq":
+      return <HelpCircle className="h-6 w-6 text-purple-500" />;
+    case "link":
+      return <ExternalLink className="h-6 w-6 text-cyan-500" />;
+    case "pdf":
+      return <FileCode className="h-6 w-6 text-rose-500" />;
+    default:
+      return <FileText className="h-6 w-6 text-muted-foreground" />;
+  }
+}
 import { useHasRole } from "@/hooks/useHasRole";
 
 export default function ProjectDetailPage() {
@@ -40,6 +75,14 @@ export default function ProjectDetailPage() {
     environments.map((env) => env.id),
     SERVERS_PER_ENVIRONMENT
   );
+
+  const {
+    data: resources = [],
+    isLoading: resourcesLoading,
+    isError: resourcesError,
+    error: resourcesErr,
+    refetch: refetchResources,
+  } = useResources(id ? { projectId: id } : undefined);
 
   const [formOpen, setFormOpen] = useState(false);
   const [createEnvOpen, setCreateEnvOpen] = useState(false);
@@ -210,6 +253,101 @@ export default function ProjectDetailPage() {
                   })}
                 </div>
               )}
+
+              <div className="pt-6 border-t space-y-4">
+                <div>
+                  <h2 className="text-base font-semibold">Attached Resources</h2>
+                  <p className="text-xs text-muted-foreground">
+                    Resources and documentation linked to {project.name}
+                  </p>
+                </div>
+
+                {resourcesLoading ? (
+                  <LoadingState message="Loading resources..." />
+                ) : resourcesError ? (
+                  <ErrorState error={resourcesErr} onRetry={() => refetchResources()} />
+                ) : resources.length === 0 ? (
+                  <EmptyState
+                    title="No resources found"
+                    message="This project doesn't have any attached resources yet."
+                  />
+                ) : (
+                  <div
+                    className="grid grid-cols-1 gap-4 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4"
+                    data-testid="resources-grid"
+                  >
+                    {resources.map((res) => {
+                      const goToResource = () => navigate(`/resources?selected=${res.id}`);
+                      return (
+                        <div
+                          key={res.id}
+                          className="group relative flex flex-col justify-between p-4 rounded-xl border bg-card text-card-foreground shadow-sm hover:border-primary/50 hover:bg-accent/40 hover:shadow-md transition-all cursor-pointer select-none"
+                          role="button"
+                          tabIndex={0}
+                          aria-label={`Open ${res.title} resource`}
+                          onClick={goToResource}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter" || e.key === " ") {
+                              e.preventDefault();
+                              goToResource();
+                            }
+                          }}
+                        >
+                          <div>
+                            <div className="flex items-start justify-between gap-2">
+                              <div className="flex items-center gap-2.5 min-w-0">
+                                <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-muted/60 ring-1 ring-border group-hover:scale-105 transition-all">
+                                  {getResourceIcon(res.type)}
+                                </div>
+                                <div className="min-w-0">
+                                  <span className="font-semibold text-sm leading-tight text-foreground group-hover:text-primary transition-colors truncate block">
+                                    {res.title}
+                                  </span>
+                                  <div className="mt-0.5 flex items-center gap-1.5 flex-wrap">
+                                    <Badge
+                                      variant="outline"
+                                      className="text-[10px] px-1.5 py-0 font-normal capitalize"
+                                    >
+                                      {RESOURCE_TYPE_LABELS[res.type] ?? res.type}
+                                    </Badge>
+                                    {res.category && (
+                                      <span className="text-[11px] text-muted-foreground truncate">
+                                        {res.category}
+                                      </span>
+                                    )}
+                                  </div>
+                                </div>
+                              </div>
+                            </div>
+
+                            <p className="mt-3 text-xs text-muted-foreground line-clamp-2 min-h-[2rem]">
+                              {res.category ? `Category: ${res.category}` : "No category specified."}
+                            </p>
+                          </div>
+
+                          <div className="flex items-center justify-between pt-3 mt-3 border-t border-border/60 text-xs text-muted-foreground">
+                            <div className="flex items-center gap-1.5 font-medium">
+                              <span className="font-mono text-[11px]">
+                                {res.current_version?.version_number
+                                  ? `v${res.current_version.version_number}`
+                                  : "v1"}
+                              </span>
+                              {res.current_version?.author?.name && (
+                                <span className="text-[11px] truncate max-w-[120px]">
+                                  • {res.current_version.author.name}
+                                </span>
+                              )}
+                            </div>
+                            <span className="font-mono text-[11px] tabular-nums">
+                              {new Date(res.updated_at || res.created_at).toLocaleDateString()}
+                            </span>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
             </TabsContent>
 
             <TabsContent value="team" forceMount className="data-[state=inactive]:hidden">

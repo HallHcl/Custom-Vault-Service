@@ -13,6 +13,7 @@ import {
   RemoveFormatting,
   Code,
   Table,
+  Plus,
   FileText,
   Code2,
   ChevronDown,
@@ -68,6 +69,7 @@ export const WordRichEditor: React.FC<WordRichEditorProps> = ({
   const [hoverGrid, setHoverGrid] = useState<{ cols: number; rows: number }>({ cols: 0, rows: 0 });
   const [customCols, setCustomCols] = useState<number>(2);
   const [customRows, setCustomRows] = useState<number>(4);
+  const [isInTable, setIsInTable] = useState(false);
 
   const visualRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -190,7 +192,51 @@ export const WordRichEditor: React.FC<WordRichEditorProps> = ({
   };
 
   // Update current size based on cursor or selection position
+  const getTableContext = (): {
+    table: HTMLTableElement;
+    row: HTMLTableRowElement;
+    cell: HTMLTableCellElement;
+    cellIndex: number;
+    rowIndex: number;
+  } | null => {
+    if (!visualRef.current) return null;
+    const sel = window.getSelection();
+    if (!sel || !sel.anchorNode) return null;
+
+    let node: Node | null = sel.anchorNode;
+    if (node.nodeType === Node.TEXT_NODE) node = node.parentNode;
+
+    let cell: HTMLTableCellElement | null = null;
+    let row: HTMLTableRowElement | null = null;
+    let table: HTMLTableElement | null = null;
+
+    while (node && node !== visualRef.current) {
+      const el = node as HTMLElement;
+      const tag = el.tagName?.toLowerCase();
+      if (!cell && (tag === "td" || tag === "th")) {
+        cell = el as HTMLTableCellElement;
+      }
+      if (!row && tag === "tr") {
+        row = el as HTMLTableRowElement;
+      }
+      if (!table && tag === "table") {
+        table = el as HTMLTableElement;
+        break;
+      }
+      node = node.parentNode;
+    }
+
+    if (table && cell && row) {
+      const cellIndex = Array.from(row.children).indexOf(cell);
+      const rowIndex = row.rowIndex;
+      return { table, row, cell, cellIndex, rowIndex };
+    }
+    return null;
+  };
+
   const updateActiveFormatting = () => {
+    const tableCtx = getTableContext();
+    setIsInTable(Boolean(tableCtx));
     saveSelection();
     const sel = window.getSelection();
     if (!sel || !sel.anchorNode || !visualRef.current) return;
@@ -591,6 +637,135 @@ export const WordRichEditor: React.FC<WordRichEditorProps> = ({
     return { rows: parsed, cols: maxCols, count: parsed.length };
   };
 
+  const handleAddColumn = (after = true) => {
+    if (mode === "visual") {
+      const ctx = getTableContext();
+      if (!ctx) return;
+      const { table, cellIndex } = ctx;
+      const insertIdx = after ? cellIndex + 1 : cellIndex;
+
+      const rows = Array.from(table.rows);
+      rows.forEach((r) => {
+        const isHeader =
+          r.parentElement?.tagName.toLowerCase() === "thead" ||
+          r.querySelector("th") !== null;
+
+        if (isHeader) {
+          const th = document.createElement("th");
+          th.className = "border border-border px-3 py-1.5 font-semibold text-left";
+          const currentCols = r.children.length;
+          th.textContent = `Column ${currentCols + 1}`;
+          if (insertIdx >= r.children.length) {
+            r.appendChild(th);
+          } else {
+            r.insertBefore(th, r.children[insertIdx]);
+          }
+        } else {
+          const td = document.createElement("td");
+          td.className = "border border-border px-3 py-1.5";
+          td.innerHTML = "<br>";
+          if (insertIdx >= r.children.length) {
+            r.appendChild(td);
+          } else {
+            r.insertBefore(td, r.children[insertIdx]);
+          }
+        }
+      });
+
+      handleVisualInput();
+    }
+  };
+
+  const handleAddRow = (below = true) => {
+    if (mode === "visual") {
+      const ctx = getTableContext();
+      if (!ctx) return;
+      const { table, row } = ctx;
+
+      const colCount = Math.max(1, table.rows[0]?.cells.length || 1);
+
+      const newRow = document.createElement("tr");
+      newRow.className = "border-b border-border/60";
+      for (let c = 0; c < colCount; c++) {
+        const td = document.createElement("td");
+        td.className = "border border-border px-3 py-1.5";
+        td.innerHTML = "<br>";
+        newRow.appendChild(td);
+      }
+
+      const tbody = table.querySelector("tbody") || table;
+
+      if (below) {
+        if (row.parentElement?.tagName.toLowerCase() === "thead") {
+          if (tbody.firstChild) {
+            tbody.insertBefore(newRow, tbody.firstChild);
+          } else {
+            tbody.appendChild(newRow);
+          }
+        } else if (row.nextSibling) {
+          row.parentElement?.insertBefore(newRow, row.nextSibling);
+        } else {
+          row.parentElement?.appendChild(newRow);
+        }
+      } else {
+        row.parentElement?.insertBefore(newRow, row);
+      }
+
+      const firstCell = newRow.children[0] as HTMLElement;
+      if (firstCell) {
+        const range = document.createRange();
+        range.selectNodeContents(firstCell);
+        range.collapse(true);
+        const sel = window.getSelection();
+        if (sel) {
+          sel.removeAllRanges();
+          sel.addRange(range);
+        }
+      }
+
+      handleVisualInput();
+    }
+  };
+
+  const handleDeleteColumn = () => {
+    if (mode === "visual") {
+      const ctx = getTableContext();
+      if (!ctx) return;
+      const { table, cellIndex } = ctx;
+
+      const rows = Array.from(table.rows);
+      rows.forEach((r) => {
+        if (r.children[cellIndex]) {
+          r.removeChild(r.children[cellIndex]);
+        }
+      });
+
+      if (table.rows.length === 0 || table.rows[0].children.length === 0) {
+        table.remove();
+        setIsInTable(false);
+      }
+
+      handleVisualInput();
+    }
+  };
+
+  const handleDeleteRow = () => {
+    if (mode === "visual") {
+      const ctx = getTableContext();
+      if (!ctx) return;
+      const { row } = ctx;
+
+      const isHeader =
+        row.parentElement?.tagName.toLowerCase() === "thead" ||
+        row.querySelector("th") !== null;
+
+      if (!isHeader) {
+        row.remove();
+        handleVisualInput();
+      }
+    }
+  };
+
   const handleInsertTable = (cols: number, rows: number) => {
     setTableDropdownOpen(false);
 
@@ -742,6 +917,51 @@ export const WordRichEditor: React.FC<WordRichEditorProps> = ({
 
   // Keyboard shortcut listener inside visual editor
   const handleKeyDown = (e: React.KeyboardEvent) => {
+    // Tab key navigation and auto row expansion inside table
+    if (e.key === "Tab") {
+      const ctx = getTableContext();
+      if (ctx) {
+        e.preventDefault();
+        const { table, row, cell } = ctx;
+        const allCells = Array.from(table.querySelectorAll("th, td"));
+        const currentIndex = allCells.indexOf(cell);
+
+        if (e.shiftKey) {
+          // Shift + Tab: Move to previous cell
+          if (currentIndex > 0) {
+            const prevCell = allCells[currentIndex - 1] as HTMLElement;
+            const range = document.createRange();
+            range.selectNodeContents(prevCell);
+            range.collapse(false);
+            const sel = window.getSelection();
+            if (sel) {
+              sel.removeAllRanges();
+              sel.addRange(range);
+            }
+          }
+        } else {
+          // Tab: Move to next cell or append new row if at the very end
+          const isLastCellInRow = cell === row.children[row.children.length - 1];
+          const rows = Array.from(table.rows);
+          const isLastRowInTable = row === rows[rows.length - 1];
+
+          if (isLastCellInRow && isLastRowInTable) {
+            handleAddRow(true);
+          } else if (currentIndex < allCells.length - 1) {
+            const nextCell = allCells[currentIndex + 1] as HTMLElement;
+            const range = document.createRange();
+            range.selectNodeContents(nextCell);
+            range.collapse(false);
+            const sel = window.getSelection();
+            if (sel) {
+              sel.removeAllRanges();
+              sel.addRange(range);
+            }
+          }
+        }
+        return;
+      }
+    }
     if (e.ctrlKey || e.metaKey) {
       if (e.key === "b" || e.key === "B") {
         e.preventDefault();
@@ -1069,6 +1289,65 @@ export const WordRichEditor: React.FC<WordRichEditorProps> = ({
                   <span className="text-[10px] text-muted-foreground">Word Style</span>
                 </div>
 
+                {/* Actions for Current Active Table */}
+                {isInTable && (
+                  <div className="bg-primary/10 border border-primary/30 p-2 rounded-md space-y-1.5">
+                    <div className="text-[11px] font-semibold text-primary">
+                      ตารางปัจจุบัน (Active Table):
+                    </div>
+                    <div className="grid grid-cols-2 gap-1.5">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        className="h-6 text-[11px] justify-start px-2 bg-background hover:bg-primary/20"
+                        onClick={() => {
+                          setTableDropdownOpen(false);
+                          handleAddColumn(true);
+                        }}
+                      >
+                        ➕ เพิ่มคอลัมน์
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        className="h-6 text-[11px] justify-start px-2 bg-background hover:bg-primary/20"
+                        onClick={() => {
+                          setTableDropdownOpen(false);
+                          handleAddRow(true);
+                        }}
+                      >
+                        ➕ เพิ่มแถว
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        className="h-6 text-[11px] justify-start px-2 text-destructive hover:text-destructive bg-background"
+                        onClick={() => {
+                          setTableDropdownOpen(false);
+                          handleDeleteColumn();
+                        }}
+                      >
+                        🗑️ ลบคอลัมน์
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        className="h-6 text-[11px] justify-start px-2 text-destructive hover:text-destructive bg-background"
+                        onClick={() => {
+                          setTableDropdownOpen(false);
+                          handleDeleteRow();
+                        }}
+                      >
+                        🗑️ ลบแถว
+                      </Button>
+                    </div>
+                  </div>
+                )}
+
                 {/* 8x8 Interactive Grid */}
                 <div className="space-y-1">
                   <div className="text-[11px] text-muted-foreground">เลื่อนเมาส์เพื่อเลือกขนาด:</div>
@@ -1177,6 +1456,69 @@ export const WordRichEditor: React.FC<WordRichEditorProps> = ({
               </div>
             )}
           </div>
+
+          {/* Quick Table Actions Bar (visible when cursor is inside any table) */}
+          {isInTable && mode === "visual" && (
+            <div className="flex items-center gap-1 bg-primary/10 border border-primary/30 px-1.5 py-0.5 rounded text-xs animate-in fade-in duration-150">
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                onMouseDown={(e) => {
+                  e.preventDefault();
+                  handleAddColumn(true);
+                }}
+                className="h-6 px-1.5 text-[11px] gap-1 text-foreground hover:bg-primary/20 hover:text-primary font-medium"
+                title="เพิ่มคอลัมน์ใหม่ในตารางเดิม (ไม่สร้าง Headbar ใหม่)"
+                aria-label="Add column"
+              >
+                <Plus className="h-3 w-3 text-primary" /> คอลัมน์
+              </Button>
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                onMouseDown={(e) => {
+                  e.preventDefault();
+                  handleAddRow(true);
+                }}
+                className="h-6 px-1.5 text-[11px] gap-1 text-foreground hover:bg-primary/20 hover:text-primary font-medium"
+                title="เพิ่มแถวใหม่ในตารางเดิม"
+                aria-label="Add row"
+              >
+                <Plus className="h-3 w-3 text-primary" /> แถว
+              </Button>
+              <div className="h-3 w-px bg-border/60 mx-0.5" />
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                onMouseDown={(e) => {
+                  e.preventDefault();
+                  handleDeleteColumn();
+                }}
+                className="h-6 px-1 text-[10px] text-muted-foreground hover:text-destructive hover:bg-destructive/10"
+                title="ลบคอลัมน์ปัจจุบัน"
+                aria-label="Delete column"
+              >
+                ลบคอลัมน์
+              </Button>
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                onMouseDown={(e) => {
+                  e.preventDefault();
+                  handleDeleteRow();
+                }}
+                className="h-6 px-1 text-[10px] text-muted-foreground hover:text-destructive hover:bg-destructive/10"
+                title="ลบแถวปัจจุบัน"
+                aria-label="Delete row"
+              >
+                ลบแถว
+              </Button>
+            </div>
+          )}
 
           <div className="h-4 w-px bg-border/60 mx-0.5" />
 

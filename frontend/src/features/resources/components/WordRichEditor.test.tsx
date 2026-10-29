@@ -172,4 +172,88 @@ describe("WordRichEditor", () => {
       expect(lastCallArg).toContain("| Mouse | $25 | 200 |");
     });
   });
+
+  describe("Active Table Operations (Add Column & Add Row without duplicate Headbars)", () => {
+    it("displays quick action buttons when clicking inside a table cell", () => {
+      const initialTable = "| Name | Age |\n| --- | --- |\n| John | 25 |";
+      const onChange = vi.fn();
+      render(<WordRichEditor id="content" value={initialTable} onChange={onChange} />);
+
+      const cell = screen.getByText("John");
+      expect(cell).toBeInTheDocument();
+
+      const sel = window.getSelection();
+      if (sel) {
+        const range = document.createRange();
+        range.selectNodeContents(cell);
+        sel.removeAllRanges();
+        sel.addRange(range);
+      }
+
+      fireEvent.mouseUp(cell);
+
+      expect(screen.getByRole("button", { name: "Add column" })).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: "Add row" })).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: "Delete column" })).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: "Delete row" })).toBeInTheDocument();
+    });
+
+    it("adds a new column without creating duplicate header bars or tables", () => {
+      const initialTable = "| Col A | Col B |\n| --- | --- |\n| 1 | 2 |";
+      const onChange = vi.fn();
+      render(<WordRichEditor id="content" value={initialTable} onChange={onChange} />);
+
+      const cell = screen.getByText("1");
+      const sel = window.getSelection();
+      if (sel) {
+        const range = document.createRange();
+        range.selectNodeContents(cell);
+        sel.removeAllRanges();
+        sel.addRange(range);
+      }
+
+      fireEvent.mouseUp(cell);
+
+      const addColBtn = screen.getByRole("button", { name: "Add column" });
+      fireEvent.mouseDown(addColBtn);
+
+      expect(onChange).toHaveBeenCalled();
+      const lastCall = onChange.mock.calls[onChange.mock.calls.length - 1][0];
+      expect(lastCall).toContain("| Col A |");
+      expect(lastCall).toContain("| Column 3 |");
+      // Check that there is only 1 header separator row in markdown
+      const separatorRows = lastCall
+        .split("\n")
+        .filter((line: string) => /\|(?:\s*---+\s*\|)+/.test(line.trim()));
+      expect(separatorRows.length).toBe(1);
+    });
+
+    it("adds a new row to tbody without creating duplicate header bars", () => {
+      const initialTable = "| Col A | Col B |\n| --- | --- |\n| Row 1A | Row 1B |";
+      const onChange = vi.fn();
+      render(<WordRichEditor id="content" value={initialTable} onChange={onChange} />);
+
+      const cell = screen.getByText("Row 1A");
+      const sel = window.getSelection();
+      if (sel) {
+        const range = document.createRange();
+        range.selectNodeContents(cell);
+        sel.removeAllRanges();
+        sel.addRange(range);
+      }
+
+      fireEvent.mouseUp(cell);
+
+      const addRowBtn = screen.getByRole("button", { name: "Add row" });
+      fireEvent.mouseDown(addRowBtn);
+
+      expect(onChange).toHaveBeenCalled();
+      const lastCall = onChange.mock.calls[onChange.mock.calls.length - 1][0];
+      // Should still only have 1 table header divider row
+      const separatorRows = lastCall
+        .split("\n")
+        .filter((line: string) => /\|(?:\s*---+\s*\|)+/.test(line.trim()));
+      expect(separatorRows.length).toBe(1);
+    });
+  });
 });

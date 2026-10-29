@@ -23,20 +23,11 @@ function computeContentHash(input: { content?: string | null; externalUrl?: stri
   return crypto.createHash("sha256").update(source).digest("hex");
 }
 
-function assertTypeRequirements(type: string, content?: string, externalUrl?: string) {
+function assertTypeRequirements(type: string, _content?: string, externalUrl?: string) {
   if (type === "link") {
     if (!externalUrl) {
       throw new ApiError(400, 'external_url is required for type "link"', "VALIDATION_ERROR", {
         field: "external_url",
-      });
-    }
-  } else if (type === "architecture" || type === "pdf") {
-    // optional content
-  } else {
-    // required content for runbook, sop, troubleshooting, faq, and any custom type
-    if (!content || !content.trim()) {
-      throw new ApiError(400, `content is required for type "${type}"`, "VALIDATION_ERROR", {
-        field: "content",
       });
     }
   }

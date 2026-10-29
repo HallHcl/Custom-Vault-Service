@@ -261,10 +261,11 @@ export default function ResourceFormPage({ mode: modeProp }: ResourceFormPagePro
     setIsSaving(true);
     setUploadProgress(null);
     try {
+      const cleanProjectId = projectId && projectId.trim() ? projectId.trim() : null;
       const result = await createVersion.mutateAsync({
         title: title.trim() || undefined,
         type: type || undefined,
-        project_id: projectId ?? null,
+        project_id: cleanProjectId,
         content: content || undefined,
         external_url: externalUrl || undefined,
         commit_message: commitMessage || undefined,
@@ -348,10 +349,11 @@ export default function ResourceFormPage({ mode: modeProp }: ResourceFormPagePro
       setIsSaving(true);
       setUploadProgress(null);
       try {
+        const cleanProjectId = projectId && projectId.trim() ? projectId.trim() : undefined;
         const created = await createResource.mutateAsync({
           title,
           type,
-          project_id: projectId,
+          project_id: cleanProjectId,
           category: category || undefined,
           content: content || undefined,
           external_url: externalUrl || undefined,
@@ -581,7 +583,10 @@ export default function ResourceFormPage({ mode: modeProp }: ResourceFormPagePro
 
               <div className="space-y-1">
                 <div className="flex items-center justify-between">
-                  <Label htmlFor="content">Content</Label>
+                  <div className="flex items-center gap-1.5">
+                    <Label htmlFor="content">Content</Label>
+                    <span className="text-muted-foreground font-normal text-xs">(Optional)</span>
+                  </div>
                   <div className="flex items-center gap-2">
                     <input
                       ref={contentFileInputRef}

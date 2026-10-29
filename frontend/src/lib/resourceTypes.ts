@@ -53,7 +53,7 @@ export interface ResourceContentFieldErrors {
  */
 export function validateResourceContentFields(
   type: string,
-  content: string,
+  _content: string,
   externalUrl: string
 ): ResourceContentFieldErrors {
   const errors: ResourceContentFieldErrors = {};
@@ -63,14 +63,6 @@ export function validateResourceContentFields(
       errors.external_url = 'External URL is required for type "Link".';
     } else if (!HTTPS_URL_PATTERN.test(externalUrl.trim())) {
       errors.external_url = "External URL must be a valid https:// URL.";
-    }
-  } else if (type === "architecture" || type === "pdf") {
-    // Architecture and pdf do not strictly require content
-  } else {
-    // Runbook, sop, troubleshooting, faq, and all custom types require content
-    if (!content.trim()) {
-      const label = RESOURCE_TYPE_LABELS[type] || type;
-      errors.content = `Content is required for type "${label}".`;
     }
   }
 

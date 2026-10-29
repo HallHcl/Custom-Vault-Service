@@ -8,6 +8,7 @@
     "start": "node scripts/start-services.js",
     "dev": "node scripts/start-services.js",
     "build": "npm run build:backend && npm run build:frontend",
+    "deploy": "python scripts/deploy_to_server.py",
     "build:backend": "npm --prefix backend run build",
     "build:frontend": "npm --prefix frontend run build",
     "backend:dev": "npm --prefix backend run dev",

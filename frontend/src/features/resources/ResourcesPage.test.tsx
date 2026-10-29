@@ -514,6 +514,7 @@ describe("ResourcesPage", () => {
       expect(screen.getByRole("tab", { name: /version history/i })).toBeInTheDocument();
 
       // Content & Diagrams is active by default
+
       expect(await screen.findByText("My guide content")).toBeInTheDocument();
       expect(screen.queryByText("Diagrams & Attachments")).not.toBeInTheDocument();
       expect(screen.queryByText(/drag and drop diagrams or images/i)).not.toBeInTheDocument();
@@ -576,6 +577,7 @@ describe("ResourcesPage", () => {
       renderPage();
       fireEvent.click(await screen.findByText("Deploy guide"));
 
+
       expect(await screen.findByText("My guide content")).toBeInTheDocument();
       expect(screen.getByRole("button", { name: /back to resources/i })).toBeInTheDocument();
 
@@ -600,8 +602,10 @@ describe("ResourcesPage", () => {
 
       renderPage(["/resources?selected=r1"]);
 
+
+      const backBtn = await screen.findByRole("button", { name: /back to resources/i });
       expect(await screen.findByText("My guide content")).toBeInTheDocument();
-      const backBtn = screen.getByRole("button", { name: /back to resources/i });
+
       fireEvent.click(backBtn);
 
       expect(await screen.findByRole("heading", { name: "Resources", level: 1 })).toBeInTheDocument();
