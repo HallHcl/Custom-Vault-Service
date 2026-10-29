@@ -101,6 +101,8 @@ export default function ResourcesPage() {
       nextParams.delete("selected");
       const qs = nextParams.toString();
       navigate(qs ? `/resources?${qs}` : "/resources", { replace: true });
+    } else {
+      navigate("/resources");
     }
   }
 
@@ -153,9 +155,9 @@ export default function ResourcesPage() {
     if (!selected) return;
     const target = selected;
     deleteResource.mutate(target.id, {
-      onSuccess: (updated) => {
+      onSuccess: () => {
         toast({ title: "Resource deleted" });
-        setSelected((prev) => (prev && prev.id === target.id ? { ...prev, ...updated } : prev));
+        handleBackToResources();
       },
       onError: (err) => {
         toast({

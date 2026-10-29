@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-const RESOURCE_TYPES = [
+export const RESOURCE_TYPES = [
   "runbook",
   "sop",
   "architecture",
@@ -15,7 +15,7 @@ const CONTENT_REQUIRED_TYPES = new Set(["runbook", "sop", "troubleshooting", "fa
 export const createResourceSchema = z
   .object({
     project_id: z.string().uuid().optional(),
-    type: z.enum(RESOURCE_TYPES),
+    type: z.string().trim().min(1, "Type cannot be empty"),
     title: z.string().min(1),
     category: z.string().optional(),
     tags: z.array(z.string()).optional().default([]),
@@ -24,13 +24,6 @@ export const createResourceSchema = z
     commit_message: z.string().optional(),
   })
   .superRefine((data, ctx) => {
-    if (CONTENT_REQUIRED_TYPES.has(data.type) && !data.content) {
-      ctx.addIssue({
-        code: "custom",
-        path: ["content"],
-        message: `content is required for type "${data.type}"`,
-      });
-    }
     if (data.type === "link") {
       if (!data.external_url) {
         ctx.addIssue({
@@ -43,6 +36,17 @@ export const createResourceSchema = z
           code: "custom",
           path: ["external_url"],
           message: "external_url must be a valid https URL",
+        });
+      }
+    } else if (data.type === "architecture" || data.type === "pdf") {
+      // Architecture and pdf do not strictly require content
+    } else {
+      // Runbook, sop, troubleshooting, faq, and all custom types require content
+      if (!data.content || !data.content.trim()) {
+        ctx.addIssue({
+          code: "custom",
+          path: ["content"],
+          message: `content is required for type "${data.type}"`,
         });
       }
     }
@@ -64,6 +68,9 @@ export const createResourceVersionSchema = z
     content: z.string().optional(),
     external_url: z.string().optional(),
     commit_message: z.string().optional(),
+    title: z.string().trim().min(1, "Title cannot be empty").optional(),
+    type: z.string().trim().min(1, "Type cannot be empty").optional(),
+    project_id: z.string().uuid().nullable().optional(),
   })
   .refine((data) => Boolean(data.content) || Boolean(data.external_url), {
     message: "At least one of content or external_url must be present",
@@ -77,7 +84,7 @@ export const listResourcesQuerySchema = z.object({
   order: z.enum(["asc", "desc"]),
   search: z.string().optional(),
   project_id: z.string().uuid().optional(),
-  type: z.enum(RESOURCE_TYPES).optional(),
+  type: z.string().optional(),
   deleted: z.enum(["false", "true", "all"]),
 });
 

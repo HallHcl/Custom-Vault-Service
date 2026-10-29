@@ -119,12 +119,13 @@ function renderPage(initialEntries = ["/resources"]) {
       <MemoryRouter initialEntries={initialEntries}>
         <Routes>
           <Route path="/resources" element={<ResourcesPage />} />
+          <Route path="/resources/:id" element={<ResourcesPage />} />
           <Route path="/resources/:id/new-version" element={<ResourceFormPage mode="new-version" />} />
         </Routes>
       </MemoryRouter>
     </QueryClientProvider>
   );
-  return { invalidateSpy, unmount };
+  return { invalidateSpy, unmount, queryClient };
 }
 
 describe("ResourcesPage", () => {
@@ -325,12 +326,14 @@ describe("ResourcesPage", () => {
   });
 
   describe("delete", () => {
-    it("opens a confirmation with cascade-accurate copy (version history preserved) and deletes on confirm", async () => {
+    it("opens a confirmation with cascade-accurate copy (version history preserved), deletes on confirm, and navigates back to list", async () => {
       useAuthMock.mockReturnValue({ roles: ["admin"], isLoading: false });
       mockGetByPath({ resources: ok(paginated([ACTIVE_RESOURCE])) });
       deleteMock.mockResolvedValue(ok({ ...ACTIVE_RESOURCE, deleted_at: "2026-02-01T00:00:00.000Z" }));
 
-      renderPage();
+      const { queryClient } = renderPage();
+      const removeSpy = vi.spyOn(queryClient, "removeQueries");
+
       fireEvent.click(await screen.findByText("Deploy guide"));
       fireEvent.click(await screen.findByRole("button", { name: /^delete$/i }));
 
@@ -345,6 +348,35 @@ describe("ResourcesPage", () => {
       expect(deleteMock).toHaveBeenCalledWith("/api/resources/{id}", {
         params: { path: { id: "r1" } },
       });
+
+      expect(removeSpy).toHaveBeenCalledWith({ queryKey: ["resources", "r1"] });
+      await waitFor(() => {
+        expect(screen.queryByText("Back to resources")).not.toBeInTheDocument();
+      });
+      expect(screen.getByRole("button", { name: /new resource/i })).toBeInTheDocument();
+    });
+
+    it("navigates back to /resources when deleting a resource opened directly via /resources/:id route", async () => {
+      useAuthMock.mockReturnValue({ roles: ["admin"], isLoading: false });
+      mockGetByPath({
+        resources: ok(paginated([ACTIVE_RESOURCE])),
+        resourceDetail: ok(ACTIVE_RESOURCE),
+      });
+      deleteMock.mockResolvedValue(ok({ ...ACTIVE_RESOURCE, deleted_at: "2026-02-01T00:00:00.000Z" }));
+
+      renderPage(["/resources/r1"]);
+
+      expect(await screen.findByText("Back to resources")).toBeInTheDocument();
+      fireEvent.click(await screen.findByRole("button", { name: /^delete$/i }));
+
+      const dialog = screen.getByRole("dialog");
+      fireEvent.click(within(dialog).getByRole("button", { name: /^delete$/i }));
+
+      await waitFor(() => expect(deleteMock).toHaveBeenCalledTimes(1));
+      await waitFor(() => {
+        expect(screen.queryByText("Back to resources")).not.toBeInTheDocument();
+      });
+      expect(screen.getByRole("button", { name: /new resource/i })).toBeInTheDocument();
     });
   });
 

@@ -16,7 +16,7 @@ export const RESOURCE_TYPES: ResourceType[] = [
   "pdf",
 ];
 
-export const RESOURCE_TYPE_LABELS: Record<ResourceType, string> = {
+export const RESOURCE_TYPE_LABELS: Record<string, string> = {
   runbook: "Runbook",
   sop: "SOP",
   architecture: "Architecture",
@@ -30,7 +30,7 @@ export const RESOURCE_TYPE_LABELS: Record<ResourceType, string> = {
 // mirrored in createResourceSchema's superRefine): these 4 types require
 // non-empty content; `link` requires an https external_url. architecture
 // and pdf have no type-specific requirement beyond "some content field".
-const CONTENT_REQUIRED_TYPES = new Set<ResourceType>([
+export const CONTENT_REQUIRED_TYPES = new Set<ResourceType>([
   "runbook",
   "sop",
   "troubleshooting",
@@ -52,21 +52,25 @@ export interface ResourceContentFieldErrors {
  * instead of re-deriving it.
  */
 export function validateResourceContentFields(
-  type: ResourceType,
+  type: string,
   content: string,
   externalUrl: string
 ): ResourceContentFieldErrors {
   const errors: ResourceContentFieldErrors = {};
-
-  if (CONTENT_REQUIRED_TYPES.has(type) && !content.trim()) {
-    errors.content = `Content is required for type "${RESOURCE_TYPE_LABELS[type]}".`;
-  }
 
   if (type === "link") {
     if (!externalUrl.trim()) {
       errors.external_url = 'External URL is required for type "Link".';
     } else if (!HTTPS_URL_PATTERN.test(externalUrl.trim())) {
       errors.external_url = "External URL must be a valid https:// URL.";
+    }
+  } else if (type === "architecture" || type === "pdf") {
+    // Architecture and pdf do not strictly require content
+  } else {
+    // Runbook, sop, troubleshooting, faq, and all custom types require content
+    if (!content.trim()) {
+      const label = RESOURCE_TYPE_LABELS[type] || type;
+      errors.content = `Content is required for type "${label}".`;
     }
   }
 

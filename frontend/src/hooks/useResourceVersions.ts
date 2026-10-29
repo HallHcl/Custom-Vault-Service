@@ -64,6 +64,9 @@ export interface CreateResourceVersionInput {
   content?: string;
   external_url?: string;
   commit_message?: string;
+  title?: string;
+  type?: string;
+  project_id?: string | null;
 }
 
 export type CreateVersionResult = components["schemas"]["CreateVersionResult"];
@@ -84,7 +87,7 @@ export function useCreateResourceVersion(resourceId: string) {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: [KEY, resourceId] });
-      queryClient.invalidateQueries({ queryKey: ["resources", resourceId] });
+      queryClient.invalidateQueries({ queryKey: ["resources"] });
     },
   });
 }

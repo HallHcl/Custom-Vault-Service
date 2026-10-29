@@ -36,14 +36,7 @@ export type PeopleType =
   | "project_owner"
   | "approver";
 
-export type ResourceType =
-  | "runbook"
-  | "sop"
-  | "architecture"
-  | "troubleshooting"
-  | "faq"
-  | "link"
-  | "pdf";
+export type ResourceType = string;
 
 export interface Client {
   id: string;

@@ -24,15 +24,21 @@ function computeContentHash(input: { content?: string | null; externalUrl?: stri
 }
 
 function assertTypeRequirements(type: string, content?: string, externalUrl?: string) {
-  if (CONTENT_REQUIRED_TYPES.has(type) && !content) {
-    throw new ApiError(400, `content is required for type "${type}"`, "VALIDATION_ERROR", {
-      field: "content",
-    });
-  }
-  if (type === "link" && !externalUrl) {
-    throw new ApiError(400, 'external_url is required for type "link"', "VALIDATION_ERROR", {
-      field: "external_url",
-    });
+  if (type === "link") {
+    if (!externalUrl) {
+      throw new ApiError(400, 'external_url is required for type "link"', "VALIDATION_ERROR", {
+        field: "external_url",
+      });
+    }
+  } else if (type === "architecture" || type === "pdf") {
+    // optional content
+  } else {
+    // required content for runbook, sop, troubleshooting, faq, and any custom type
+    if (!content || !content.trim()) {
+      throw new ApiError(400, `content is required for type "${type}"`, "VALIDATION_ERROR", {
+        field: "content",
+      });
+    }
   }
 }
 
@@ -360,12 +366,36 @@ export async function createVersion(
   actingPeopleId: string
 ): Promise<CreateVersionResult> {
   return withTransaction(async (tx) => {
-    const lockResult = await tx.query<{ id: string; current_version_id: string | null }>(
-      `SELECT id, current_version_id FROM resources WHERE id = $1 AND deleted_at IS NULL FOR UPDATE`,
+    const lockResult = await tx.query<{
+      id: string;
+      current_version_id: string | null;
+      type: string;
+      project_id: string | null;
+      title: string;
+    }>(
+      `SELECT id, current_version_id, type, project_id, title FROM resources WHERE id = $1 AND deleted_at IS NULL FOR UPDATE`,
       [resourceId]
     );
     const resource = lockResult.rows[0];
     if (!resource) throw new ApiError(404, "Resource not found");
+
+    const effectiveType = input.type !== undefined ? input.type : resource.type;
+    assertTypeRequirements(effectiveType, input.content, input.external_url);
+
+    if (input.project_id) {
+      const projectCheck = await tx.query(
+        `SELECT id FROM projects WHERE id = $1 AND deleted_at IS NULL`,
+        [input.project_id]
+      );
+      if (projectCheck.rows.length === 0) {
+        throw new ApiError(
+          400,
+          "project_id does not reference an existing project",
+          "VALIDATION_ERROR",
+          { field: "project_id" }
+        );
+      }
+    }
 
     const nextVersionResult = await tx.query<{ next_version: number }>(
       `SELECT COALESCE(MAX(version_number), 0) + 1 AS next_version
@@ -407,9 +437,19 @@ export async function createVersion(
     );
     const version = versionResult.rows[0];
 
+    const newTitle = input.title !== undefined ? input.title : resource.title;
+    const newType = input.type !== undefined ? input.type : resource.type;
+    const newProjectId = input.project_id !== undefined ? input.project_id : resource.project_id;
+
     await tx.query(
-      `UPDATE resources SET current_version_id = $2, updated_at = now() WHERE id = $1`,
-      [resourceId, version.id]
+      `UPDATE resources
+       SET current_version_id = $2,
+           title = $3,
+           type = $4,
+           project_id = $5,
+           updated_at = now()
+       WHERE id = $1`,
+      [resourceId, version.id, newTitle, newType, newProjectId]
     );
 
     await logActivity(
@@ -421,6 +461,18 @@ export async function createVersion(
       version,
       tx
     );
+
+    if (newTitle !== resource.title || newType !== resource.type || newProjectId !== resource.project_id) {
+      await logActivity(
+        "resource",
+        resourceId,
+        "update",
+        actingPeopleId,
+        { title: resource.title, type: resource.type, project_id: resource.project_id },
+        { title: newTitle, type: newType, project_id: newProjectId },
+        tx
+      );
+    }
 
     return { version, warning };
   });
@@ -547,3 +599,26 @@ export async function restoreResource(id: string, actingPeopleId: string): Promi
 
 // Exported so tests can compute an expected hash independently and compare.
 export const _internal = { computeContentHash };
+
+
+export async function getDistinctResourceTypes(): Promise<string[]> {
+  const result = await pool.query<{ type: string }>(
+    `SELECT DISTINCT type
+     FROM resources
+     WHERE type IS NOT NULL AND TRIM(type) != '' AND deleted_at IS NULL
+     ORDER BY type ASC`
+  );
+  const typesFromDb = result.rows.map((r) => r.type);
+  const PREDEFINED_TYPES = [
+    "runbook",
+    "sop",
+    "architecture",
+    "troubleshooting",
+    "faq",
+    "link",
+    "pdf",
+  ];
+  const combined = new Set<string>(PREDEFINED_TYPES);
+  typesFromDb.forEach((t) => combined.add(t));
+  return Array.from(combined);
+}

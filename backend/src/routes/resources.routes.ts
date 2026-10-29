@@ -6,6 +6,7 @@ import {
   getOne,
   getVersionHandler,
   list,
+  listTypes,
   listVersionsHandler,
   remove,
   restore,
@@ -26,6 +27,7 @@ import {
 const router = Router();
 
 router.get("/", list);
+router.get("/types", listTypes);
 router.post("/", requireAnyRole(["admin", "member"]), create);
 router.get("/:id", getOne);
 router.patch("/:id", requireRole("admin"), updateMetadataHandler);

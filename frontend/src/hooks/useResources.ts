@@ -75,6 +75,16 @@ export function useResource(id: string | undefined) {
   });
 }
 
+export function useResourceTypes() {
+  return useQuery({
+    queryKey: [KEY, "types"],
+    queryFn: async () => {
+      const result = await apiClient.GET("/api/resources/types");
+      return unwrapApiResult(result);
+    },
+  });
+}
+
 // content_hash is deliberately absent: it's always computed server-side
 // (sha256 over content/external_url) and there is no field for the client
 // to submit it through. project_id/type/title/category/tags are the
@@ -138,7 +148,17 @@ export function useDeleteResource() {
       });
       return unwrapApiResult(result);
     },
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: [KEY] }),
+    onSuccess: (_data, id) => {
+      queryClient.removeQueries({ queryKey: [KEY, id] });
+      queryClient.removeQueries({ queryKey: ["resourceVersions", id] });
+      queryClient.removeQueries({ queryKey: ["resourceAttachments", id] });
+      queryClient.invalidateQueries({
+        predicate: (query) =>
+          Array.isArray(query.queryKey) &&
+          query.queryKey[0] === KEY &&
+          query.queryKey[1] !== id,
+      });
+    },
   });
 }
 

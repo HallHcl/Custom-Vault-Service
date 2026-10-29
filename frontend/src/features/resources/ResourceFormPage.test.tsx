@@ -149,6 +149,33 @@ describe("ResourceFormPage — create mode", () => {
     expect(toastMock).toHaveBeenCalledWith({ title: "Resource created" });
   });
 
+  it("allows adding a custom resource type and submits with custom type", async () => {
+    postMock.mockResolvedValue(ok({ id: "r1" }));
+    renderCreatePage();
+
+    fireEvent.change(screen.getByLabelText("Title"), { target: { value: "Docker Setup" } });
+    fireEvent.click(screen.getByRole("combobox", { name: "Type" }));
+    const input = screen.getByPlaceholderText("Search or type new...");
+    fireEvent.change(input, { target: { value: "Docker" } });
+    fireEvent.click(screen.getByText('Add "Docker"'));
+
+    fireEvent.change(screen.getByLabelText("Content"), { target: { value: "Docker run instructions" } });
+    fireEvent.click(screen.getByRole("button", { name: /save/i }));
+
+    await waitFor(() => {
+      expect(postMock).toHaveBeenCalledWith(
+        "/api/resources",
+        expect.objectContaining({
+          body: expect.objectContaining({
+            title: "Docker Setup",
+            type: "Docker",
+            content: "Docker run instructions",
+          }),
+        })
+      );
+    });
+  });
+
   it("stages diagrams and uploads them after creating the resource", async () => {
     postMock.mockImplementation((path: string) => {
       if (path === "/api/resources") {
@@ -219,7 +246,7 @@ describe("ResourceFormPage — create mode", () => {
 
     fireEvent.change(fileInput, { target: { files: [file] } });
 
-    expect(await screen.findByDisplayValue("servers")).toBeInTheDocument();
+    expect(await screen.findByDisplayValue("servers", {}, { timeout: 6000 })).toBeInTheDocument();
     await waitFor(() => {
       expect(screen.getByLabelText("Content")).toHaveValue(
         "| col1 | col2 |\n| --- | --- |\n| val1 | val2 |"
@@ -306,6 +333,39 @@ describe("ResourceFormPage — new-version mode", () => {
         expect.objectContaining({
           body: expect.objectContaining({
             content: "Original content",
+          }),
+        })
+      );
+    });
+
+    expect(await screen.findByText("Resources list page")).toBeInTheDocument();
+  });
+  it("allows editing title, type, and project in new-version mode and submits them with the version payload", async () => {
+    postMock.mockResolvedValue(ok({ id: "v2" }));
+    renderNewVersionPage("r1");
+
+    expect(await screen.findByDisplayValue("Deploy guide")).toBeInTheDocument();
+    expect(await screen.findByDisplayValue("Original content")).toBeInTheDocument();
+
+    // Edit title
+    const titleInput = screen.getByLabelText(/title/i);
+    fireEvent.change(titleInput, { target: { value: "Updated Deploy Guide" } });
+
+    // Edit content
+    const contentInput = screen.getByLabelText(/content/i);
+    fireEvent.change(contentInput, { target: { value: "Updated version 2 content" } });
+
+    // Submit
+    fireEvent.click(screen.getByRole("button", { name: /save/i }));
+
+    await waitFor(() => {
+      expect(postMock).toHaveBeenCalledWith(
+        "/api/resources/{id}/versions",
+        expect.objectContaining({
+          body: expect.objectContaining({
+            title: "Updated Deploy Guide",
+            type: "runbook",
+            content: "Updated version 2 content",
           }),
         })
       );

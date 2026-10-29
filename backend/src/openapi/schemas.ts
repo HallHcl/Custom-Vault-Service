@@ -77,9 +77,7 @@ export const PeopleTypeSchema = z
   .enum(["internal_engineer", "vendor", "client_contact", "project_owner", "approver"])
   .openapi("PeopleType");
 
-export const ResourceTypeSchema = z
-  .enum(["runbook", "sop", "architecture", "troubleshooting", "faq", "link", "pdf"])
-  .openapi("ResourceType");
+export const ResourceTypeSchema = z.string().openapi("ResourceType");
 
 export const ServiceTypeSchema = z
   .enum(["application", "database", "proxy", "monitoring", "repository", "metrics", "jump_host", "other"])

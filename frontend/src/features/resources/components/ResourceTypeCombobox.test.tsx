@@ -63,4 +63,21 @@ describe("ResourceTypeCombobox", () => {
 
     expect(onChange).toHaveBeenCalledWith(undefined);
   });
+
+  it("renders in form mode with 'Select or type...' placeholder and allows adding custom type", () => {
+    const onChange = vi.fn();
+    render(<ResourceTypeCombobox mode="form" onChange={onChange} />);
+    expect(screen.getByRole("combobox")).toHaveTextContent("Select or type...");
+
+    fireEvent.click(screen.getByRole("combobox"));
+    const input = screen.getByPlaceholderText("Search or type new...");
+
+    // Type Docker
+    fireEvent.change(input, { target: { value: "Docker" } });
+    const addOption = screen.getByText('Add "Docker"');
+    expect(addOption).toBeInTheDocument();
+
+    fireEvent.click(addOption);
+    expect(onChange).toHaveBeenCalledWith("Docker");
+  });
 });

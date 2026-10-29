@@ -186,6 +186,38 @@ describe("POST /api/resources — creation and type validation", () => {
     expect(res.status).toBe(201);
     expect(res.body.current_version.external_url).toBe("https://example.com/docs");
   });
+
+  it("creates a resource with a custom type (201) when content is provided", async () => {
+    const res = await createResourceAs(adminToken, {
+      type: "Docker",
+      title: `${PREFIX}CustomDocker`,
+      content: "Docker setup guide",
+    });
+
+    expect(res.status).toBe(201);
+    expect(res.body.type).toBe("Docker");
+  });
+
+  it("returns 400 VALIDATION_ERROR when content is missing for a custom type", async () => {
+    const res = await createResourceAs(adminToken, {
+      type: "CustomType",
+      title: `${PREFIX}NoContentCustom`,
+    });
+
+    expect(res.status).toBe(400);
+    expect(res.body.error.code).toBe("VALIDATION_ERROR");
+  });
+
+  it("lists distinct resource types via GET /api/resources/types", async () => {
+    const res = await request(app)
+      .get("/api/resources/types")
+      .set("Authorization", `Bearer ${adminToken}`);
+
+    expect(res.status).toBe(200);
+    expect(Array.isArray(res.body)).toBe(true);
+    expect(res.body).toContain("runbook");
+    expect(res.body).toContain("Docker");
+  });
 });
 
 describe("GET /api/resources (list) and /api/resources/:id (detail)", () => {
@@ -593,5 +625,89 @@ describe("environments.vpn_resource_id", () => {
       .get(`/api/environments/${environmentId}`)
       .set("Authorization", `Bearer ${adminToken}`);
     expect(refetched.body.vpn_resource_id).toBe(resource.id);
+  });
+});
+
+describe("POST /api/resources/:id/versions with metadata updates", () => {
+  it("allows updating title, type, and project_id when creating a new version", async () => {
+    const createRes = await createResourceAs(memberToken, {
+      type: "runbook",
+      title: `${PREFIX}OriginalRunbook`,
+      content: "version 1 content",
+      project_id: projectId,
+    });
+    const resource = createRes.body;
+
+    const versionRes = await request(app)
+      .post(`/api/resources/${resource.id}/versions`)
+      .set("Authorization", `Bearer ${memberToken}`)
+      .send({
+        content: "version 2 content",
+        title: `${PREFIX}UpdatedRunbook`,
+        type: "Docker",
+        project_id: null,
+      });
+
+    expect(versionRes.status).toBe(201);
+    expect(versionRes.body.version.version_number).toBe(2);
+
+    const refetched = await request(app)
+      .get(`/api/resources/${resource.id}`)
+      .set("Authorization", `Bearer ${memberToken}`);
+
+    expect(refetched.status).toBe(200);
+    expect(refetched.body.title).toBe(`${PREFIX}UpdatedRunbook`);
+    expect(refetched.body.type).toBe("Docker");
+    expect(refetched.body.project_id).toBeNull();
+    expect(refetched.body.current_version.version_number).toBe(2);
+  });
+
+  it("validates type requirements when type is changed on new version", async () => {
+    const createRes = await createResourceAs(adminToken, {
+      type: "architecture",
+      title: `${PREFIX}ArchToLink`,
+      content: "some text",
+    });
+    const resource = createRes.body;
+
+    // Change type to link without external_url -> should fail 400
+    const failRes = await request(app)
+      .post(`/api/resources/${resource.id}/versions`)
+      .set("Authorization", `Bearer ${adminToken}`)
+      .send({
+        type: "link",
+        content: "some text",
+      });
+    expect(failRes.status).toBe(400);
+
+    // Change type to link with valid external_url -> should succeed
+    const successRes = await request(app)
+      .post(`/api/resources/${resource.id}/versions`)
+      .set("Authorization", `Bearer ${adminToken}`)
+      .send({
+        type: "link",
+        external_url: "https://example.com/docs",
+      });
+    expect(successRes.status).toBe(201);
+  });
+
+  it("rejects an invalid project_id on new version", async () => {
+    const createRes = await createResourceAs(adminToken, {
+      type: "sop",
+      title: `${PREFIX}InvalidProjectTest`,
+      content: "sop text",
+    });
+    const resource = createRes.body;
+
+    const res = await request(app)
+      .post(`/api/resources/${resource.id}/versions`)
+      .set("Authorization", `Bearer ${adminToken}`)
+      .send({
+        content: "v2 sop text",
+        project_id: "00000000-0000-0000-0000-000000000000",
+      });
+    expect(res.status).toBe(400);
+    expect(res.body.error.code).toBe("VALIDATION_ERROR");
+    expect(res.body.error.message).toMatch(/project_id/);
   });
 });

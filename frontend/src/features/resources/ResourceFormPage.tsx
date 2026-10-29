@@ -2,18 +2,13 @@ import { useEffect, useRef, useState } from "react";
 import type { FormEvent } from "react";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { useQueryClient } from "@tanstack/react-query";
-import { ArrowLeft, FileUp } from "lucide-react";
+import { ArrowLeft, FileUp, Loader2 } from "lucide-react";
+import { uploadResourceAttachmentWithProgress } from "@/api/uploadWithProgress";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+import { ResourceTypeCombobox } from "./components/ResourceTypeCombobox";
 import { ErrorState } from "@/components/state/ErrorState";
 import { LoadingState } from "@/components/state/LoadingState";
 import { EmptyState } from "@/components/state/EmptyState";
@@ -22,7 +17,6 @@ import { HOME_SEGMENT, useBreadcrumbs } from "@/components/layout/BreadcrumbsCon
 import { apiErrorMessage } from "@/api/errors";
 import { toast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
-import { apiClient, unwrapApiResult } from "@/api/client";
 import { useCreateResource, useResource } from "@/hooks/useResources";
 import { useCreateResourceVersion, useResourceVersion } from "@/hooks/useResourceVersions";
 import { ImageDropzone, formatBytes } from "./components/ImageDropzone";
@@ -31,8 +25,6 @@ import { WordRichEditor } from "./components/WordRichEditor";
 import { convertSheetRowsToMarkdown } from "./utils/markdownUtils";
 import type { ResourceType } from "@/types";
 import {
-  RESOURCE_TYPE_LABELS,
-  RESOURCE_TYPES,
   validateResourceContentFields,
   type ResourceContentFieldErrors,
 } from "@/lib/resourceTypes";
@@ -131,6 +123,13 @@ export default function ResourceFormPage({ mode: modeProp }: ResourceFormPagePro
   const [fieldErrors, setFieldErrors] = useState<FormFieldErrors>({});
   const [showDuplicateConfirm, setShowDuplicateConfirm] = useState(false);
   const [stagedFiles, setStagedFiles] = useState<File[]>([]);
+  const [isSaving, setIsSaving] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState<{
+    current: number;
+    total: number;
+    fileName: string;
+    percent: number;
+  } | null>(null);
   const contentFileInputRef = useRef<HTMLInputElement | null>(null);
 
   async function handleContentFileChange(e: React.ChangeEvent<HTMLInputElement>) {
@@ -213,6 +212,16 @@ export default function ResourceFormPage({ mode: modeProp }: ResourceFormPagePro
     }
   }
 
+  const hasInitializedMetadata = useRef(false);
+  useEffect(() => {
+    if (!isNewVersion || !resource || hasInitializedMetadata.current) return;
+    setTitle(resource.title ?? "");
+    setType((resource.type as ResourceType) ?? "runbook");
+    setProjectId(resource.project_id ?? undefined);
+    setCategory(resource.category ?? "");
+    hasInitializedMetadata.current = true;
+  }, [isNewVersion, resource]);
+
   // Pre-fill form when prefillVersion is loaded in new-version mode
   useEffect(() => {
     if (!isNewVersion || !prefillVersion) return;
@@ -231,6 +240,14 @@ export default function ResourceFormPage({ mode: modeProp }: ResourceFormPagePro
 
   function isDuplicateOfBaseline(): boolean {
     if (!isNewVersion || !baselineVersion) return false;
+    if (
+      resource &&
+      (title.trim() !== (resource.title ?? "").trim() ||
+        type !== resource.type ||
+        (projectId ?? null) !== (resource.project_id ?? null))
+    ) {
+      return false;
+    }
     const baselineSource = baselineVersion.content || baselineVersion.external_url || "";
     const submittedSource = content || externalUrl || "";
     return submittedSource === baselineSource;
@@ -241,8 +258,13 @@ export default function ResourceFormPage({ mode: modeProp }: ResourceFormPagePro
   }
 
   async function submitNewVersion() {
+    setIsSaving(true);
+    setUploadProgress(null);
     try {
       const result = await createVersion.mutateAsync({
+        title: title.trim() || undefined,
+        type: type || undefined,
+        project_id: projectId ?? null,
         content: content || undefined,
         external_url: externalUrl || undefined,
         commit_message: commitMessage || undefined,
@@ -251,16 +273,26 @@ export default function ResourceFormPage({ mode: modeProp }: ResourceFormPagePro
       if (stagedFiles.length > 0 && resourceId && result.version?.id) {
         let failCount = 0;
         let lastErrorMessage = "";
+        let fileIdx = 0;
         for (const file of stagedFiles) {
+          fileIdx++;
+          setUploadProgress({
+            current: fileIdx,
+            total: stagedFiles.length,
+            fileName: file.name,
+            percent: 0,
+          });
           try {
-            const formData = new FormData();
-            formData.append("file", file);
-            formData.append("created_in_version_id", result.version.id);
-            const uploadRes = await apiClient.POST("/api/resources/{id}/attachments", {
-              params: { path: { id: resourceId } },
-              body: formData as unknown as { file: string },
+            await uploadResourceAttachmentWithProgress({
+              resourceId,
+              file,
+              createdInVersionId: result.version.id,
+              onProgress: ({ percent }) => {
+                setUploadProgress((prev) =>
+                  prev ? { ...prev, percent } : { current: fileIdx, total: stagedFiles.length, fileName: file.name, percent }
+                );
+              },
             });
-            await unwrapApiResult(uploadRes);
           } catch (err) {
             failCount++;
             lastErrorMessage = apiErrorMessage(err);
@@ -291,11 +323,15 @@ export default function ResourceFormPage({ mode: modeProp }: ResourceFormPagePro
         description: apiErrorMessage(err),
         variant: "destructive",
       });
+    } finally {
+      setIsSaving(false);
+      setUploadProgress(null);
     }
   }
 
   async function handleSubmit(event: FormEvent) {
     event.preventDefault();
+    if (isSaving || createResource.isPending || createVersion.isPending) return;
 
     if (!isNewVersion) {
       const errors: FormFieldErrors = validateResourceContentFields(type, content, externalUrl);
@@ -309,6 +345,8 @@ export default function ResourceFormPage({ mode: modeProp }: ResourceFormPagePro
       }
       setFieldErrors({});
 
+      setIsSaving(true);
+      setUploadProgress(null);
       try {
         const created = await createResource.mutateAsync({
           title,
@@ -323,18 +361,26 @@ export default function ResourceFormPage({ mode: modeProp }: ResourceFormPagePro
         if (stagedFiles.length > 0 && created?.id) {
           let failCount = 0;
           let lastErrorMessage = "";
+          let fileIdx = 0;
           for (const file of stagedFiles) {
+            fileIdx++;
+            setUploadProgress({
+              current: fileIdx,
+              total: stagedFiles.length,
+              fileName: file.name,
+              percent: 0,
+            });
             try {
-              const formData = new FormData();
-              formData.append("file", file);
-              if (created.current_version?.id) {
-                formData.append("created_in_version_id", created.current_version.id);
-              }
-              const uploadRes = await apiClient.POST("/api/resources/{id}/attachments", {
-                params: { path: { id: created.id } },
-                body: formData as unknown as { file: string },
+              await uploadResourceAttachmentWithProgress({
+                resourceId: created.id,
+                file,
+                createdInVersionId: created.current_version?.id,
+                onProgress: ({ percent }) => {
+                  setUploadProgress((prev) =>
+                    prev ? { ...prev, percent } : { current: fileIdx, total: stagedFiles.length, fileName: file.name, percent }
+                  );
+                },
               });
-              await unwrapApiResult(uploadRes);
             } catch (err) {
               failCount++;
               lastErrorMessage = apiErrorMessage(err);
@@ -364,11 +410,19 @@ export default function ResourceFormPage({ mode: modeProp }: ResourceFormPagePro
           description: apiErrorMessage(err),
           variant: "destructive",
         });
+      } finally {
+        setIsSaving(false);
+        setUploadProgress(null);
       }
     } else if (resourceId) {
-      const targetType = resource?.type ?? "runbook";
-      const errors = validateResourceContentFields(targetType, content, externalUrl);
-      if (errors.content || errors.external_url) {
+      const targetType = type || resource?.type || "runbook";
+      const errors: FormFieldErrors = {
+        ...validateResourceContentFields(targetType, content, externalUrl),
+      };
+      if (!title.trim()) {
+        errors.title = "Title is required.";
+      }
+      if (errors.title || errors.content || errors.external_url) {
         setFieldErrors(errors);
         focusFirstInvalid(errors);
         return;
@@ -389,7 +443,7 @@ export default function ResourceFormPage({ mode: modeProp }: ResourceFormPagePro
     await submitNewVersion();
   }
 
-  const isSubmitting = createResource.isPending || createVersion.isPending;
+  const isSubmitting = isSaving || createResource.isPending || createVersion.isPending;
 
   // Back link URL and label
   const backTo = isNewVersion && resourceId ? `/resources?selected=${resourceId}` : "/resources";
@@ -479,53 +533,46 @@ export default function ResourceFormPage({ mode: modeProp }: ResourceFormPagePro
         ) : (
           <form onSubmit={handleSubmit} noValidate>
             <CardContent className="space-y-4">
+              <div className="space-y-1">
+                <Label htmlFor="title">Title</Label>
+                <Input
+                  id="title"
+                  value={title}
+                  onChange={(e) => setTitle(e.target.value)}
+                  required
+                  aria-invalid={!!fieldErrors.title}
+                  aria-describedby={fieldErrors.title ? errorId("title") : undefined}
+                  className={cn(fieldErrors.title && INVALID_CONTROL)}
+                />
+                {fieldErrors.title && (
+                  <p id={errorId("title")} className="text-xs text-danger">
+                    {fieldErrors.title}
+                  </p>
+                )}
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className="space-y-1">
+                  <Label htmlFor="type">Type</Label>
+                  <ResourceTypeCombobox
+                    id="type"
+                    mode="form"
+                    value={type}
+                    onChange={(v) => setType((v as ResourceType) ?? "runbook")}
+                    aria-label="Type"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <Label htmlFor="project">Project</Label>
+                  <ProjectPicker id="project" value={projectId} onChange={setProjectId} placeholder="None" />
+                </div>
+              </div>
+
               {!isNewVersion && (
-                <>
-                  <div className="space-y-1">
-                    <Label htmlFor="title">Title</Label>
-                    <Input
-                      id="title"
-                      value={title}
-                      onChange={(e) => setTitle(e.target.value)}
-                      required
-                      aria-invalid={!!fieldErrors.title}
-                      aria-describedby={fieldErrors.title ? errorId("title") : undefined}
-                      className={cn(fieldErrors.title && INVALID_CONTROL)}
-                    />
-                    {fieldErrors.title && (
-                      <p id={errorId("title")} className="text-xs text-danger">
-                        {fieldErrors.title}
-                      </p>
-                    )}
-                  </div>
-
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    <div className="space-y-1">
-                      <Label htmlFor="type">Type</Label>
-                      <Select value={type} onValueChange={(v) => setType(v as ResourceType)}>
-                        <SelectTrigger id="type" aria-label="Type">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {RESOURCE_TYPES.map((t) => (
-                            <SelectItem key={t} value={t}>
-                              {RESOURCE_TYPE_LABELS[t]}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <div className="space-y-1">
-                      <Label htmlFor="project">Project</Label>
-                      <ProjectPicker id="project" value={projectId} onChange={setProjectId} placeholder="None" />
-                    </div>
-                  </div>
-
-                  <div className="space-y-1">
-                    <Label htmlFor="category">Category</Label>
-                    <Input id="category" value={category} onChange={(e) => setCategory(e.target.value)} />
-                  </div>
-                </>
+                <div className="space-y-1">
+                  <Label htmlFor="category">Category</Label>
+                  <Input id="category" value={category} onChange={(e) => setCategory(e.target.value)} />
+                </div>
               )}
 
               {isNewVersion && isPrefillLoading && (
@@ -712,15 +759,46 @@ export default function ResourceFormPage({ mode: modeProp }: ResourceFormPagePro
               </div>
             </CardContent>
 
+            {uploadProgress && (
+              <div className="mx-6 mb-4 rounded-lg border border-primary/30 bg-primary/5 p-4 space-y-2.5" role="progressbar" aria-valuenow={uploadProgress.percent} aria-valuemin={0} aria-valuemax={100}>
+                <div className="flex items-center justify-between text-xs">
+                  <span className="font-semibold text-primary flex items-center gap-1.5">
+                    <Loader2 className="h-4 w-4 animate-spin shrink-0" />
+                    Uploading attachment ({uploadProgress.current} of {uploadProgress.total}): {uploadProgress.fileName}
+                  </span>
+                  <span className="font-mono font-bold text-foreground">
+                    {uploadProgress.percent}%
+                  </span>
+                </div>
+                <div className="h-2.5 w-full overflow-hidden rounded-full bg-secondary">
+                  <div
+                    className="h-full bg-primary transition-all duration-150 ease-out"
+                    style={{ width: `${uploadProgress.percent}%` }}
+                  />
+                </div>
+                <p className="text-[11px] text-muted-foreground">
+                  Please wait while your files are being uploaded. Do not close or refresh this page.
+                </p>
+              </div>
+            )}
+
             <CardFooter className="flex justify-end gap-2 border-t border-border pt-4">
-              <Button type="button" variant="outline" onClick={handleCancel}>
+              <Button type="button" variant="outline" onClick={handleCancel} disabled={isSubmitting}>
                 Cancel
               </Button>
               <Button
                 type="submit"
                 disabled={isSubmitting || (isNewVersion && isPrefillLoading)}
+                className="gap-2"
               >
-                {isSubmitting ? "Saving..." : "Save"}
+                {isSubmitting ? (
+                  <>
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    {uploadProgress ? `Uploading (${uploadProgress.percent}%)...` : "Saving..."}
+                  </>
+                ) : (
+                  "Save"
+                )}
               </Button>
             </CardFooter>
           </form>

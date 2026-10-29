@@ -15,6 +15,7 @@ import {
   ListResourcesParams,
   listVersions,
   restoreResource,
+  getDistinctResourceTypes,
   softDeleteResource,
   updateMetadata,
 } from "../services/resources.service";
@@ -135,4 +136,10 @@ export async function createVersionHandler(req: Request, res: Response) {
 
   const result = await createVersion(paramId(req, "id"), parseResult.data, changedBy);
   res.status(201).json(result);
+}
+
+
+export async function listTypes(_req: Request, res: Response) {
+  const types = await getDistinctResourceTypes();
+  res.json(types);
 }
