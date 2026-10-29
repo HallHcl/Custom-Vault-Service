@@ -1,8 +1,11 @@
+import bcrypt from "bcrypt";
+import jwt from "jsonwebtoken";
 import { pool } from "../db/pool";
 import { withTransaction } from "../db/withTransaction";
 import { ApiError } from "../middleware/errorHandler";
 import { logActivity } from "../middleware/activityLogger";
 import { User } from "../types";
+import { RegisterInput } from "../validators/auth.validator";
 
 export interface UserWithPerson extends User {
   person_name?: string | null;
@@ -153,3 +156,113 @@ export async function findRoleNamesForUser(userId: string): Promise<string[]> {
   return result.rows.map((r) => r.name);
 }
 
+export const MAX_REGISTRATIONS = 5;
+
+export async function getRegistrationStatus(): Promise<{
+  isOpen: boolean;
+  remainingSlots: number;
+  maxAllowed: number;
+  currentCount: number;
+}> {
+  const result = await pool.query<{ count: string }>(
+    `SELECT COUNT(*) AS count FROM users WHERE is_registered = true AND deleted_at IS NULL`
+  );
+  const currentCount = parseInt(result.rows[0].count, 10);
+  const remainingSlots = Math.max(0, MAX_REGISTRATIONS - currentCount);
+  return {
+    isOpen: remainingSlots > 0,
+    remainingSlots,
+    maxAllowed: MAX_REGISTRATIONS,
+    currentCount,
+  };
+}
+
+export async function registerUser(input: RegisterInput): Promise<{
+  user: UserWithPerson;
+  token: string;
+  roles: string[];
+}> {
+  return withTransaction(async (tx) => {
+    // 1. Check registration quota
+    const countResult = await tx.query<{ count: string }>(
+      `SELECT COUNT(*) AS count FROM users WHERE is_registered = true AND deleted_at IS NULL`
+    );
+    const registeredCount = parseInt(countResult.rows[0].count, 10);
+    if (registeredCount >= MAX_REGISTRATIONS) {
+      throw new ApiError(
+        403,
+        "Registration is closed. Maximum user quota reached.",
+        "REGISTRATION_CLOSED"
+      );
+    }
+
+    // 2. Check if username already exists
+    const usernameConflict = await tx.query<User>(
+      `SELECT id FROM users WHERE username = $1 AND deleted_at IS NULL`,
+      [input.username]
+    );
+    if (usernameConflict.rows.length > 0) {
+      throw new ApiError(409, "Username is already taken", "CONFLICT");
+    }
+
+    // 3. Find admin role ID
+    const roleResult = await tx.query<{ id: string }>(
+      `SELECT id FROM roles WHERE name = 'admin' AND deleted_at IS NULL`
+    );
+    if (roleResult.rows.length === 0) {
+      throw new ApiError(500, "Admin role not found", "INTERNAL_ERROR");
+    }
+    const adminRoleId = roleResult.rows[0].id;
+
+    // 4. Default email (must be unique)
+    let candidateEmail = `${input.username.toLowerCase()}@vault.local`;
+    const emailConflict = await tx.query<User>(
+      `SELECT id FROM users WHERE email = $1 AND deleted_at IS NULL`,
+      [candidateEmail]
+    );
+    if (emailConflict.rows.length > 0) {
+      candidateEmail = `${input.username.toLowerCase()}_${Date.now()}@vault.local`;
+    }
+
+    // 5. Hash password
+    const passwordHash = await bcrypt.hash(input.password, 10);
+
+    // 6. Insert new user
+    const insertResult = await tx.query<User>(
+      `INSERT INTO users (username, email, password_hash, is_registered)
+       VALUES ($1, $2, $3, true)
+       RETURNING *`,
+      [input.username, candidateEmail, passwordHash]
+    );
+    const newUser = insertResult.rows[0];
+
+    // 7. Assign admin role
+    await tx.query(
+      `INSERT INTO user_roles (user_id, role_id) VALUES ($1, $2)`,
+      [newUser.id, adminRoleId]
+    );
+
+
+    // 9. Generate JWT token
+    const secret = process.env.JWT_SECRET;
+    if (!secret) {
+      throw new ApiError(500, "JWT secret is not configured");
+    }
+    const roles = ["admin"];
+    const token = jwt.sign(
+      { id: newUser.id, peopleId: null, roles },
+      secret,
+      { expiresIn: "8h" }
+    );
+
+    return {
+      user: {
+        ...newUser,
+        person_name: null,
+        person_email: null,
+      },
+      token,
+      roles,
+    };
+  });
+}

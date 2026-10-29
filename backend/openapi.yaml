@@ -579,14 +579,6 @@ components:
             - current_version
     ResourceType:
       type: string
-      enum:
-        - runbook
-        - sop
-        - architecture
-        - troubleshooting
-        - faq
-        - link
-        - pdf
     Resource:
       type: object
       properties:
@@ -1410,6 +1402,92 @@ components:
             - server
   parameters: {}
 paths:
+  /api/auth/register-status:
+    get:
+      tags:
+        - Auth
+      operationId: getRegistrationStatus
+      summary: Get current user registration status and remaining quota
+      security: []
+      responses:
+        "200":
+          description: Registration status
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  isOpen:
+                    type: boolean
+                  remainingSlots:
+                    type: number
+                  maxAllowed:
+                    type: number
+                  currentCount:
+                    type: number
+                required:
+                  - isOpen
+                  - remainingSlots
+                  - maxAllowed
+                  - currentCount
+  /api/auth/register:
+    post:
+      tags:
+        - Auth
+      operationId: register
+      summary: Register a new admin user
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                username:
+                  type: string
+                  minLength: 3
+                  maxLength: 50
+                  pattern: ^[a-zA-Z0-9._-]+$
+                password:
+                  type: string
+                  minLength: 6
+              required:
+                - username
+                - password
+      responses:
+        "201":
+          description: User registered successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  token:
+                    type: string
+                  user:
+                    $ref: "#/components/schemas/User"
+                required:
+                  - token
+                  - user
+        "400":
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Insufficient permissions
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: Conflict
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
   /api/auth/login:
     post:
       tags:
@@ -3614,14 +3692,7 @@ paths:
                   format: uuid
                 type:
                   type: string
-                  enum:
-                    - runbook
-                    - sop
-                    - architecture
-                    - troubleshooting
-                    - faq
-                    - link
-                    - pdf
+                  minLength: 1
                 title:
                   type: string
                   minLength: 1
@@ -3662,6 +3733,29 @@ paths:
                 $ref: "#/components/schemas/ErrorResponse"
         "403":
           description: Insufficient permissions
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /api/resources/types:
+    get:
+      tags:
+        - Resources
+      operationId: listResourceTypes
+      summary: List all distinct resource types
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: List of resource types
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: string
+        "401":
+          description: Not authenticated
           content:
             application/json:
               schema:
@@ -3939,6 +4033,16 @@ paths:
                   type: string
                 commit_message:
                   type: string
+                title:
+                  type: string
+                  minLength: 1
+                type:
+                  type: string
+                  minLength: 1
+                project_id:
+                  type: string
+                  nullable: true
+                  format: uuid
       responses:
         "201":
           description: Version created (response includes a `warning` if content is

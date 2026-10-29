@@ -475,3 +475,96 @@ describe("PUT /api/auth/me/person", () => {
   });
 });
 
+
+describe("Registration (/api/auth/register & /api/auth/register-status)", () => {
+  const registeredUserIds: string[] = [];
+
+  afterAll(async () => {
+    if (registeredUserIds.length > 0) {
+      await pool.query(
+        "DELETE FROM users WHERE id = ANY($1::uuid[])",
+        [registeredUserIds]
+      );
+    }
+  });
+
+  it("checks registration status", async () => {
+    const res = await request(app).get("/api/auth/register-status");
+    expect(res.status).toBe(200);
+    expect(typeof res.body.isOpen).toBe("boolean");
+    expect(typeof res.body.remainingSlots).toBe("number");
+    expect(res.body.maxAllowed).toBe(5);
+  });
+
+  it("registers a new user as admin and returns token", async () => {
+    const newUsername = `reg_${RUN_ID}_1`;
+    const res = await request(app)
+      .post("/api/auth/register")
+      .send({
+        username: newUsername,
+        password: "regPassword123",
+      });
+
+    expect(res.status).toBe(201);
+    expect(res.body.token).toBeDefined();
+    expect(res.body.user.username).toBe(newUsername);
+    expect(res.body.user.roles).toContain("admin");
+    registeredUserIds.push(res.body.user.id);
+  });
+
+  it("rejects duplicate username with 409 CONFLICT", async () => {
+    const dupUsername = `reg_${RUN_ID}_1`;
+    const res = await request(app)
+      .post("/api/auth/register")
+      .send({
+        username: dupUsername,
+        password: "anotherPassword123",
+      });
+
+    expect(res.status).toBe(409);
+    expect(res.body.error.code).toBe("CONFLICT");
+  });
+
+  it("rejects invalid input with 400 VALIDATION_ERROR", async () => {
+    const res = await request(app)
+      .post("/api/auth/register")
+      .send({
+        username: "ab",
+        password: "123",
+      });
+
+    expect(res.status).toBe(400);
+    expect(res.body.error.code).toBe("VALIDATION_ERROR");
+  });
+
+  it("enforces maximum 5 registered users quota", async () => {
+    const statusRes = await request(app).get("/api/auth/register-status");
+    const remaining = statusRes.body.remainingSlots;
+
+    for (let i = 0; i < remaining; i++) {
+      const uName = `reg_${RUN_ID}_fill_${i}`;
+      const r = await request(app)
+        .post("/api/auth/register")
+        .send({
+          username: uName,
+          password: "fillPassword123",
+        });
+      expect(r.status).toBe(201);
+      registeredUserIds.push(r.body.user.id);
+    }
+
+    const fullStatus = await request(app).get("/api/auth/register-status");
+    expect(fullStatus.body.isOpen).toBe(false);
+    expect(fullStatus.body.remainingSlots).toBe(0);
+
+    const overflowRes = await request(app)
+      .post("/api/auth/register")
+      .send({
+        username: `reg_${RUN_ID}_overflow`,
+        password: "overflowPassword123",
+      });
+
+    expect(overflowRes.status).toBe(403);
+    expect(overflowRes.body.error.code).toBe("REGISTRATION_CLOSED");
+  });
+});

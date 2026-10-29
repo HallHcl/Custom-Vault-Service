@@ -5,6 +5,7 @@ import { ApiError } from "../middleware/errorHandler";
 import {
   changePasswordSchema,
   loginSchema,
+  registerSchema,
   updateLinkedPersonSchema,
   updateThemePreferenceSchema,
 } from "../validators/auth.validator";
@@ -12,6 +13,8 @@ import {
   findRoleNamesForUser,
   findUserById,
   findUserByUsername,
+  getRegistrationStatus,
+  registerUser,
   updateUserLinkedPerson,
   updateUserPassword,
   updateUserThemePreference,
@@ -239,4 +242,36 @@ export async function changePassword(req: Request, res: Response) {
   );
 
   res.json({ message: "Password updated" });
+}
+
+
+export async function getRegistrationStatusController(_req: Request, res: Response) {
+  const status = await getRegistrationStatus();
+  res.json(status);
+}
+
+export async function register(req: Request, res: Response) {
+  const parseResult = registerSchema.safeParse(req.body);
+  if (!parseResult.success) {
+    throw new ApiError(
+      400,
+      "Validation failed",
+      "VALIDATION_ERROR",
+      parseResult.error.flatten()
+    );
+  }
+
+  const result = await registerUser(parseResult.data);
+
+  res.status(201).json({
+    token: result.token,
+    user: {
+      id: result.user.id,
+      username: result.user.username,
+      email: result.user.email,
+      peopleId: result.user.people_id,
+      person: null,
+      roles: result.roles,
+    },
+  });
 }

@@ -7,6 +7,23 @@ export const loginSchema = z.object({
 
 export type LoginInput = z.infer<typeof loginSchema>;
 
+export const registerSchema = z.object({
+  username: z
+    .string()
+    .trim()
+    .min(3, "Username must be at least 3 characters")
+    .max(50, "Username must not exceed 50 characters")
+    .regex(
+      /^[a-zA-Z0-9._-]+$/,
+      "Username may only contain letters, numbers, dots, hyphens, and underscores"
+    ),
+  password: z
+    .string()
+    .min(6, "Password must be at least 6 characters"),
+});
+
+export type RegisterInput = z.infer<typeof registerSchema>;
+
 export const changePasswordSchema = z.object({
   current_password: z.string().min(1),
   new_password: z.string().min(8),
@@ -32,4 +49,3 @@ export const updateLinkedPersonSchema = z.object({
 export type UpdateLinkedPersonInput = z.infer<
   typeof updateLinkedPersonSchema
 >;
-

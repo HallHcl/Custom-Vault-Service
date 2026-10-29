@@ -25,14 +25,7 @@ export type PeopleType =
   | "project_owner"
   | "approver";
 
-export type ResourceType =
-  | "runbook"
-  | "sop"
-  | "architecture"
-  | "troubleshooting"
-  | "faq"
-  | "link"
-  | "pdf";
+export type ResourceType = string;
 
 export type ServiceType =
   | "application"
@@ -83,6 +76,7 @@ export interface User {
   email: string;
   password_hash: string;
   theme_preference: "light" | "dark" | null;
+  is_registered?: boolean;
   created_at: string;
   updated_at: string;
   deleted_at: string | null;

@@ -3,15 +3,19 @@ import { auth } from "../middleware/auth";
 import { requireRole } from "../middleware/rbac";
 import {
   changePassword,
+  getRegistrationStatusController,
   login,
   logout,
   me,
+  register,
   updateLinkedPerson,
   updateMe,
 } from "../controllers/auth.controller";
 
 const router = Router();
 
+router.get("/register-status", getRegistrationStatusController);
+router.post("/register", register);
 router.post("/login", login);
 router.get("/me", auth, me);
 router.patch("/me", auth, updateMe);
@@ -20,4 +24,3 @@ router.post("/logout", auth, logout);
 router.post("/change-password", auth, changePassword);
 
 export default router;
-

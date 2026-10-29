@@ -41,7 +41,7 @@ import {
   ServerAccessLogInputSchema,
   UserSchema,
 } from "./schemas";
-import { loginSchema, changePasswordSchema } from "../validators/auth.validator";
+import { loginSchema, registerSchema, changePasswordSchema } from "../validators/auth.validator";
 import { createClientSchema, updateClientSchema } from "../validators/clients.validator";
 import { createProjectSchema, updateProjectSchema } from "../validators/projects.validator";
 import { addProjectPersonSchema } from "../validators/projectPeople.validator";
@@ -140,6 +140,44 @@ function listQuery<S extends [string, ...string[]]>(
 // ---------------------------------------------------------------------------
 // Auth
 // ---------------------------------------------------------------------------
+
+
+registry.registerPath({
+  method: "get",
+  path: "/api/auth/register-status",
+  tags: ["Auth"],
+  operationId: "getRegistrationStatus",
+  summary: "Get current user registration status and remaining quota",
+  security: [],
+  responses: {
+    200: ok(
+      "Registration status",
+      z.object({
+        isOpen: z.boolean(),
+        remainingSlots: z.number(),
+        maxAllowed: z.number(),
+        currentCount: z.number(),
+      })
+    ),
+  },
+});
+
+registry.registerPath({
+  method: "post",
+  path: "/api/auth/register",
+  tags: ["Auth"],
+  operationId: "register",
+  summary: "Register a new admin user",
+  security: [],
+  request: { body: { required: true, ...json(registerSchema) } },
+  responses: {
+    201: ok(
+      "User registered successfully",
+      z.object({ token: z.string(), user: UserSchema })
+    ),
+    ...errors(400, 403, 409),
+  },
+});
 
 registry.registerPath({
   method: "post",
@@ -686,6 +724,16 @@ registry.registerPath({
   security: bearerAuth,
   request: { body: { required: true, ...json(createResourceSchema) } },
   responses: { 201: ok("Resource created", ResourceDetailSchema), ...errors(400, 401, 403) },
+});
+
+registry.registerPath({
+  method: "get",
+  path: "/api/resources/types",
+  tags: ["Resources"],
+  operationId: "listResourceTypes",
+  summary: "List all distinct resource types",
+  security: bearerAuth,
+  responses: { 200: ok("List of resource types", z.array(z.string())), ...errors(401) },
 });
 
 registry.registerPath({

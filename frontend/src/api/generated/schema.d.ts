@@ -4,6 +4,40 @@
  */
 
 export interface paths {
+    "/api/auth/register-status": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get current user registration status and remaining quota */
+        get: operations["getRegistrationStatus"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/auth/register": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Register a new admin user */
+        post: operations["register"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/auth/login": {
         parameters: {
             query?: never;
@@ -424,6 +458,23 @@ export interface paths {
         put?: never;
         /** Create a resource with its initial version (admin or member) — atomic: resource + v1 + activity log or nothing */
         post: operations["createResource"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/resources/types": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List all distinct resource types */
+        get: operations["listResourceTypes"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -1035,8 +1086,7 @@ export interface components {
                 };
             } | null;
         };
-        /** @enum {string} */
-        ResourceType: "runbook" | "sop" | "architecture" | "troubleshooting" | "faq" | "link" | "pdf";
+        ResourceType: string;
         Resource: {
             /** Format: uuid */
             id: string;
@@ -1356,6 +1406,88 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
+    getRegistrationStatus: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Registration status */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        isOpen: boolean;
+                        remainingSlots: number;
+                        maxAllowed: number;
+                        currentCount: number;
+                    };
+                };
+            };
+        };
+    };
+    register: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    username: string;
+                    password: string;
+                };
+            };
+        };
+        responses: {
+            /** @description User registered successfully */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        token: string;
+                        user: components["schemas"]["User"];
+                    };
+                };
+            };
+            /** @description Validation error */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Insufficient permissions */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
     login: {
         parameters: {
             query?: never;
@@ -3489,8 +3621,7 @@ export interface operations {
                 "application/json": {
                     /** Format: uuid */
                     project_id?: string;
-                    /** @enum {string} */
-                    type: "runbook" | "sop" | "architecture" | "troubleshooting" | "faq" | "link" | "pdf";
+                    type: string;
                     title: string;
                     category?: string;
                     /** @default [] */
@@ -3531,6 +3662,35 @@ export interface operations {
             };
             /** @description Insufficient permissions */
             403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    listResourceTypes: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description List of resource types */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": string[];
+                };
+            };
+            /** @description Not authenticated */
+            401: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -3823,6 +3983,10 @@ export interface operations {
                     content?: string;
                     external_url?: string;
                     commit_message?: string;
+                    title?: string;
+                    type?: string;
+                    /** Format: uuid */
+                    project_id?: string | null;
                 };
             };
         };

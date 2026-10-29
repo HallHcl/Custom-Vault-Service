@@ -20,6 +20,18 @@ export interface AuthUser {
   theme_preference?: "light" | "dark";
 }
 
+export interface RegistrationStatus {
+  isOpen: boolean;
+  remainingSlots: number;
+  maxAllowed: number;
+  currentCount: number;
+}
+
+export async function fetchRegistrationStatus(): Promise<RegistrationStatus> {
+  const { data } = await api.get<RegistrationStatus>("/auth/register-status");
+  return data;
+}
+
 interface AuthState {
   user: AuthUser | null;
   status: "loading" | "authenticated" | "unauthenticated";
@@ -93,6 +105,22 @@ export function useAuth() {
     }
   }, []);
 
+  const register = useCallback(async (username: string, password: string) => {
+    const { data } = await api.post<{ token: string; user: AuthUser }>(
+      "/auth/register",
+      { username, password }
+    );
+    setToken(data.token);
+    try {
+      const me = await api.get<AuthUser>("/auth/me");
+      setState({ user: me.data, status: "authenticated" });
+      return me.data;
+    } catch {
+      setState({ user: data.user, status: "authenticated" });
+      return data.user;
+    }
+  }, []);
+
   const logout = useCallback(async () => {
     try {
       await api.post("/auth/logout");
@@ -119,6 +147,7 @@ export function useAuth() {
     isAuthenticated: snapshot.status === "authenticated",
     isLoading: snapshot.status === "loading",
     login,
+    register,
     logout,
     updateLinkedPerson,
   };
