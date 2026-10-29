@@ -16,7 +16,7 @@ export const PEOPLE_TYPES: PeopleType[] = [
 export const PEOPLE_TYPE_LABELS: Record<PeopleType, string> = {
   internal_engineer: "Internal engineer",
   vendor: "Vendor",
-  client_contact: "Client contact",
+  client_contact: "Customer",
   project_owner: "Project owner",
   approver: "Approver",
 };

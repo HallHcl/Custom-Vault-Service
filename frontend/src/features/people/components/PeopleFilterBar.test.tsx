@@ -26,6 +26,7 @@ describe("PeopleFilterBar", () => {
 
     expect(screen.getByRole("tab", { name: "All" })).toBeInTheDocument();
     expect(screen.getByRole("tab", { name: "Vendors" })).toBeInTheDocument();
+    expect(screen.getByRole("tab", { name: "Customers" })).toBeInTheDocument();
     expect(screen.getByPlaceholderText("Search people...")).toBeInTheDocument();
     expect(screen.getByLabelText("Sort by")).toBeInTheDocument();
     expect(screen.getByLabelText("Sort order")).toBeInTheDocument();
@@ -34,10 +35,10 @@ describe("PeopleFilterBar", () => {
 
   it("calls onTypeFilterChange when a role tab is clicked", () => {
     const props = renderBar();
-    const vendorsTab = screen.getByRole("tab", { name: "Vendors" });
-    fireEvent.mouseDown(vendorsTab);
-    fireEvent.click(vendorsTab);
-    expect(props.onTypeFilterChange).toHaveBeenCalledWith("vendor");
+    const customersTab = screen.getByRole("tab", { name: "Customers" });
+    fireEvent.mouseDown(customersTab);
+    fireEvent.click(customersTab);
+    expect(props.onTypeFilterChange).toHaveBeenCalledWith("client_contact");
   });
 
   it("calls onSearchChange as the search input changes", () => {

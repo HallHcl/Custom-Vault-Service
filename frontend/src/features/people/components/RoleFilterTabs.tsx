@@ -8,7 +8,7 @@ import type { PeopleType } from "@/types";
 const TAB_LABELS: Record<PeopleType, string> = {
   internal_engineer: "Internal engineers",
   vendor: "Vendors",
-  client_contact: "Client contacts",
+  client_contact: "Customers",
   project_owner: "Project owners",
   approver: "Approvers",
 };
